@@ -1,0 +1,37 @@
+<UserControl x:Class="DynamicIsland.Controls.FillSlider"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:t="clr-namespace:DynamicIsland.Themes"
+        xmlns:ui="clr-namespace:DynamicIsland.Controls"
+             Height="{x:Static t:Sizes.FillSlider}" Cursor="Hand" Focusable="False">
+  <!-- Deux calques de texte identiques : blanc partout, noir découpé sur la zone remplie. -->
+  <Grid x:Name="Root" Background="{x:Static t:Paint.Raised}">
+    <Rectangle x:Name="Fill" HorizontalAlignment="Left" Width="0" Fill="{x:Static t:Paint.Inverse}"/>
+
+    <Grid Margin="{ui:Space s8,0}" IsHitTestVisible="False">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="IconLight" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}" VerticalAlignment="Center" Foreground="{x:Static t:Paint.White}"/>
+      <TextBlock x:Name="LabelLight" Grid.Column="1" Margin="{ui:Space s6,0,s4,0}" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{x:Static t:Paint.White}"/>
+      <TextBlock x:Name="PercentLight" Grid.Column="2" FontSize="{x:Static t:TypeRamp.Footnote}" VerticalAlignment="Center" Foreground="{x:Static t:Paint.TextMuted}"/>
+    </Grid>
+
+    <Grid x:Name="DarkLayer" IsHitTestVisible="False">
+      <Grid Margin="{ui:Space s8,0}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock x:Name="IconDark" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}" VerticalAlignment="Center" Foreground="{x:Static t:Paint.Ink}"/>
+        <TextBlock x:Name="LabelDark" Grid.Column="1" Margin="{ui:Space s6,0,s4,0}" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{x:Static t:Paint.Ink}"/>
+        <TextBlock x:Name="PercentDark" Grid.Column="2" FontSize="{x:Static t:TypeRamp.Footnote}" VerticalAlignment="Center" Foreground="{x:Static t:Paint.InkMuted}"/>
+      </Grid>
+    </Grid>
+  </Grid>
+</UserControl>

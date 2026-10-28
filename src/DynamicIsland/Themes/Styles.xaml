@@ -1,0 +1,348 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:t="clr-namespace:DynamicIsland.Themes"
+                    xmlns:ui="clr-namespace:DynamicIsland.Controls">
+
+  <!-- Toutes les valeurs viennent des tokens (Themes/Tokens.cs) : ici, seulement des noms et des styles. -->
+
+  <!-- Polices -->
+  <x:Static x:Key="UiFont" Member="t:FontStack.Ui"/>
+  <x:Static x:Key="DisplayFont" Member="t:FontStack.Display"/>
+  <x:Static x:Key="IconFont" Member="t:FontStack.Icons"/>
+  <x:Static x:Key="MonoFont" Member="t:FontStack.Mono"/>
+
+  <!-- Brosses (noms historiques conservés) -->
+  <x:Static x:Key="TextPrimary" Member="t:Paint.TextPrimary"/>
+  <x:Static x:Key="TextSecondary" Member="t:Paint.TextSecondary"/>
+  <x:Static x:Key="TextTertiary" Member="t:Paint.TextTertiary"/>
+  <x:Static x:Key="TextFaint" Member="t:Paint.TextFaint"/>
+  <x:Static x:Key="SurfaceBrush" Member="t:Paint.Surface"/>
+  <x:Static x:Key="SurfaceHoverBrush" Member="t:Paint.SurfaceHover"/>
+  <x:Static x:Key="DividerBrush" Member="t:Paint.Divider"/>
+  <x:Static x:Key="TimerBrush" Member="t:Paint.Timer"/>
+  <x:Static x:Key="TimerSoftBrush" Member="t:Paint.TimerSoft"/>
+  <x:Static x:Key="TodayBrush" Member="t:Paint.Today"/>
+  <x:Static x:Key="BreakBrush" Member="t:Paint.Break"/>
+  <x:Static x:Key="CameraBrush" Member="t:Paint.Camera"/>
+  <x:Static x:Key="MicrophoneBrush" Member="t:Paint.Microphone"/>
+  <x:Static x:Key="InkBrush" Member="t:Paint.Ink"/>
+  <!-- Remplacées en direct par AppearanceService (utiliser DynamicResource) ; valeurs de départ -->
+  <SolidColorBrush x:Key="IslandBrush" Color="{x:Static t:Swatch.IslandBase}"/>
+  <SolidColorBrush x:Key="DockBrush" Color="{x:Static t:Swatch.IslandBase}"/>
+  <SolidColorBrush x:Key="AccentBrush" Color="{x:Static t:Swatch.Lilac}"/>
+  <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,0">
+    <GradientStop Color="{x:Static t:Swatch.AccentStart}" Offset="0"/>
+    <GradientStop Color="{x:Static t:Swatch.AccentEnd}" Offset="1"/>
+  </LinearGradientBrush>
+
+  <!-- Bouton « pilule » de base : un voile de la couleur du texte apparaît au survol. -->
+  <Style x:Key="RoundButton" TargetType="Button">
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5" Background="Transparent">
+            <ui:SquircleBorder Background="{TemplateBinding Background}" CornerRadius="{x:Static t:Corners.Pill}"/>
+            <ui:SquircleBorder x:Name="Overlay" Background="{TemplateBinding Foreground}" CornerRadius="{x:Static t:Corners.Pill}" Opacity="0"/>
+            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Overlay" Property="Opacity" Value="{x:Static t:Interaction.HoverOverlay}"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Overlay" Property="Opacity" Value="{x:Static t:Interaction.PressedOverlay}"/>
+              <Setter TargetName="Root" Property="RenderTransform">
+                <Setter.Value>
+                  <ScaleTransform ScaleX="{x:Static t:Interaction.PressedScale}" ScaleY="{x:Static t:Interaction.PressedScale}"/>
+                </Setter.Value>
+              </Setter>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="Root" Property="Opacity" Value="{x:Static t:Interaction.DisabledOpacity}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource RoundButton}">
+    <Setter Property="FontFamily" Value="{x:Static t:FontStack.Icons}"/>
+    <Setter Property="FontSize" Value="{x:Static t:IconSize.L}"/>
+    <Setter Property="Width" Value="{x:Static t:Sizes.IconButton}"/>
+    <Setter Property="Height" Value="{x:Static t:Sizes.IconButton}"/>
+  </Style>
+
+  <Style x:Key="SmallIconButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+    <Setter Property="FontSize" Value="{x:Static t:IconSize.S}"/>
+    <Setter Property="Width" Value="{x:Static t:Sizes.SmallIconButton}"/>
+    <Setter Property="Height" Value="{x:Static t:Sizes.SmallIconButton}"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+  <Style x:Key="PlayButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+    <Setter Property="Background" Value="{x:Static t:Paint.White}"/>
+    <Setter Property="Foreground" Value="{x:Static t:Paint.Ink}"/>
+    <Setter Property="FontSize" Value="{x:Static t:IconSize.XL}"/>
+    <Setter Property="Width" Value="{x:Static t:Sizes.PlayButton}"/>
+    <Setter Property="Height" Value="{x:Static t:Sizes.PlayButton}"/>
+  </Style>
+
+  <Style x:Key="ChipButton" TargetType="Button" BasedOn="{StaticResource RoundButton}">
+    <Setter Property="Background" Value="{x:Static t:Paint.Surface}"/>
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Caption}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Height" Value="{x:Static t:Sizes.Chip}"/>
+    <Setter Property="Padding" Value="{ui:Space s3,0}"/>
+  </Style>
+
+  <Style x:Key="SoftButton" TargetType="Button" BasedOn="{StaticResource RoundButton}">
+    <Setter Property="Background" Value="{x:Static t:Paint.TimerSoft}"/>
+    <Setter Property="Foreground" Value="{x:Static t:Paint.Timer}"/>
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Height" Value="{x:Static t:Sizes.SoftButton}"/>
+    <Setter Property="Padding" Value="{ui:Space s8,0}"/>
+  </Style>
+
+  <!-- Onglets de l'île : icône + libellé (seul l'onglet actif affiche son nom) -->
+  <Style x:Key="TabButton" TargetType="RadioButton">
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Height" Value="{x:Static t:Sizes.Tab}"/>
+    <Setter Property="Margin" Value="{ui:Space 0,0,s2,0}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <ui:SquircleBorder x:Name="Bd" Background="Transparent" CornerRadius="{x:Static t:Corners.Pill}" Padding="{ui:Space s6,0}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <TextBlock x:Name="Icon" Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                         FontFamily="{x:Static t:FontStack.Icons}" FontSize="{x:Static t:IconSize.M}"
+                         VerticalAlignment="Center" Margin="{ui:Space 0,0,s3,0}"/>
+              <ContentPresenter x:Name="Label" VerticalAlignment="Center"
+                                TextElement.FontSize="{x:Static t:TypeRamp.Callout}" TextElement.FontWeight="SemiBold"/>
+            </StackPanel>
+          </ui:SquircleBorder>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="False">
+              <Setter TargetName="Label" Property="Visibility" Value="Collapsed"/>
+              <Setter TargetName="Icon" Property="Margin" Value="0"/>
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.HoverSubtle}"/>
+              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.Selected}"/>
+              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Menus contextuels sombres (île et dock) -->
+  <Style TargetType="ContextMenu">
+    <Setter Property="OverridesDefaultStyle" Value="True"/>
+    <Setter Property="HasDropShadow" Value="False"/>
+    <Setter Property="FontFamily" Value="{x:Static t:FontStack.Ui}"/>
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ContextMenu">
+          <ui:SquircleBorder Background="{x:Static t:Paint.PopupBackground}" BorderBrush="{x:Static t:Paint.PopupBorder}"
+                             BorderThickness="{x:Static t:Borders.Hairline}" CornerRadius="{x:Static t:Corners.M}"
+                             Padding="{ui:Space s2}" Margin="{ui:Space 0,0,s5,s5}" MinWidth="180" ClipContent="False"
+                             Effect="{x:Static t:Effects.Menu}">
+            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+          </ui:SquircleBorder>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="MenuItem">
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="MenuItem">
+          <ui:SquircleBorder x:Name="Bd" Background="Transparent" CornerRadius="{x:Static t:Corners.XS}" Padding="{ui:Space s5,s3,s7,s3}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock x:Name="Check" Text="{x:Static t:Icons.Check}" FontFamily="{x:Static t:FontStack.Icons}"
+                         FontSize="{x:Static t:IconSize.S}" VerticalAlignment="Center" Visibility="Hidden"/>
+              <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.Selected}"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{x:Static t:Interaction.DisabledOpacity}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Separator">
+          <Border Height="{x:Static t:Stroke.Hairline}" Margin="{ui:Space s4,s2}" Background="{x:Static t:Paint.Control}"/>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Carte de choix (fenêtre d'options) : titre = Content, description = Tag -->
+  <Style x:Key="OptionCard" TargetType="RadioButton">
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Margin" Value="{ui:Space 0,s4,0,0}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <ui:SquircleBorder x:Name="Bd" Background="{x:Static t:Paint.Surface}" BorderBrush="Transparent"
+                             BorderThickness="{x:Static t:Borders.Selected}" CornerRadius="{x:Static t:Corners.L}" Padding="{ui:Space s7,s5}">
+            <StackPanel>
+              <ContentPresenter TextElement.FontSize="{x:Static t:TypeRamp.Headline}" TextElement.FontWeight="SemiBold"/>
+              <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" FontSize="{x:Static t:TypeRamp.Footnote}"
+                         Foreground="{x:Static t:Paint.TextSecondary}" TextWrapping="Wrap" Margin="{ui:Space 0,s1,0,0}"/>
+            </StackPanel>
+          </ui:SquircleBorder>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.SurfaceHover}"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.SurfaceHover}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Interrupteur façon iOS -->
+  <Style x:Key="SwitchToggle" TargetType="CheckBox">
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="CheckBox">
+          <Grid Background="Transparent">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <ContentPresenter VerticalAlignment="Center" Margin="{ui:Space 0,0,s8,0}" TextElement.FontSize="{x:Static t:TypeRamp.Body}"/>
+            <ui:SquircleBorder x:Name="Track" Grid.Column="1" Width="{x:Static t:Sizes.SwitchWidth}" Height="{x:Static t:Sizes.SwitchHeight}"
+                               CornerRadius="{x:Static t:Corners.Pill}" Background="{x:Static t:Paint.ToggleOff}">
+              <Ellipse x:Name="Knob" Width="{x:Static t:Sizes.SwitchKnob}" Height="{x:Static t:Sizes.SwitchKnob}"
+                       Fill="{x:Static t:Paint.White}" HorizontalAlignment="Left" Margin="{ui:Space s1,0}"/>
+            </ui:SquircleBorder>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}"/>
+              <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Tuile du centre de contrôle (blanche quand elle est active) -->
+  <Style x:Key="TileToggle" TargetType="ToggleButton">
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Background" Value="{x:Static t:Paint.Surface}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5" Background="Transparent">
+            <ui:SquircleBorder Background="{TemplateBinding Background}" CornerRadius="{x:Static t:Corners.Tile}"/>
+            <ui:SquircleBorder x:Name="Overlay" Background="{TemplateBinding Foreground}" CornerRadius="{x:Static t:Corners.Tile}" Opacity="0"/>
+            <ContentPresenter Margin="{ui:Space s7,s6}"
+                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter Property="Background" Value="{x:Static t:Paint.Inverse}"/>
+              <Setter Property="Foreground" Value="{x:Static t:Paint.Ink}"/>
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Overlay" Property="Opacity" Value="{x:Static t:Interaction.SubtleHoverOverlay}"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Root" Property="RenderTransform">
+                <Setter.Value>
+                  <ScaleTransform ScaleX="{x:Static t:Interaction.SoftPressedScale}" ScaleY="{x:Static t:Interaction.SoftPressedScale}"/>
+                </Setter.Value>
+              </Setter>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Hiérarchie typographique (titres, texte, légendes) -->
+  <Style x:Key="Text.Title" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="{x:Static t:FontStack.Display}"/>
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.LargeTitle}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style x:Key="Text.Headline" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Headline}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style x:Key="Text.Body" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
+  </Style>
+  <Style x:Key="Text.Secondary" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Footnote}"/>
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+  </Style>
+  <Style x:Key="Text.Caption" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Caption}"/>
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextTertiary}"/>
+  </Style>
+  <Style x:Key="Text.Overline" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Caption2}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextTertiary}"/>
+  </Style>
+  <Style x:Key="Icon" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="{x:Static t:FontStack.Icons}"/>
+    <Setter Property="FontSize" Value="{x:Static t:IconSize.M}"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+</ResourceDictionary>

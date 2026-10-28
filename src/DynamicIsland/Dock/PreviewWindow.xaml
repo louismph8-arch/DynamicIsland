@@ -1,0 +1,19 @@
+<Window x:Class="DynamicIsland.Dock.PreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:t="clr-namespace:DynamicIsland.Themes"
+        xmlns:ui="clr-namespace:DynamicIsland.Controls"
+        Title="Dynamic Island — Aperçu"
+        WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="False"
+        Background="{x:Static t:Paint.Preview}" Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        SizeToContent="WidthAndHeight"
+        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource TextPrimary}">
+
+  <!-- Fenêtre NON transparente : les miniatures DWM ne s'affichent pas sur une fenêtre « layered ».
+       Coins arrondis et bordure sombre fournis par Windows 11 (DWM). -->
+  <StackPanel Margin="{ui:Space s4}">
+    <TextBlock x:Name="AppName" FontSize="{x:Static t:TypeRamp.Footnote}" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}"
+               Margin="{ui:Space s4,s1,s4,s3}"/>
+    <StackPanel x:Name="Slots" Orientation="Horizontal"/>
+  </StackPanel>
+</Window>

@@ -1,0 +1,199 @@
+<Window x:Class="DynamicIsland.IslandWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:t="clr-namespace:DynamicIsland.Themes"
+        xmlns:ui="clr-namespace:DynamicIsland.Controls"
+        xmlns:views="clr-namespace:DynamicIsland.Views"
+        Title="Dynamic Island"
+        Width="560" Height="320" Left="0" Top="0"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource TextPrimary}"
+        UseLayoutRounding="True">
+
+  <!-- La fenêtre est fixe et transparente (les clics passent à travers) ;
+       seule l'île (Border « Island ») change de taille, animée par un ressort. -->
+  <Grid>
+    <!-- Placement (bord haut / bas, gauche / centre / droite) appliqué par le code : l'île s'ouvre vers l'intérieur de l'écran. -->
+    <Grid x:Name="HoverRoot" HorizontalAlignment="Center" VerticalAlignment="Top"
+          MouseEnter="HoverRoot_MouseEnter" MouseLeave="HoverRoot_MouseLeave"
+          PreviewMouseLeftButtonDown="HoverRoot_PreviewMouseLeftButtonDown"
+          MouseLeftButtonDown="HoverRoot_MouseLeftButtonDown" MouseMove="HoverRoot_MouseMove"
+          MouseLeftButtonUp="HoverRoot_MouseLeftButtonUp" LostMouseCapture="HoverRoot_LostMouseCapture"
+          AllowDrop="True" DragEnter="HoverRoot_DragEnter" DragOver="HoverRoot_DragOver"
+          DragLeave="HoverRoot_DragLeave" Drop="HoverRoot_Drop">
+      <Grid.ContextMenu>
+        <ContextMenu Opened="IslandMenu_Opened">
+          <MenuItem x:Name="ResetPlaceItem" Header="{ui:L island.remettre_ile_haut_centre}" Click="ResetPlace_Click"/>
+          <MenuItem x:Name="LockPlaceItem" Header="{ui:L island.verrouiller_position}" IsCheckable="True" Click="LockPlace_Click"/>
+          <MenuItem Header="{ui:L island.parametres_ile}" Click="IslandSettings_Click"/>
+          <Separator/>
+          <MenuItem Header="{ui:L island.quitter_opaline}" Click="Quit_Click"/>
+        </ContextMenu>
+      </Grid.ContextMenu>
+
+      <!-- Bande quasi invisible côté bord de l'écran : un curseur collé au bord ouvre aussi l'île. -->
+      <Border x:Name="EdgeBand" Height="10" VerticalAlignment="Top" Background="{x:Static t:Paint.HitTarget}"/>
+
+      <!-- L'ombre / le halo est sur ce conteneur : l'effet de l'île elle-même est le verre liquide. -->
+      <Grid x:Name="IslandShell" VerticalAlignment="Top">
+        <Grid.Effect>
+          <DropShadowEffect x:Name="IslandShadow" Direction="{x:Static t:Shadows.Direction}" RenderingBias="Performance"/>
+        </Grid.Effect>
+      <ui:SquircleBorder x:Name="Island" Margin="{ui:Space 0,s4,0,0}" VerticalAlignment="Top"
+              Width="124" Height="36" CornerRadius="{x:Static t:Corners.XXL}" BorderThickness="{x:Static t:Borders.Hairline}"
+              Background="{DynamicResource IslandBrush}">
+
+        <Grid x:Name="IslandContent">
+
+          <!-- ===== Vue compacte : heure (+ pochette / égaliseur / minuteur) ===== -->
+          <Grid x:Name="CompactView">
+            <ui:SquircleBorder x:Name="CompactArt" Width="24" Height="24" CornerRadius="{x:Static t:Corners.S}" Margin="{ui:Space s3,0,0,0}"
+                    HorizontalAlignment="Left" VerticalAlignment="Center" Opacity="0"
+                    RenderOptions.BitmapScalingMode="HighQuality"/>
+            <!-- Salon vocal Discord : avatars (anneau vert = parle) -->
+            <StackPanel x:Name="VoiceAvatars" Orientation="Horizontal" Margin="{ui:Space s3,0,0,0}"
+                        HorizontalAlignment="Left" VerticalAlignment="Center" Opacity="0"/>
+
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
+              <TextBlock x:Name="CompactClock" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+              <!-- Confidentialité : vert = webcam utilisée, orange = micro -->
+              <Ellipse x:Name="CameraDot" Width="6" Height="6" Margin="{ui:Space s3,0,0,0}" VerticalAlignment="Center"
+                       Fill="{StaticResource CameraBrush}" Visibility="Collapsed"/>
+              <Ellipse x:Name="MicDot" Width="6" Height="6" Margin="{ui:Space s3,0,0,0}" VerticalAlignment="Center"
+                       Fill="{StaticResource MicrophoneBrush}" Visibility="Collapsed"/>
+            </StackPanel>
+
+            <Grid HorizontalAlignment="Right" VerticalAlignment="Center" Margin="{ui:Space 0,0,s7,0}">
+              <StackPanel x:Name="Bars" Orientation="Horizontal" Height="14" Opacity="0">
+                <Rectangle Width="3" Height="14" Margin="{ui:Space px,0}" RadiusX="{x:Static t:Radius.Marker}" RadiusY="{x:Static t:Radius.Marker}"
+                           VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1">
+                  <Rectangle.RenderTransform><ScaleTransform ScaleY="0.35"/></Rectangle.RenderTransform>
+                </Rectangle>
+                <Rectangle Width="3" Height="14" Margin="{ui:Space px,0}" RadiusX="{x:Static t:Radius.Marker}" RadiusY="{x:Static t:Radius.Marker}"
+                           VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1">
+                  <Rectangle.RenderTransform><ScaleTransform ScaleY="0.35"/></Rectangle.RenderTransform>
+                </Rectangle>
+                <Rectangle Width="3" Height="14" Margin="{ui:Space px,0}" RadiusX="{x:Static t:Radius.Marker}" RadiusY="{x:Static t:Radius.Marker}"
+                           VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1">
+                  <Rectangle.RenderTransform><ScaleTransform ScaleY="0.35"/></Rectangle.RenderTransform>
+                </Rectangle>
+                <Rectangle Width="3" Height="14" Margin="{ui:Space px,0}" RadiusX="{x:Static t:Radius.Marker}" RadiusY="{x:Static t:Radius.Marker}"
+                           VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1">
+                  <Rectangle.RenderTransform><ScaleTransform ScaleY="0.35"/></Rectangle.RenderTransform>
+                </Rectangle>
+              </StackPanel>
+
+              <StackPanel x:Name="CompactTimer" Orientation="Horizontal" Opacity="0">
+                <!-- Anneau de progression du minuteur / Pomodoro -->
+                <Grid Width="16" Height="16" VerticalAlignment="Center" Margin="{ui:Space 0,0,s3,0}">
+                  <Ellipse Stroke="{x:Static t:Paint.Track}" StrokeThickness="{x:Static t:Stroke.Focus}"/>
+                  <Path x:Name="TimerRing" StrokeThickness="{x:Static t:Stroke.Focus}" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                        Stroke="{StaticResource TimerBrush}"/>
+                </Grid>
+                <TextBlock x:Name="CompactTimerText" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold"
+                           Foreground="{StaticResource TimerBrush}" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Grid>
+          </Grid>
+
+          <!-- ===== Volume : s'affiche quelques instants quand il change ===== -->
+          <Grid x:Name="VolumeHud" Opacity="0" IsHitTestVisible="False" Margin="{ui:Space s7,0}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="HudIcon" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}" VerticalAlignment="Center"/>
+            <ui:SquircleBorder Grid.Column="1" Height="5" CornerRadius="{x:Static t:Corners.Pill}" Background="{x:Static t:Paint.Track}" Margin="{ui:Space s5,0}" VerticalAlignment="Center">
+              <ui:SquircleBorder CornerRadius="{x:Static t:Corners.Pill}" Background="{x:Static t:Paint.White}" RenderTransformOrigin="0,0.5">
+                <Border.RenderTransform><ScaleTransform x:Name="HudScale" ScaleX="0.5"/></Border.RenderTransform>
+              </ui:SquircleBorder>
+            </ui:SquircleBorder>
+            <TextBlock x:Name="HudText" Grid.Column="2" FontSize="{x:Static t:TypeRamp.Callout}" FontWeight="SemiBold" VerticalAlignment="Center"
+                       MinWidth="34" TextAlignment="Right"/>
+          </Grid>
+
+          <!-- ===== Annonce (mise à jour, thème installé…) : quelques secondes, clic = action ===== -->
+          <Grid x:Name="Notice" Opacity="0" IsHitTestVisible="False" Margin="{ui:Space s7,0}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="NoticeIcon" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}" VerticalAlignment="Center"
+                       Foreground="{DynamicResource AccentGradientBrush}"/>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="{ui:Space s5,0,0,0}">
+              <TextBlock x:Name="NoticeText" FontSize="{x:Static t:TypeRamp.Callout}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+              <!-- 2e ligne facultative (appareil connecté : batterie…) -->
+              <TextBlock x:Name="NoticeDetail" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{StaticResource TextSecondary}"
+                         TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
+            </StackPanel>
+          </Grid>
+
+          <!-- ===== Vue étendue : onglets ===== -->
+          <Grid x:Name="ExpandedView" HorizontalAlignment="Center" VerticalAlignment="Top" Height="260"
+                Opacity="0" IsHitTestVisible="False" RenderTransformOrigin="0.5,0">
+            <Grid.RenderTransform>
+              <ScaleTransform x:Name="ExpandedScale" ScaleX="0.92" ScaleY="0.92"/>
+            </Grid.RenderTransform>
+
+            <Grid Margin="{ui:Space s8,s5,s8,s8}">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="32"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <StackPanel x:Name="TabStrip" Orientation="Horizontal" VerticalAlignment="Center">
+                <RadioButton x:Name="MusicTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Music}"
+                             Content="{ui:L island.musique}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="CalendarTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Calendar}"
+                             Content="{ui:L island.calendrier}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="ControlTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Controls}"
+                             Content="{ui:L island.controles}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="WidgetsTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Widgets}"
+                             Content="{ui:L island.widgets}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="ShelfTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Shelf}"
+                             Content="{ui:L island.etagere}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="VoiceTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Voice}"
+                             Content="{ui:L island.vocal}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="ClaudeTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Sparkles}"
+                             Content="Claude" Checked="Tab_Checked"/>
+                <RadioButton x:Name="ClocksTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Clock}"
+                             Content="{ui:L island.clocks}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="HealthTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Health}"
+                             Content="{ui:L island.health}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="FriendsTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Friends}"
+                             Content="{ui:L island.friends}" Checked="Tab_Checked" Visibility="Collapsed"/>
+              </StackPanel>
+              <StackPanel x:Name="HeaderRight" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Margin="{ui:Space 0,0,s2,0}">
+                <Ellipse x:Name="ExpandedCameraDot" Width="6" Height="6" Margin="{ui:Space 0,0,s3,0}" VerticalAlignment="Center"
+                         Fill="{StaticResource CameraBrush}" Visibility="Collapsed"/>
+                <Ellipse x:Name="ExpandedMicDot" Width="6" Height="6" Margin="{ui:Space 0,0,s4,0}" VerticalAlignment="Center"
+                         Fill="{StaticResource MicrophoneBrush}" Visibility="Collapsed"/>
+                <TextBlock x:Name="ExpandedClock" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+              </StackPanel>
+
+              <Grid Grid.Row="1" Margin="{ui:Space 0,s4,0,0}">
+                <views:MusicView x:Name="MusicTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:CalendarTimerView x:Name="CalendarTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:ControlCenterView x:Name="ControlTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:WidgetsView x:Name="WidgetsTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:ShelfView x:Name="ShelfTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:VoiceView x:Name="VoiceTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:ClaudeView x:Name="ClaudeTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:WorldClockView x:Name="ClocksTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:HealthView x:Name="HealthTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:FriendsView x:Name="FriendsTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+              </Grid>
+            </Grid>
+          </Grid>
+
+          <!-- Pour le fun (6F) : neige, fantômes, confettis, cœurs par-dessus l'île -->
+          <ui:SeasonEffect x:Name="SeasonLayer"/>
+
+        </Grid>
+      </ui:SquircleBorder>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

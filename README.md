@@ -1,74 +1,86 @@
-# Opaline (ex-Dynamic Island) pour Windows
+# Opaline pour Windows
 
-Une île en verre d'opale en haut de l'écran, un dock façon macOS, une télécommande sur ton téléphone, des widgets
-sur le bureau et plein de petits outils autour. Pour Windows 10 (2004+) et Windows 11, 64 bits. En français et en
-anglais.
+**Français** · [English](README.en.md)
+
+Une île en verre d'opale en haut de l'écran, un dock façon macOS, une télécommande sur ton téléphone, des widgets sur le
+bureau et plein de petits outils autour. Pour Windows 10 (2004+) et Windows 11, 64 bits. En français et en anglais.
+Gratuite et **open source** (licence MIT) : tout le code est dans ce dépôt.
+
+<p align="center"><img src="images/fr/ile-musique.png" width="560" alt="L'île ouverte sur la musique"></p>
 
 ## Installer
 
 1. Télécharge **`Opaline-Setup.exe`** dans la [dernière version](../../releases/latest).
-2. Lance-le. Windows peut afficher « Windows a protégé votre ordinateur » (l'installeur n'est pas signé) :
+2. *(conseillé)* Vérifie le fichier : voir [Est-ce que c'est sûr ?](#est-ce-que-cest-sûr-) plus bas.
+3. Lance-le. Windows peut afficher « Windows a protégé votre ordinateur » (l'installeur n'est pas signé, voir plus bas) :
    clique **Informations complémentaires** puis **Exécuter quand même**.
-3. Pas besoin de droits administrateur ni d'installer .NET : tout est inclus.
+4. Pas besoin de droits administrateur ni d'installer .NET : tout est inclus.
 
-Au premier lancement, un petit assistant t'aide à choisir ton profil, ta couleur, ton fond d'écran et ce que
-tu veux afficher. Tout se change ensuite dans les paramètres (clic sur l'icône Opaline près de l'heure).
+Au premier lancement, un petit assistant t'aide à choisir ton profil, ta couleur, ton fond d'écran et ce que tu veux
+afficher. Tout se change ensuite dans les paramètres (clic sur l'icône Opaline près de l'heure).
 
-L'app se met ensuite à jour toute seule : une nouvelle version s'annonce dans l'île, et elle ne s'installe que
-si tu cliques « Installer ». Tu avais déjà **Dynamic Island** ? C'est la même app sous son nouveau nom : la
-mise à jour garde tes réglages.
+Opaline se met ensuite à jour toute seule : une nouvelle version s'annonce dans l'île, et elle ne s'installe que si tu
+cliques « Installer » (le fichier téléchargé est vérifié par son empreinte SHA-256 avant d'être lancé).
 
-Pour la retirer : Paramètres Windows → Applications → **Opaline** → Désinstaller. Windows revient comme avant
-l'app : barre des tâches, fond d'écran, couleur d'accent, thème clair / sombre, curseur et règle du pare-feu de la
-télécommande. L'assistant de désinstallation te demande ensuite si tu veux aussi effacer tes réglages.
+## Désinstaller
+
+Paramètres Windows → Applications → **Opaline** → Désinstaller. Windows revient comme avant l'app : barre des tâches, fond
+d'écran, couleur d'accent, thème clair / sombre, curseur et règle du pare-feu de la télécommande. L'assistant de
+désinstallation te demande ensuite si tu veux aussi effacer tes réglages.
 
 ## Ce qu'elle fait
 
-- **L'île** : heure, musique (pochette, égaliseur, volume de l'appli qui joue), calendrier et minuteur /
-  Pomodoro, contrôles (volume, luminosité, mode sombre, profils), widgets (météo, CPU, RAM, GPU, réseau),
-  étagère à fichiers, points webcam / micro, volume affiché quand il change.
-  - **Annonces** quand tu branches un casque, une manette ou une clé USB (avec la batterie si Windows la donne),
-    et quand un téléchargement est terminé : fais glisser le fichier depuis l'île.
-  - **Horloges du monde** (jusqu'à 4 villes).
-  - **Santé du PC** : processeur, mémoire, GPU et sa température (cartes NVIDIA), espace des disques, applis
-    les plus gourmandes (avec un bouton pour les fermer) ; alerte quand un disque passe sous 10 %.
-  - **Amis en ligne** : lesquels de tes amis sont en ligne et à quoi ils jouent (voir plus bas).
-  - **Thèmes saisonniers** : Halloween, Noël, Nouvel An, Saint-Valentin… et quelques surprises cachées.
-- **Le dock** : grossissement au survol, aperçus des fenêtres, dossiers d'applis, icônes d'arrière-plan,
-  recherche, réduction des fenêtres façon macOS (effet Génie), icônes harmonisées ou à ta couleur.
-  - **Zone d'état** à droite : langue du clavier, mises à jour Windows (jamais installées toutes seules),
-    corbeille (glisse un fichier dessus), pile Téléchargements.
-  - **Bouton rapide** pour revenir à la barre des tâches Windows (clic droit sur le dock ou sur l'icône Opaline).
-- **Télécommande sur ton téléphone** (Paramètres → Connecté, scanne le QR code) : musique, volume, micro et
-  casque (ceux de Discord quand il est ouvert), profils, lancer tes applis, ouvrir un lien sur le PC, envoyer des
-  photos et fichiers vers le PC, presse-papiers, pavé tactile, clavier, aperçu de l'écran, fenêtres, raccourcis,
-  luminosité, thème, minuteur, message dans l'île, veille / redémarrer / éteindre, infos pour allumer le PC à
-  distance (Wake on LAN).
-- **Où tu veux** : fais glisser l'île ou le fond du dock vers un autre écran, en haut ou en bas.
-- **Design** : verre liquide qui suit la souris, couleurs tirées de ton fond d'écran (option), thème clair /
-  sombre au lever et au coucher du soleil (option), curseur de souris assorti (option).
-- **Éclairage RGB** (option) : tes appareils Logitech (par G HUB) et ceux d'[OpenRGB](https://openrgb.org)
-  prennent la couleur d'Opaline et changent avec tes profils.
-- **Fonds d'écran** : 5 fonds dessinés par l'app, un fond qui change selon l'heure, un fond animé derrière les
-  icônes du bureau (en pause pendant les jeux).
-- **Widgets du bureau** : horloge géante, météo, musique, calendrier, stats du PC.
-- **Barre de menus** en haut de l'écran (option).
-- **Profils** (Perso, Gaming, Stage, Études…) : apps du dock, couleur et fond d'écran changés en un clic.
-- **Mode Gaming** automatique : l'île se fait discrète et le dock se cache pendant un jeu plein écran ;
-  **Ctrl + Alt + D** le fait apparaître quand même.
-- **Palette de commandes** (Ctrl + Espace) : apps, dossiers, calculs (« 15% de 80 »), minuteur
-  (« timer 10 min »), profils.
-- **Mini Claude** : dans la palette, tape « ? » suivi de ta question ; la réponse s'écrit dans l'île (onglet
-  Claude). Deux moteurs au choix (Paramètres → Île → Claude) :
-  - [Claude Code](https://claude.com/product/claude-code) installé, à jour et connecté à ton compte Claude :
-    chaque question compte dans les limites de ton forfait ;
-  - ou une **clé API Anthropic** (payée à l'usage par son propriétaire), pour ceux qui n'ont pas Claude Code.
-- **Amis en ligne** (option) : par un petit serveur gratuit sur Cloudflare, que l'un de vous crée une fois pour
-  tout le groupe (guide pas à pas dans Paramètres → Connecté → Amis en ligne).
-- **Thèmes `.opaline`** à s'échanger entre potes (double-clic sur le fichier pour l'installer ; les anciens
-  `.bloomtheme` marchent toujours).
-- **Discord** : qui parle dans ton salon vocal, directement dans l'île (il faut être ajouté comme testeur de
-  l'appli Discord : demande à Louis).
+<p align="center">
+  <img src="images/fr/ile-controles.png" width="420" alt="Contrôles de l'île">
+  <img src="images/fr/ile-sante.png" width="420" alt="Santé du PC">
+</p>
+
+- **L'île** : heure, musique (pochette, égaliseur, volume de l'appli qui joue), calendrier et minuteur / Pomodoro,
+  contrôles (volume, luminosité, mode sombre, profils), widgets (météo, CPU, RAM, GPU, réseau), étagère à fichiers,
+  points webcam / micro, horloges du monde, santé du PC, amis en ligne, thèmes saisonniers.
+- **Le dock** : grossissement au survol, aperçus des fenêtres, dossiers d'applis, icônes d'arrière-plan, recherche,
+  réduction des fenêtres façon macOS, zone d'état (langue du clavier, mises à jour Windows, corbeille, téléchargements).
+- **Télécommande sur ton téléphone** : musique, volume, micro et casque, lancer tes applis, envoyer des photos vers le PC,
+  pavé tactile, clavier, aperçu de l'écran, veille / redémarrer / éteindre.
+- **Palette de commandes** (Ctrl + Espace) : applis, dossiers, calculs, minuteur, profils, mini Claude.
+- **Design** : verre liquide, couleurs tirées du fond d'écran, thème clair / sombre au lever et au coucher du soleil,
+  fonds d'écran dessinés par l'app, fond animé, widgets du bureau, barre de menus, curseur assorti.
+- **Profils** (Perso, Gaming, Stage, Études…), **mode Gaming** automatique, **éclairage RGB** (G HUB, OpenRGB),
+  **thèmes `.opaline`** à s'échanger.
+
+<p align="center"><img src="images/fr/dock.png" width="900" alt="Le dock"></p>
+<p align="center">
+  <img src="images/fr/palette.png" width="420" alt="Palette de commandes">
+  <img src="images/fr/telecommande.png" width="420" alt="Télécommande sur le téléphone">
+</p>
+
+## Est-ce que c'est sûr ?
+
+- **Le code est public** : n'importe qui peut lire exactement ce que fait l'app (dossier [`src`](src)).
+- **Vérifier l'installeur avant de le lancer** : chaque version publie l'empreinte **SHA-256** de `Opaline-Setup.exe`
+  (dans les notes de la version, dans le fichier `Opaline-Setup.exe.sha256`, et à côté du fichier sur GitHub).
+  1. Dans le dossier du fichier téléchargé, ouvre PowerShell et tape `Get-FileHash .\Opaline-Setup.exe` : l'empreinte
+     affichée doit être **exactement** la même que celle de la version.
+  2. Ouvre le lien **VirusTotal** des notes de la version (ou va sur [virustotal.com](https://www.virustotal.com) et
+     dépose le fichier) : il est analysé par environ 70 antivirus. 0 ou 1 détection « générique » sur un fichier non
+     signé est courant (fausse alerte) ; plusieurs détections nommées = ne l'installe pas et préviens-moi.
+- **Pourquoi Windows avertit** : l'installeur n'est pas signé (un certificat coûte de l'argent chaque année, et même
+  signé, Windows avertit tant que le fichier n'a pas été téléchargé par beaucoup de monde). L'avertissement dit
+  seulement « éditeur inconnu », pas « virus ».
+- **Ce que l'app ne fait jamais** : pas d'injection dans d'autres programmes, pas de lecture du clavier en continu, pas
+  de pub, pas de pistage. Elle suit les fenêtres ouvertes (pour le dock) avec l'API officielle de Windows et n'utilise
+  les droits administrateur que pour 2 choses, toujours après ta confirmation dans la fenêtre de Windows : la règle du
+  pare-feu de la télécommande, et la préparation du réveil à distance.
+- **Tout est réversible** : ce qui change Windows (fond d'écran, couleur d'accent, thème, curseur, barre des tâches,
+  pare-feu, carte réseau) est désactivé par défaut, demande ton accord et se remet comme avant (en décochant, avec
+  « Remettre comme avant », ou en désinstallant). Si l'app se ferme ou plante, la barre des tâches revient toujours.
+- **Ce qui est envoyé sur Internet**, et rien d'autre :
+  - la météo et la recherche des villes des horloges (Open-Meteo) ;
+  - la vérification des mises à jour (GitHub) ;
+  - si tu l'actives : Discord (qui parle dans ton salon), ta présence au serveur des amis, tes questions au mini Claude
+    (à Anthropic, seulement quand tu en poses une).
+- **Télécommande** : désactivée par défaut, seulement sur ton réseau local « Privé », reliée par un code à usage unique ;
+  « Contrôle complet » (souris, clavier, écran, arrêt) est à activer téléphone par téléphone.
 
 ## En cas de souci
 
@@ -77,24 +89,14 @@ télécommande. L'assistant de désinstallation te demande ensuite si tu veux au
 - Les réglages sont sauvegardés automatiquement : Paramètres → À propos → revenir à une version précédente.
 - Si un morceau de l'app plante, il s'arrête tout seul et le reste continue.
 
-## Sécurité
+## Compiler soi-même
 
-- Si l'app se ferme, plante ou est arrêtée, la barre des tâches Windows revient toujours.
-- Tout ce qui change Windows (fond d'écran, couleur d'accent, thème, curseur, barre des tâches, pare-feu, carte
-  réseau) est désactivé par défaut, demande ton accord, et se remet comme avant : en décochant l'option, avec le
-  bouton « Remettre comme avant » (carte réseau), ou en désinstallant l'app.
-- **Télécommande** : désactivée par défaut, seulement sur ton réseau local « Privé » (jamais sur un Wi-Fi public),
-  reliée par un code à usage unique ; chaque téléphone a sa clé, et « Contrôle complet » (souris, clavier, écran,
-  arrêt) est à activer téléphone par téléphone.
-- **Amis en ligne** : seulement entre amis qui se sont ajoutés tous les deux ; seuls « en ligne » et « joue à … »
-  sont partagés, effacés après 10 minutes sans nouvelles ; mode invisible.
-- **Clé API** du mini Claude : chiffrée par Windows sur ton PC, envoyée seulement à Anthropic.
-- Rien n'est envoyé nulle part, sauf :
-  - la météo et la recherche des villes des horloges (Open-Meteo) ;
-  - la vérification des mises à jour (GitHub) ;
-  - si tu l'actives, l'accès à Discord ;
-  - si tu l'actives, ta présence au serveur des amis (le tien ou celui de ton groupe) ;
-  - **tes questions au mini Claude**, et seulement quand tu en poses une : envoyées à Anthropic (par Claude Code
-    avec ton compte Claude, ou avec ta clé API). Les derniers échanges de la conversation sont renvoyés avec chaque
-    nouvelle question pour que Claude suive. Claude n'a accès à aucun fichier ni à aucune commande, et la
-    conversation n'est pas enregistrée par l'app.
+- [SDK .NET 10](https://dotnet.microsoft.com/download) et Windows 10/11 : `dotnet build src/DynamicIsland` puis lancer
+  `src/DynamicIsland/bin/Debug/net10.0-windows10.0.22621.0/DynamicIsland.exe`.
+- Installeur : [Inno Setup 6](https://jrsoftware.org/isinfo.php) puis `powershell -File installer\build.ps1` →
+  `artifacts\Opaline-Setup.exe` (+ son empreinte SHA-256).
+- Les fichiers et le registre gardent le nom d'origine « DynamicIsland » (l'app s'appelait ainsi avant Opaline).
+
+## Licence
+
+[MIT](LICENSE) © 2026 Louis. Composants d'autres auteurs : voir [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
