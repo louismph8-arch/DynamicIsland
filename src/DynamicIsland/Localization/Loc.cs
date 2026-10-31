@@ -31,8 +31,17 @@ public static class Loc
     {
         Language = Resolve(setting);
         Culture = CultureInfo.GetCultureInfo(Language == French ? "fr-FR" : "en-US");
-        _french = Read(French);
+        _french = FrenchSpacing(Read(French));
         _texts = Language == French ? _french : Read(Language);
+    }
+
+    /// <summary>Espaces insécables du français (« », : ; ? !) : la ponctuation ne part jamais seule à la ligne (7C).</summary>
+    private static Dictionary<string, string> FrenchSpacing(Dictionary<string, string> texts)
+    {
+        foreach (var key in texts.Keys.ToList())
+            texts[key] = texts[key].Replace("« ", "«\u00A0").Replace(" »", "\u00A0»").Replace(" :", "\u00A0:")
+                                   .Replace(" ;", "\u00A0;").Replace(" ?", "\u00A0?").Replace(" !", "\u00A0!");
+        return texts;
     }
 
     /// <summary>« auto » → français si Windows est en français, sinon anglais.</summary>

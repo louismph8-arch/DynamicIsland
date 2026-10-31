@@ -36,7 +36,7 @@ public sealed class RemoteApi
         "tab.play", "tab.apps", "tab.pc", "mic.discord", "deaf", "deaf.on", "deaf.discord", "denied", "copy", "copied",
         "apps.pinned", "apps.search", "apps.none", "apps.loading", "apps.launched",
         "link.title", "link.placeholder", "link.button", "link.bad", "link.done",
-        "send.title", "send.text", "send.button", "send.progress", "send.done", "send.error", "send.space", "send.size",
+        "send.title", "send.text", "send.button", "send.progress", "send.done", "send.error", "send.space", "send.size", "send.off", "files.title", "files.empty", "files.download", "files.remove",
         "text.title", "text.placeholder", "text.button", "text.done", "text.get", "text.busy",
         "brightness", "dark", "wallpaper", "gaming", "gaming.active", "dock", "dock.off", "timer", "timer.stop", "timer.left",
         "message.title", "message.placeholder", "message.button", "message.done",
@@ -57,12 +57,15 @@ public sealed class RemoteApi
     private readonly Action<RemoteDevice> _add;
     private readonly Action<string> _remove;
     private readonly RemoteUploads? _uploads;
+    private readonly Func<bool> _transfers;
     private int _attempts;
 
     /// <param name="uploads">Où vont les fichiers envoyés par le téléphone (null : pas d'envoi).</param>
+    /// <param name="transfers">Transfert de fichiers activé (7E, désactivé par défaut) ; null = toujours (essais).</param>
     public RemoteApi(IRemoteBackend backend, Func<IReadOnlyList<RemoteDevice>> devices, Action<RemoteDevice> add, Action<string> remove,
-        RemoteUploads? uploads = null)
+        RemoteUploads? uploads = null, Func<bool>? transfers = null)
     {
+        _transfers = transfers ?? (() => true);
         _backend = backend;
         _devices = devices;
         _add = add;
@@ -113,6 +116,8 @@ public sealed class RemoteApi
                 return new RemoteResponse(200, "application/manifest+json", Encoding.UTF8.GetBytes(Manifest())) { Cacheable = true };
             case ("POST", "/api/pair"):
                 return Pair(request);
+            case ("GET", _) when request.Path.StartsWith(RemoteOutbox.DownloadPrefix, StringComparison.Ordinal):
+                return Download(request);
         }
         if (!request.Path.StartsWith("/api/", StringComparison.Ordinal)) return RemoteResponse.Empty(404);
 
@@ -159,8 +164,22 @@ public sealed class RemoteApi
             case ("GET", "/api/wake"):
                 return RemoteResponse.Json(200, (await Task.Run(_backend.Wake))?.ToJsonString() ?? "{}");
             case ("POST", RemoteServer.UploadPath) when _uploads != null:
+                if (!_transfers()) return RemoteResponse.Json(403, """{"error":"files_off"}""");
                 var uploads = _uploads;
                 return await Task.Run(() => uploads.Receive(request));
+            case ("GET", "/api/outbox"):
+                if (!_transfers()) return RemoteResponse.Json(200, """{"files":[],"enabled":false}""");
+                return RemoteResponse.Json(200, new JsonObject
+                {
+                    ["enabled"] = true,
+                    ["files"] = new JsonArray(RemoteOutbox.Current.AsEnumerable().Reverse().Select(i => (JsonNode)new JsonObject
+                    {
+                        ["id"] = i.Id, ["name"] = i.Name, ["size"] = i.Size, ["url"] = i.Url,
+                    }).ToArray()),
+                }.ToJsonString());
+            case ("POST", "/api/outbox/remove"):
+                if (ReadJson(request)?["id"]?.GetValue<string>() is { } removed) RemoteOutbox.Remove(removed);
+                return RemoteResponse.Json(200, "{}");
             case ("POST", "/api/forget"):
                 Log.Info("Télécommande : un téléphone s'est retiré lui-même");
                 _remove(device.Id);
@@ -172,6 +191,16 @@ public sealed class RemoteApi
     }
 
     private static RemoteResponse Denied() => RemoteResponse.Json(403, """{"error":"denied"}""");
+
+    /// <summary>« Envoyer au téléphone » : /dl/&lt;id&gt;?k=&lt;clé&gt; — pas de jeton (simple lien), mais une clé propre au fichier.</summary>
+    private RemoteResponse Download(RemoteRequest request)
+    {
+        if (!_transfers()) return RemoteResponse.Empty(404);
+        var id = request.Path[RemoteOutbox.DownloadPrefix.Length..];
+        if (RemoteOutbox.Find(id, request.Param("k")) is not { } item) return RemoteResponse.Empty(404);
+        Log.Info($"Télécommande : fichier téléchargé par le téléphone ({item.Size / 1024} Ko)");
+        return RemoteResponse.File(item.Path, item.Name);
+    }
 
     // ------------------------------------------------------------------ appairage
 

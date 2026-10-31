@@ -124,7 +124,11 @@ internal static partial class SelfTest
         var devices = new List<RemoteDevice>();
         var backend = new DemoRemoteBackend();
         var inbox = Path.Combine(Path.GetTempPath(), "DynamicIsland-selftest-envoi-" + Guid.NewGuid().ToString("N"));
-        var api = new RemoteApi(backend, () => devices, devices.Add, id => devices.RemoveAll(d => d.Id == id), new RemoteUploads(inbox));
+        bool transfersOn = true; // réglage « Transfert de fichiers » (7E) simulé
+        var api = new RemoteApi(backend, () => devices, devices.Add, id => devices.RemoveAll(d => d.Id == id), new RemoteUploads(inbox), () => transfersOn);
+        string? receivedEvent = null;
+        void OnReceived(string path) => receivedEvent = path;
+        RemoteUploads.Received += OnReceived;
         using var server = new RemoteServer(request => Application.Current.Dispatcher.InvokeAsync(() => api.HandleAsync(request)).Task.Unwrap());
         server.Start([IPAddress.Loopback], 0);
         var root = new Uri($"http://127.0.0.1:{server.Endpoints[0].Port}/");
@@ -220,6 +224,44 @@ internal static partial class SelfTest
             "photo de 5 Mo envoyée en 2 morceaux : reprise au bon endroit, morceaux cachés, fichier identique dans le dossier");
         Check(lines, (await Send(HttpMethod.Post, upload.Replace("selftest0001", "selftest0002") + "&offset=0", bytes: photo[..10])).Status == HttpStatusCode.Unauthorized,
             "envoi sans jeton : refusé");
+        RemoteUploads.Received -= OnReceived;
+        Check(lines, receivedEvent == received && RemoteUploads.IsFromPhone(received) && !RemoteUploads.IsFromPhone(Path.Combine(inbox, "autre.jpg")),
+            "fichier reçu : l'île est prévenue (étagère, 7E) et l'annonce « téléchargement terminé » ne le montre pas en double");
+
+        // 7E : « Envoyer au téléphone » — liste, lien à clé propre au fichier (sans jeton), mauvaise clé, retrait
+        var outgoing = Path.Combine(inbox, "à envoyer « test ».txt");
+        File.WriteAllText(outgoing, "Bonjour du PC");
+        RemoteOutbox.Clear();
+        int revision = RemoteOutbox.Revision;
+        RemoteOutbox.Add([outgoing, inbox /* un dossier : ignoré */]);
+        var list = await Send(HttpMethod.Get, "/api/outbox", token: token);
+        var file = JsonNode.Parse(list.Body)?["files"]?.AsArray().FirstOrDefault();
+        var url = file?["url"]?.GetValue<string>() ?? "";
+        using (var download = await http.GetAsync(url))
+        {
+            var disposition = download.Content.Headers.ContentDisposition;
+            Check(lines, list.Status == HttpStatusCode.OK && JsonNode.Parse(list.Body)!["files"]!.AsArray().Count == 1 && RemoteOutbox.Revision > revision
+                         && download.IsSuccessStatusCode && await download.Content.ReadAsStringAsync() == "Bonjour du PC"
+                         && disposition?.FileNameStar == "à envoyer « test ».txt" && download.Content.Headers.ContentLength == new FileInfo(outgoing).Length,
+                "Envoyer au téléphone : fichier listé (pas le dossier), téléchargé par son lien (nom accentué, taille exacte)");
+        }
+        var wrongKey = await Send(HttpMethod.Get, url[..^4] + "0000");
+        var unknown = await Send(HttpMethod.Get, "/dl/zzzz?k=" + new string('0', 32));
+        await Send(HttpMethod.Post, "/api/outbox/remove", $$"""{"id":"{{file?["id"]}}"}""", token);
+        var gone = await Send(HttpMethod.Get, url);
+        Check(lines, wrongKey.Status == HttpStatusCode.NotFound && unknown.Status == HttpStatusCode.NotFound && gone.Status == HttpStatusCode.NotFound
+                     && RemoteOutbox.Current.Count == 0 && File.Exists(outgoing),
+            "mauvaise clé ou fichier inconnu : rien (404) ; retiré : le lien ne marche plus (le fichier reste sur le PC)");
+        RemoteOutbox.Add([outgoing]);
+        transfersOn = false;
+        var offUpload = await Send(HttpMethod.Post, upload.Replace("selftest0001", "selftest0003") + "&offset=0", token: token, bytes: photo[..10]);
+        var offList = await Send(HttpMethod.Get, "/api/outbox", token: token);
+        var offDownload = await Send(HttpMethod.Get, RemoteOutbox.Current[0].Url);
+        Check(lines, offUpload.Status == HttpStatusCode.Forbidden && offUpload.Body.Contains("files_off") && offList.Body.Contains("\"enabled\":false")
+                     && offDownload.Status == HttpStatusCode.NotFound,
+            "transfert de fichiers coupé (par défaut) : envoi refusé, rien listé, lien inactif");
+        transfersOn = true;
+        RemoteOutbox.Clear();
         Directory.Delete(inbox, recursive: true);
 
         var real = new AppRemoteBackend(() => null, (_, _, _) => { });

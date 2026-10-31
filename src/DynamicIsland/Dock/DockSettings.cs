@@ -28,6 +28,33 @@ public enum DockLayout
     Floating,
 }
 
+/// <summary>
+/// Place des applis le long du bord (correctif 15a). Barre : centrées, juste après la recherche (gauche) ou juste avant la
+/// zone d'état (droite). Dock flottant : centré avec son décalage, ou posé contre le côté gauche / droit de l'écran.
+/// </summary>
+public enum DockAlignment
+{
+    Center,
+    Left,
+    Right,
+}
+
+/// <summary>Taille du « × » qui ferme une fenêtre dans l'aperçu du dock (correctif 15c).</summary>
+public enum PreviewCloseSize
+{
+    Small,
+    Medium,
+    Large,
+}
+
+/// <summary>Couleur de ce « × » : gris (comme avant), rouge, ou la couleur d'accent du profil.</summary>
+public enum PreviewCloseColor
+{
+    Gray,
+    Red,
+    Accent,
+}
+
 /// <summary>Appli épinglée, ou dossier d'applis (<see cref="Items"/> non nul).</summary>
 public sealed class PinnedApp
 {
@@ -76,25 +103,33 @@ public sealed class PinnedApp
     }
 }
 
-/// <summary>Élément de la zone d'état du dock (6B) : langue du clavier, Windows Update, corbeille, Téléchargements.</summary>
+/// <summary>
+/// Élément de la zone d'état du dock (6B) : langue du clavier, Windows Update, corbeille, Téléchargements, et la flèche des
+/// icônes du bureau (correctif 16).
+/// </summary>
 public sealed class StatusItem
 {
     public const string Keyboard = "keyboard";
     public const string Updates = "updates";
     public const string Trash = "trash";
     public const string Downloads = "downloads";
-    public static readonly string[] All = [Keyboard, Updates, Trash, Downloads];
+    public const string Desktop = "desktop";
+    public static readonly string[] All = [Keyboard, Updates, Trash, Downloads, Desktop];
+    /// <summary>Cachés tant qu'on ne les demande pas : la flèche des icônes du bureau n'apparaît pas toute seule dans le dock.</summary>
+    private static readonly string[] HiddenByDefault = [Desktop];
 
     public string Id { get; set; } = "";
     public bool Visible { get; set; } = true;
 
-    public static List<StatusItem> Defaults() => All.Select(id => new StatusItem { Id = id }).ToList();
+    public static StatusItem Create(string id) => new() { Id = id, Visible = !HiddenByDefault.Contains(id) };
+
+    public static List<StatusItem> Defaults() => All.Select(Create).ToList();
 
     /// <summary>Chaque élément connu une seule fois, dans l'ordre choisi ; les nouveaux s'ajoutent à la fin.</summary>
     public static List<StatusItem> NormalizeList(List<StatusItem>? items)
     {
         var result = (items ?? []).Where(i => i != null && All.Contains(i.Id)).DistinctBy(i => i.Id).ToList();
-        foreach (var id in All.Where(id => result.All(i => i.Id != id))) result.Add(new StatusItem { Id = id });
+        foreach (var id in All.Where(id => result.All(i => i.Id != id))) result.Add(Create(id));
         return result;
     }
 }
@@ -131,12 +166,22 @@ public sealed class DockSettings
     public List<StatusItem> Status { get; set; } = StatusItem.Defaults();
     /// <summary>Changement de langue du clavier aussi annoncé brièvement dans l'île.</summary>
     public bool KeyboardInIsland { get; set; }
+    /// <summary>Applis au centre (défaut), à gauche ou à droite (correctif 15a).</summary>
+    public DockAlignment Alignment { get; set; } = DockAlignment.Center;
+    /// <summary>« × » des fenêtres dans l'aperçu : taille et couleur (correctif 15c).</summary>
+    public PreviewCloseSize CloseSize { get; set; } = PreviewCloseSize.Medium;
+    public PreviewCloseColor CloseColor { get; set; } = PreviewCloseColor.Gray;
+    /// <summary>Icônes du bureau cachées (correctif 16), désactivé par défaut ; remises à la fermeture (voir DesktopIconsService).</summary>
+    public bool HideDesktopIcons { get; set; }
 
     public bool ShowsStatus(string id) => Enabled && Status.Any(i => i.Id == id && i.Visible);
 
     public void Normalize()
     {
         Status = StatusItem.NormalizeList(Status);
+        if (!Enum.IsDefined(Alignment)) Alignment = DockAlignment.Center;
+        if (!Enum.IsDefined(CloseSize)) CloseSize = PreviewCloseSize.Medium;
+        if (!Enum.IsDefined(CloseColor)) CloseColor = PreviewCloseColor.Gray;
         Magnification = Math.Clamp(Magnification, 1, 1.8);
         Offset = double.IsFinite(Offset) ? Math.Clamp(Offset, -8000, 8000) : 0;
         if (!Services.Hotkeys.TryParse(RevealHotkey, out _, out _)) RevealHotkey = Services.Hotkeys.DefaultReveal;

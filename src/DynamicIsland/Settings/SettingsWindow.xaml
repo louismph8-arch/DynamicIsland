@@ -4,30 +4,55 @@
         xmlns:t="clr-namespace:DynamicIsland.Themes"
         xmlns:ui="clr-namespace:DynamicIsland.Controls"
         Title="{ui:L settings.parametres_opaline}"
-        Width="920" Height="620" MinWidth="780" MinHeight="480"
+        Width="920" Height="620" MinWidth="780" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/app.ico"
         Background="{x:Static t:Paint.Window}" Foreground="{StaticResource TextPrimary}" FontFamily="{StaticResource UiFont}">
   <Window.Resources>
     <ResourceDictionary Source="SettingsStyles.xaml"/>
   </Window.Resources>
+  <!-- Correctif 10 : plus de barre de titre Windows ; notre barre (déplacement, réduire, fermer), le Mica reste -->
+  <WindowChrome.WindowChrome>
+    <WindowChrome CaptionHeight="{x:Static t:SettingsShape.TitleBar}" ResizeBorderThickness="6" GlassFrameThickness="-1"
+                  CornerRadius="0" UseAeroCaptionButtons="False"/>
+  </WindowChrome.WindowChrome>
 
-  <Grid>
+  <Grid x:Name="RootGrid">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="232"/>
       <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="{x:Static t:SettingsShape.TitleBarRow}"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
 
     <!-- ===== Navigation ===== -->
-    <Border x:Name="NavPanel" Background="{x:Static t:Paint.Sidebar}" BorderBrush="{x:Static t:Paint.Card}" BorderThickness="{x:Static t:Borders.RightHairline}">
-      <DockPanel Margin="{ui:Space s7,s10,s7,s7}">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="{ui:Space s5,0,0,s11}">
+    <Border x:Name="NavPanel" Grid.RowSpan="2" Background="{x:Static t:Paint.Sidebar}" BorderBrush="{x:Static t:Paint.Card}" BorderThickness="{x:Static t:Borders.RightHairline}">
+      <DockPanel Margin="{ui:Space s7,s7,s7,s7}">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="{ui:Space s5,0,0,s7}">
           <Image x:Name="HeaderLogo" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality"/>
           <StackPanel Margin="{ui:Space s6,0,0,0}" VerticalAlignment="Center">
             <TextBlock Text="Opaline" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold"/>
             <TextBlock Text="{ui:L settings.parametres}" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{StaticResource TextSecondary}"/>
           </StackPanel>
         </StackPanel>
+        <!-- Recherche (correctif 11) : n'importe quel réglage, Ctrl+F -->
+        <Grid DockPanel.Dock="Top" Margin="{ui:Space 0,0,0,s7}">
+          <TextBox x:Name="SearchBox" Style="{StaticResource SearchField}"
+                   TextChanged="SearchBox_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"/>
+          <TextBlock Text="{x:Static t:Icons.Search}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}" IsHitTestVisible="False"
+                     Foreground="{x:Static t:Paint.TextTertiary}" VerticalAlignment="Center" Margin="{ui:Space s5,0,0,0}"/>
+          <TextBlock x:Name="SearchHint" Text="{ui:L settings.search.hint}" IsHitTestVisible="False" FontSize="{x:Static t:TypeRamp.Body}"
+                     Foreground="{x:Static t:Paint.TextTertiary}" VerticalAlignment="Center" Margin="{ui:Space s14,0,0,0}"/>
+          <Popup x:Name="SearchPopup" PlacementTarget="{Binding ElementName=SearchBox}" Placement="Bottom" AllowsTransparency="True"
+                 StaysOpen="False" Width="{x:Static t:SettingsShape.SearchPopup}" PopupAnimation="Fade">
+            <ui:SquircleBorder Background="{x:Static t:Paint.PopupBackground}" BorderBrush="{x:Static t:Paint.PopupBorder}" BorderThickness="{x:Static t:Borders.Hairline}"
+                               CornerRadius="{x:Static t:Corners.L}" Padding="{ui:Space s3}" Margin="{ui:Space 0,s2,0,0}">
+              <StackPanel x:Name="SearchResults"/>
+            </ui:SquircleBorder>
+          </Popup>
+        </Grid>
         <StackPanel>
           <RadioButton x:Name="NavGeneral" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Settings}" Content="{ui:L settings.general}" Checked="Nav_Checked"/>
           <RadioButton x:Name="NavAppearance" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Appearance}" Content="{ui:L settings.apparence}" Checked="Nav_Checked"/>
@@ -38,14 +63,43 @@
           <RadioButton x:Name="NavProfiles" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Profiles}" Content="{ui:L settings.profils}" Checked="Nav_Checked"/>
           <RadioButton x:Name="NavSharing" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Share}" Content="{ui:L settings.partage}" Checked="Nav_Checked"/>
           <RadioButton x:Name="NavConnected" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Connected}" Content="{ui:L settings.connected}" Checked="Nav_Checked"/>
+          <RadioButton x:Name="NavAutomations" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Automations}" Content="{ui:L settings.automations}" Checked="Nav_Checked"/>
           <RadioButton x:Name="NavAbout" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Info}" Content="{ui:L settings.propos}" Checked="Nav_Checked"/>
         </StackPanel>
       </DockPanel>
     </Border>
 
+    <!-- ===== Notre barre de titre : la fenêtre se déplace par là ; réduire / fermer ===== -->
+    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="{ui:Space 0,0,s4,0}">
+      <Button Style="{StaticResource CaptionButton}" Content="{x:Static t:Icons.Minus}" ToolTip="{ui:L settings.window.minimize}" Click="MinimizeWindow_Click"/>
+      <Button Style="{StaticResource CaptionButton}" Content="{x:Static t:Icons.Close}" Tag="close" ToolTip="{ui:L settings.window.close}"
+              Margin="{ui:Space s2,0,0,0}" Click="CloseWindow_Click"/>
+    </StackPanel>
+
     <!-- ===== Contenu ===== -->
-    <ScrollViewer x:Name="Scroller" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <Grid Margin="{ui:Space s18,s13,s14,s18}" MaxWidth="760">
+    <DockPanel Grid.Column="1" Grid.Row="1">
+    <!-- Problème de réglages (correctif urgent 2) : jamais un interrupteur qui « ne fait rien » en silence -->
+    <ui:SquircleBorder x:Name="SettingsAlert" DockPanel.Dock="Top" Visibility="Collapsed" Style="{StaticResource SettingCard}" MaxWidth="760"
+                       Margin="{ui:Space s18,s2,s14,0}" Background="{x:Static t:Paint.TimerSoft}" BorderBrush="{x:Static t:Paint.Timer}">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="{x:Static t:Icons.Alert}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}"
+                   Foreground="{x:Static t:Paint.Timer}" VerticalAlignment="Top" Margin="{ui:Space 0,s1,s6,0}"/>
+        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+          <TextBlock x:Name="SettingsAlertTitle" Style="{StaticResource CardTitle}" FontWeight="SemiBold"/>
+          <TextBlock x:Name="SettingsAlertText" Style="{StaticResource CardDescription}" TextWrapping="Wrap"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="{ui:Space s5,0,0,0}">
+          <Button x:Name="SettingsAlertFolder" Style="{StaticResource SettingsButton}" Margin="{ui:Space 0,0,s3,0}"
+                  Content="{ui:L settings.alert.folder}" Click="OpenSettingsFolder_Click"/>
+          <Button x:Name="SettingsAlertAction" Style="{StaticResource SettingsButton}" Click="SettingsAlertAction_Click"/>
+          <Button x:Name="SettingsAlertClose" Style="{StaticResource SettingsButton}" Margin="{ui:Space s3,0,0,0}"
+                  Content="{ui:L settings.alert.close}" Click="SettingsAlertClose_Click"/>
+        </StackPanel>
+      </Grid>
+    </ui:SquircleBorder>
+    <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <Grid x:Name="PagesHost" Margin="{ui:Space s18,s3,s14,s18}" MaxWidth="760">
 
         <!-- Général -->
         <StackPanel x:Name="GeneralPage">
@@ -371,7 +425,7 @@
               </StackPanel>
               <TextBlock x:Name="DockSizeText" Grid.Column="1" Style="{StaticResource ValueText}"/>
               <Slider x:Name="DockSizeSlider" Grid.Column="2" Style="{StaticResource SettingsSlider}" VerticalAlignment="Center"
-                      Minimum="36" Maximum="72" SmallChange="2" LargeChange="4" ValueChanged="Setting_Changed"/>
+                      Minimum="{x:Static t:DockShape.MinIcon}" Maximum="{x:Static t:DockShape.MaxIcon}" SmallChange="2" LargeChange="4" ValueChanged="Setting_Changed"/>
             </Grid>
           </ui:SquircleBorder>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
@@ -452,6 +506,16 @@
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.wallpaper.enforce.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.wallpaper.enforce.description}"/>
+              </StackPanel>
+              <CheckBox x:Name="EnforceWallpaperToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Setting_Changed"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
                 <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.fond_anime_derriere_icones}"/>
                 <TextBlock x:Name="AnimatedWallpaperDescription" Style="{StaticResource CardDescription}"
                            Text="{ui:L settings.aurore_bouge_lentement_couleurs}"/>
@@ -474,6 +538,82 @@
         <StackPanel x:Name="IslandPage" Visibility="Collapsed">
           <TextBlock Style="{StaticResource PageTitle}" Text="{ui:L settings.ile}"/>
           <TextBlock Style="{StaticResource PageSubtitle}" Text="{ui:L settings.comment_pilule_reagit_souris}"/>
+
+          <!-- Priorité 2, point 12 : taille, onglets (cacher, réordonner), rangée ou colonne -->
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.island.layout.group}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <StackPanel>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.island.scale.title}"/>
+                  <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.island.scale.description}"/>
+                </StackPanel>
+                <TextBlock x:Name="IslandScaleText" Grid.Column="1" Style="{StaticResource ValueText}"/>
+                <Slider x:Name="IslandScaleSlider" Grid.Column="2" Style="{StaticResource SettingsSlider}" VerticalAlignment="Center"
+                        Minimum="0.8" Maximum="1.25" SmallChange="0.01" LargeChange="0.05" ValueChanged="IslandScale_Changed"/>
+              </Grid>
+              <StackPanel Orientation="Horizontal" Margin="{ui:Space 0,s5,0,0}">
+                <Button Style="{StaticResource SettingsButton}" Content="{ui:L settings.island.scale.small}" Tag="0.85" Margin="0" Click="IslandScalePreset_Click"/>
+                <Button Style="{StaticResource SettingsButton}" Content="{ui:L settings.island.scale.medium}" Tag="1" Margin="{ui:Space s3,0,0,0}" Click="IslandScalePreset_Click"/>
+                <Button Style="{StaticResource SettingsButton}" Content="{ui:L settings.island.scale.large}" Tag="1.15" Margin="{ui:Space s3,0,0,0}" Click="IslandScalePreset_Click"/>
+              </StackPanel>
+            </StackPanel>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <StackPanel>
+              <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.island.tabs.title}"/>
+              <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.island.tabs.description}"/>
+              <StackPanel x:Name="IslandTabsList" Margin="{ui:Space 0,s4,0,0}"/>
+            </StackPanel>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.island.vertical.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.island.vertical.description}"/>
+              </StackPanel>
+              <CheckBox x:Name="IslandVerticalTabsToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="IslandVerticalTabs_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+
+          <!-- Points 13 et 14 : comme le dock (Fixe / Intelligent / Peek), raccourci, règles par application -->
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.island.mode.group}"/>
+          <RadioButton x:Name="IslandFixedMode" Style="{StaticResource OptionCard}" GroupName="IslandMode" Checked="IslandMode_Checked"
+                       Content="{ui:L settings.fixe}" Tag="{ui:L settings.island.mode.fixed}"/>
+          <RadioButton x:Name="IslandSmartMode" Style="{StaticResource OptionCard}" GroupName="IslandMode" Checked="IslandMode_Checked"
+                       Content="{ui:L settings.intelligent}" Tag="{ui:L settings.island.mode.smart}"/>
+          <RadioButton x:Name="IslandPeekMode" Style="{StaticResource OptionCard}" GroupName="IslandMode" Checked="IslandMode_Checked"
+                       Content="{ui:L settings.peek}" Tag="{ui:L settings.island.mode.peek}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}" Margin="{ui:Space 0,s5,0,s3}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.island.hotkey.title}"/>
+                <TextBlock x:Name="IslandHotkeyStatus" Style="{StaticResource CardDescription}" TextWrapping="Wrap"/>
+              </StackPanel>
+              <TextBox x:Name="IslandHotkeyBox" Grid.Column="1" Style="{StaticResource HexBox}" Width="190" MaxLength="40" IsReadOnly="True"
+                       FontFamily="{StaticResource UiFont}" Cursor="Hand" ToolTip="{ui:L settings.island.hotkey.tip}"
+                       PreviewKeyDown="HotkeyBox_PreviewKeyDown" GotKeyboardFocus="HotkeyBox_GotKeyboardFocus"
+                       LostKeyboardFocus="HotkeyBox_LostKeyboardFocus"/>
+              <Button Grid.Column="2" Style="{StaticResource SettingsButton}" Margin="{ui:Space s4,0,0,0}" Content="{ui:L settings.par_defaut}" Click="DefaultIslandHotkey_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder x:Name="AppRulesCard" Style="{StaticResource SettingCard}">
+            <StackPanel>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.rules.title}"/>
+                  <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.rules.description}"/>
+                </StackPanel>
+                <Button x:Name="AddAppRuleButton" Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Top" Margin="{ui:Space s4,0,0,0}"
+                        Content="{ui:L settings.rules.add}" Click="AddAppRule_Click"/>
+              </Grid>
+              <StackPanel x:Name="AppRulesList" Margin="{ui:Space 0,s4,0,0}"/>
+            </StackPanel>
+          </ui:SquircleBorder>
 
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <Grid>
@@ -585,6 +725,44 @@
               <TextBlock x:Name="BreakText" Grid.Column="1" Style="{StaticResource ValueText}"/>
               <Slider x:Name="BreakSlider" Grid.Column="2" Style="{StaticResource SettingsSlider}" VerticalAlignment="Center"
                       Minimum="1" Maximum="30" SmallChange="1" LargeChange="5" ValueChanged="Setting_Changed"/>
+            </Grid>
+          </ui:SquircleBorder>
+
+          <!-- Minuteur (correctif 19) : son de fin et volume -->
+          <TextBlock x:Name="TimerGroupTitle" Style="{StaticResource GroupTitle}" Text="{ui:L settings.timer}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.timer.sound.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L settings.timer.sound.description}"/>
+              </StackPanel>
+              <Button x:Name="TimerSoundButton" Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Click="TimerSound_Click">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock x:Name="TimerSoundText" TextTrimming="CharacterEllipsis" MaxWidth="{x:Static t:CardShape.PickerMaxWidth}"/>
+                  <TextBlock Text="  ▾" Foreground="{x:Static t:Paint.TextSecondary}"/>
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="2" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s4,0,0,0}"
+                      Click="TimerTest_Click">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="{x:Static t:Icons.Play}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}" VerticalAlignment="Center"
+                             Margin="{ui:Space 0,0,s3,0}"/>
+                  <TextBlock Text="{ui:L settings.timer.test}" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.timer.volume.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L settings.timer.volume.description}"/>
+              </StackPanel>
+              <TextBlock x:Name="TimerVolumeText" Grid.Column="1" Style="{StaticResource ValueText}"/>
+              <Slider x:Name="TimerVolumeSlider" Grid.Column="2" Style="{StaticResource SettingsSlider}" VerticalAlignment="Center"
+                      Minimum="0" Maximum="100" SmallChange="5" LargeChange="10" ValueChanged="Setting_Changed"/>
             </Grid>
           </ui:SquircleBorder>
 
@@ -774,6 +952,20 @@
                        Content="{ui:L settings.barre}" Tag="{ui:L settings.fine_toute_largeur_bas}"/>
           <RadioButton x:Name="FloatingLayout" Style="{StaticResource OptionCard}" GroupName="DockLayout" Checked="Setting_Changed"
                        Content="{ui:L settings.dock_flottant}" Tag="{ui:L settings.centre_detache_bord_facon}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}" Margin="{ui:Space 0,s5,0,s3}">
+            <StackPanel>
+              <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.dock.alignment}"/>
+              <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.dock.alignment.description}"/>
+              <UniformGrid Columns="3" Margin="{ui:Space 0,s5,0,0}">
+                <RadioButton x:Name="DockAlignLeft" Style="{StaticResource OptionCard}" GroupName="DockAlignment" Margin="{ui:Space 0,0,s4,0}"
+                             Content="{ui:L settings.dock.alignment.left}" Tag="{ui:L settings.dock.alignment.left.desc}" Checked="Setting_Changed"/>
+                <RadioButton x:Name="DockAlignCenter" Style="{StaticResource OptionCard}" GroupName="DockAlignment" Margin="{ui:Space s2,0,s2,0}"
+                             Content="{ui:L settings.dock.alignment.center}" Tag="{ui:L settings.dock.alignment.center.desc}" Checked="Setting_Changed"/>
+                <RadioButton x:Name="DockAlignRight" Style="{StaticResource OptionCard}" GroupName="DockAlignment" Margin="{ui:Space s4,0,0,0}"
+                             Content="{ui:L settings.dock.alignment.right}" Tag="{ui:L settings.dock.alignment.right.desc}" Checked="Setting_Changed"/>
+              </UniformGrid>
+            </StackPanel>
+          </ui:SquircleBorder>
 
           <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.position}"/>
           <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space s2,0,s2,s4}"
@@ -783,7 +975,7 @@
                        Content="{ui:L settings.bas_ecran}" Tag="{ui:L settings.comme_barre_taches_windows}"/>
           <RadioButton x:Name="DockTopEdge" Style="{StaticResource OptionCard}" GroupName="DockEdge" Checked="DockEdge_Checked"
                        Content="{ui:L settings.haut_ecran}" Tag="{ui:L settings.icones_ouvrent_vers_bas}"/>
-          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+          <ui:SquircleBorder Style="{StaticResource SettingCard}" Margin="{ui:Space 0,s5,0,s3}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <StackPanel>
@@ -816,6 +1008,36 @@
             </Grid>
           </ui:SquircleBorder>
 
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.dock.preview}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <StackPanel>
+              <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.dock.close_size}"/>
+              <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.dock.close_size.description}"/>
+              <UniformGrid Columns="3" Margin="{ui:Space 0,s5,0,0}">
+                <RadioButton x:Name="CloseSmallOption" Style="{StaticResource OptionCard}" GroupName="PreviewCloseSize" Margin="{ui:Space 0,0,s4,0}"
+                             Content="{ui:L settings.dock.close_size.small}" Tag="{ui:L settings.dock.close_size.small.desc}" Checked="Setting_Changed"/>
+                <RadioButton x:Name="CloseMediumOption" Style="{StaticResource OptionCard}" GroupName="PreviewCloseSize" Margin="{ui:Space s2,0,s2,0}"
+                             Content="{ui:L settings.dock.close_size.medium}" Tag="{ui:L settings.dock.close_size.medium.desc}" Checked="Setting_Changed"/>
+                <RadioButton x:Name="CloseLargeOption" Style="{StaticResource OptionCard}" GroupName="PreviewCloseSize" Margin="{ui:Space s4,0,0,0}"
+                             Content="{ui:L settings.dock.close_size.large}" Tag="{ui:L settings.dock.close_size.large.desc}" Checked="Setting_Changed"/>
+              </UniformGrid>
+            </StackPanel>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <StackPanel>
+              <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.dock.close_color}"/>
+              <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.dock.close_color.description}"/>
+              <UniformGrid Columns="3" Margin="{ui:Space 0,s5,0,0}">
+                <RadioButton x:Name="CloseGrayOption" Style="{StaticResource OptionCard}" GroupName="PreviewCloseColor" Margin="{ui:Space 0,0,s4,0}"
+                             Content="{ui:L settings.dock.close_color.gray}" Tag="{ui:L settings.dock.close_color.gray.desc}" Checked="Setting_Changed"/>
+                <RadioButton x:Name="CloseRedOption" Style="{StaticResource OptionCard}" GroupName="PreviewCloseColor" Margin="{ui:Space s2,0,s2,0}"
+                             Content="{ui:L settings.dock.close_color.red}" Tag="{ui:L settings.dock.close_color.red.desc}" Checked="Setting_Changed"/>
+                <RadioButton x:Name="CloseAccentOption" Style="{StaticResource OptionCard}" GroupName="PreviewCloseColor" Margin="{ui:Space s4,0,0,0}"
+                             Content="{ui:L settings.dock.close_color.accent}" Tag="{ui:L settings.dock.close_color.accent.desc}" Checked="Setting_Changed"/>
+              </UniformGrid>
+            </StackPanel>
+          </ui:SquircleBorder>
+
           <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.jeu}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <Grid>
@@ -839,6 +1061,17 @@
                        Content="{ui:L settings.intelligent}" Tag="{ui:L settings.cache_fenetre_touche_revient}"/>
           <RadioButton x:Name="PeekMode" Style="{StaticResource OptionCard}" GroupName="DockMode" Checked="Setting_Changed"
                        Content="{ui:L settings.peek}" Tag="{ui:L settings.toujours_cache_apparait_seulement}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}" Margin="{ui:Space 0,s5,0,s3}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.rules.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.rules.dock}"/>
+              </StackPanel>
+              <Button Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s4,0,0,0}"
+                      Content="{ui:L settings.rules.open}" Click="OpenAppRules_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
 
           <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.barre_taches_icones}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
@@ -859,6 +1092,16 @@
                 <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L settings.nordvpn_discord_steam_droite}"/>
               </StackPanel>
               <CheckBox x:Name="TrayIconsToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Setting_Changed"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.desktop_icons}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.desktop_icons.description}"/>
+              </StackPanel>
+              <CheckBox x:Name="HideDesktopIconsToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Setting_Changed"/>
             </Grid>
           </ui:SquircleBorder>
 
@@ -923,13 +1166,32 @@
           </ui:SquircleBorder>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <Grid>
-              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
               <StackPanel>
                 <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.ville}"/>
                 <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L settings.nom_ville_entree_appliquer}"/>
               </StackPanel>
               <TextBox x:Name="CityBox" Grid.Column="1" Style="{StaticResource HexBox}" Width="180" MaxLength="60"
                        FontFamily="{StaticResource UiFont}" KeyDown="CityBox_KeyDown" LostFocus="CityBox_LostFocus"/>
+              <!-- Correctif 18 : seulement au clic (localisation de Windows, sinon adresse IP) -->
+              <Button x:Name="DetectCityButton" Grid.Column="2" Style="{StaticResource SettingsButton}" VerticalAlignment="Center"
+                      Margin="{ui:Space s4,0,0,0}" Content="{ui:L city.detect.button}" Click="DetectCity_Click"/>
+              <TextBlock x:Name="CityStatusText" Grid.Row="1" Grid.ColumnSpan="3" Style="{StaticResource CardDescription}"
+                         Margin="{ui:Space 0,s4,0,0}" Text="{ui:L city.detect.explain}"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.weather.refresh.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L settings.weather.refresh.description}"/>
+              </StackPanel>
+              <TextBlock x:Name="WeatherRefreshText" Grid.Column="1" Style="{StaticResource ValueText}"/>
+              <!-- Position = rang dans WidgetSettings.WeatherRefreshChoices (5, 10, 15, 30, 60 min) -->
+              <Slider x:Name="WeatherRefreshSlider" Grid.Column="2" Style="{StaticResource SettingsSlider}" VerticalAlignment="Center"
+                      Minimum="0" SmallChange="1" LargeChange="1" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="Setting_Changed"/>
             </Grid>
           </ui:SquircleBorder>
 
@@ -1219,6 +1481,18 @@
             </Grid>
           </ui:SquircleBorder>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <StackPanel>
+              <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.updates.channel}"/>
+              <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.updates.channel.desc}"/>
+              <UniformGrid Columns="2" Margin="{ui:Space 0,s5,0,0}">
+                <RadioButton x:Name="StableChannelOption" Style="{StaticResource OptionCard}" GroupName="UpdateChannel" Margin="{ui:Space 0,0,s3,0}"
+                             Content="{ui:L settings.updates.channel.stable}" Tag="{ui:L settings.updates.channel.stable.desc}" Click="UpdateChannel_Click"/>
+                <RadioButton x:Name="BetaChannelOption" Style="{StaticResource OptionCard}" GroupName="UpdateChannel" Margin="{ui:Space s3,0,0,0}"
+                             Content="{ui:L settings.updates.channel.beta}" Tag="{ui:L settings.updates.channel.beta.desc}" Click="UpdateChannel_Click"/>
+              </UniformGrid>
+            </StackPanel>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <StackPanel>
@@ -1281,6 +1555,18 @@
               <TextBlock x:Name="RemoteFullNote" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s3,0,0}"
                          Text="{ui:L settings.remote.full.note}"/>
             </StackPanel>
+          </ui:SquircleBorder>
+
+          <!-- Transfert de fichiers téléphone ↔ PC (7E), désactivé par défaut -->
+          <ui:SquircleBorder x:Name="FileTransferCard" Style="{StaticResource SettingCard}" Visibility="Collapsed">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.transfer}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.transfer.desc}"/>
+              </StackPanel>
+              <CheckBox x:Name="FileTransferToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="FileTransfer_Click"/>
+            </Grid>
           </ui:SquircleBorder>
 
           <ui:SquircleBorder x:Name="WakeCard" Style="{StaticResource SettingCard}" Visibility="Collapsed">
@@ -1413,6 +1699,31 @@
           </StackPanel>
         </StackPanel>
 
+        <!-- Automatisations (7D) : règles « Quand… alors… » et Ne pas déranger -->
+        <StackPanel x:Name="AutomationsPage" Visibility="Collapsed">
+          <TextBlock Style="{StaticResource PageTitle}" Text="{ui:L settings.automations}"/>
+          <TextBlock Style="{StaticResource PageSubtitle}" TextWrapping="Wrap" Text="{ui:L settings.automations.subtitle}"/>
+          <Grid>
+            <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.automations.rules}"/>
+            <Button x:Name="NewRuleButton" HorizontalAlignment="Right" VerticalAlignment="Bottom" Style="{StaticResource SettingsButton}"
+                    Background="{DynamicResource AccentGradientBrush}" Content="{ui:L settings.automations.new}" Click="NewRule_Click"/>
+          </Grid>
+          <StackPanel x:Name="AutomationRulesList" Margin="{ui:Space 0,s4,0,0}"/>
+
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.dnd}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock x:Name="DoNotDisturbText" Style="{StaticResource CardTitle}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.dnd.desc}"/>
+              </StackPanel>
+              <Button x:Name="DoNotDisturbButton" Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center"
+                      Margin="{ui:Space s5,0,0,0}" Click="DoNotDisturb_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+        </StackPanel>
+
         <!-- À propos -->
         <StackPanel x:Name="AboutPage" Visibility="Collapsed">
           <TextBlock Style="{StaticResource PageTitle}" Text="{ui:L settings.propos}"/>
@@ -1453,6 +1764,21 @@
           </ui:SquircleBorder>
 
           <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.help.group}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.feedback.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.feedback.desc}"/>
+              </StackPanel>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="{ui:Space s5,0,0,0}">
+                <Button Style="{StaticResource SettingsButton}" Content="{ui:L settings.feedback.button}" Click="Feedback_Click"
+                        Background="{DynamicResource AccentGradientBrush}" HorizontalAlignment="Stretch"/>
+                <Button Style="{StaticResource SettingsButton}" Margin="{ui:Space 0,s3,0,0}" Content="{ui:L settings.news.button}" Click="WhatsNew_Click"
+                        HorizontalAlignment="Stretch"/>
+              </StackPanel>
+            </Grid>
+          </ui:SquircleBorder>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <StackPanel>
               <Grid>
@@ -1536,5 +1862,6 @@
 
       </Grid>
     </ScrollViewer>
+    </DockPanel>
   </Grid>
 </Window>

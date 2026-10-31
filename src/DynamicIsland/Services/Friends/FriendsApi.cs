@@ -66,6 +66,8 @@ public sealed record FriendsAccount(string Server, string Id, string Secret)
 public static class FriendsApi
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
+    /// <summary>Envoi d'un avis avec ses pièces jointes (quelques Mo) : plus de temps.</summary>
+    private static readonly HttpClient Upload = new() { Timeout = TimeSpan.FromMinutes(2) };
 
     public sealed class AuthException() : Exception("Compte inconnu du serveur");
 
@@ -88,6 +90,66 @@ public static class FriendsApi
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
             return false;
+        }
+    }
+
+    /// <summary>Le serveur répond-il, et accepte-t-il les avis (secret FEEDBACK_WEBHOOK posé dans Cloudflare, 7C) ?</summary>
+    public static async Task<(bool Ok, bool Feedback)> InfoAsync(string server)
+    {
+        try
+        {
+            var json = JsonNode.Parse(await Http.GetStringAsync(server + "/"));
+            return (json?["app"]?.GetValue<string>() == "opaline-amis", json?["feedback"]?.GetValue<bool>() == true);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        {
+            return (false, false);
+        }
+    }
+
+    /// <summary>
+    /// « Donner mon avis » (7C) : texte + capture (JPEG) et rapport de bug (.zip) facultatifs, envoyés au serveur qui les poste
+    /// dans le salon Discord de son propriétaire. null = envoyé, sinon la raison (« feedback_off », « too_many », « too_big »,
+    /// « auth », « offline », « discord »…).
+    /// </summary>
+    public static async Task<string?> SendFeedbackAsync(FriendsAccount account, bool bug, string text, string version, byte[]? screenshot, string? reportPath)
+    {
+        try
+        {
+            using var form = new MultipartFormDataContent();
+            form.Add(new StringContent(bug ? "bug" : "idea"), "kind");
+            form.Add(new StringContent(text), "text");
+            form.Add(new StringContent(version), "version");
+            if (screenshot != null)
+            {
+                var image = new ByteArrayContent(screenshot);
+                image.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+                form.Add(image, "screenshot", "capture.jpg");
+            }
+            if (reportPath != null)
+            {
+                var report = new ByteArrayContent(await File.ReadAllBytesAsync(reportPath));
+                report.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
+                form.Add(report, "report", "rapport.zip");
+            }
+            using var request = new HttpRequestMessage(HttpMethod.Post, account.Server + "/feedback") { Content = form };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", $"{account.Id}.{account.Secret}");
+            using var response = await Upload.SendAsync(request);
+            if (response.IsSuccessStatusCode) return null;
+            if (response.StatusCode == HttpStatusCode.Unauthorized) return "auth";
+            try
+            {
+                return JsonNode.Parse(await response.Content.ReadAsStringAsync())?["error"]?.GetValue<string>() ?? "server";
+            }
+            catch (JsonException)
+            {
+                return "server";
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
+        {
+            Log.Info($"Avis : envoi impossible ({ex.GetType().Name})");
+            return "offline";
         }
     }
 

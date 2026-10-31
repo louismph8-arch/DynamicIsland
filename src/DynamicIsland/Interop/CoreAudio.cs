@@ -45,6 +45,34 @@ internal interface IMMDevice
 {
     [PreserveSig] int Activate(ref Guid iid, int clsCtx, IntPtr activationParams,
         [MarshalAs(UnmanagedType.IUnknown)] out object endpoint);
+    [PreserveSig] int OpenPropertyStore(int access, out IPropertyStore properties);
+    [PreserveSig] int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+}
+
+/// <summary>
+/// Classe de Windows qui change la sortie audio par défaut (celle qu'utilisent le panneau Son et les applis comme
+/// EarTrumpet / SoundSwitch). Interface non documentée mais stable depuis Windows 7 : seul l'emplacement de
+/// SetDefaultEndpoint compte (les 10 méthodes d'avant ne sont jamais appelées).
+/// </summary>
+[ComImport, Guid("870AF99C-171D-4F9E-AF0D-E63DF40C2BC9")]
+internal class PolicyConfigComObject
+{
+}
+
+[ComImport, Guid("F8679F50-850A-41CF-9C72-430F290290C8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IPolicyConfig
+{
+    [PreserveSig] int GetMixFormat();
+    [PreserveSig] int GetDeviceFormat();
+    [PreserveSig] int ResetDeviceFormat();
+    [PreserveSig] int SetDeviceFormat();
+    [PreserveSig] int GetProcessingPeriod();
+    [PreserveSig] int SetProcessingPeriod();
+    [PreserveSig] int GetShareMode();
+    [PreserveSig] int SetShareMode();
+    [PreserveSig] int GetPropertyValue();
+    [PreserveSig] int SetPropertyValue();
+    [PreserveSig] int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string deviceId, ERole role);
 }
 
 /// <summary>Vumètre de la sortie audio (niveau crête du son joué, sans capturer l'audio).</summary>

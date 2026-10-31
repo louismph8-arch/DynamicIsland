@@ -25,6 +25,8 @@ public partial class DockWindow : Window
     private string? PlaceScreen => _live is { } live ? live.Screen : _settings.Screen;
     private DockEdge PlaceEdge => _live?.Edge ?? _settings.Edge;
     private double PlaceOffset => _live?.Offset ?? _settings.Offset;
+    /// <summary>Applis au centre / à gauche / à droite (correctif 15a) ; le dock flottant qu'on fait glisser suit la souris (centré + décalage).</summary>
+    private DockAlignment PlaceAlignment => _live?.Alignment ?? _settings.Alignment;
     private bool AtTop => PlaceEdge == DockEdge.Top;
     /// <summary>Hauteur du fond : marge haute + icône + zone du point (68 en dock flottant de taille normale).</summary>
     private double BackgroundHeight => (IsBar ? DockShape.BarTopInset : DockShape.TopInset) * SizeScale + DockIconView.BaseIcon + DockIconView.DotZone;
@@ -54,7 +56,7 @@ public partial class DockWindow : Window
     private (DockMode Mode, bool HideTaskbar, double IconSize, DockLayout Layout, string? Screen, DockEdge Edge) AppliedKey =>
         (_settings.Mode, _settings.HideTaskbar, DockIconView.BaseIcon, _settings.Layout, PlaceScreen, PlaceEdge);
     /// <summary>Place visée pendant un déplacement du dock (null hors déplacement).</summary>
-    private (string? Screen, DockEdge Edge, double Offset)? _live;
+    private (string? Screen, DockEdge Edge, double Offset, DockAlignment Alignment)? _live;
     private readonly LiquidGlass _glass;
     private string? _iconStyle; // style des icônes affiché (voir IconStyler.Signature)
     private readonly SolidColorBrush _rimBrush = new(Swatch.WithAlpha(Swatch.White, 0));
@@ -110,6 +112,9 @@ public partial class DockWindow : Window
         _status.MenuRequested += OpenMenu;
         _status.DownloadsRequested += ShowDownloads;
         DockRoot.SizeChanged += (_, _) => ApplyDockMargin(); // dock flottant décalé : il doit rester dans l'écran
+        // Barre alignée à gauche / à droite : les applis suivent la largeur de la recherche ou de la zone d'état (icônes ajoutées…).
+        EdgeLeft.SizeChanged += (_, _) => OnEdgeResized();
+        EdgeRight.SizeChanged += (_, _) => OnEdgeResized();
         SettingsStore.Changed += OnSettingsChanged;
         IsVisibleChanged += (_, _) => UpdateBackdrop(); // dock désactivé / réactivé
 
@@ -551,38 +556,40 @@ public partial class DockWindow : Window
             DockRoot.HorizontalAlignment = HorizontalAlignment.Stretch;
             DockBackground.CornerRadius = Corners.None;
             DockBackground.BorderThickness = AtTop ? Borders.BottomHairline : Borders.TopHairline;
-            ItemsPanel.Margin = Borders.None;
         }
         else
         {
-            DockRoot.HorizontalAlignment = HorizontalAlignment.Center;
             DockBackground.CornerRadius = new CornerRadius(AppearanceService.Radius(Radius.DockFloating) * scale);
             DockBackground.BorderThickness = Borders.Hairline;
             ItemsPanel.Margin = new Thickness(Space.S5, 0, Space.S5, 0);
         }
+        ApplyItemsAlignment();
         ApplyDockMargin();
         _rimBrush.Color = AppearanceService.RimColor();
         AppearanceService.ApplyGlow(DockShadow, Shadows.Dock);
 
-        double iconCenter = DockIconView.DotZone + DockIconView.BaseIcon / 2; // depuis le bord du dock côté écran
+        // Tout est centré sur les icônes, sans dépasser du fond (barre de ~31 px avec des icônes de 24).
+        var metrics = MetricsFor(DockIconView.BaseIcon, IsBar);
+        double iconCenter = metrics.IconCenter; // depuis le bord du dock côté écran
         foreach (var separator in new[] { _separator, _traySeparator, _statusSeparator })
         {
             separator.Height = DockShape.Separator * scale;
             separator.VerticalAlignment = edge;
             separator.Margin = FromEdge(Space.S3, Space.S3, iconCenter - separator.Height / 2);
         }
-        _searchButton.Height = Math.Max(DockShape.SearchMinHeight, DockShape.SearchHeight * scale);
+        _searchButton.Height = metrics.Search;
         _searchButton.VerticalAlignment = edge;
-        _searchButton.Margin = FromEdge(Space.S2, Space.S4, iconCenter - _searchButton.Height / 2);
-        _profileButton.Width = _profileButton.Height = Math.Round(Math.Max(DockShape.ProfileMin, DockShape.Profile * scale));
+        _searchButton.Margin = FromEdge(Space.S2, Space.S4, EdgeOffset(iconCenter, metrics.Search, metrics.Background));
+        _profileButton.Width = _profileButton.Height = metrics.Profile;
         _profileButton.VerticalAlignment = edge;
-        _profileButton.Margin = FromEdge(0, Space.S5, iconCenter - _profileButton.Height / 2);
+        _profileButton.Margin = FromEdge(0, Space.S5, EdgeOffset(iconCenter, metrics.Profile, metrics.Background));
         _profileGlyph.FontSize = Math.Max(DockShape.ProfileGlyphMin, DockShape.ProfileGlyph * scale);
+        _tray.ApplySize(metrics.Background); // une seule ligne d'icônes de 16 px si la barre est trop fine pour deux
         _tray.VerticalAlignment = edge;
-        _tray.Margin = FromEdge(Space.S1, Space.S5, Math.Max(0, iconCenter - DockShape.TrayCell));
+        _tray.Margin = FromEdge(Space.S1, Space.S5, EdgeOffset(iconCenter, metrics.TrayRows * metrics.TrayCell, metrics.Background));
         _status.ApplySize(scale);
         _status.VerticalAlignment = edge;
-        _status.Margin = FromEdge(Space.S2, Space.S3, Math.Max(0, iconCenter - Math.Max(DockShape.StatusCellMin, DockShape.StatusCell * scale) / 2));
+        _status.Margin = FromEdge(Space.S2, Space.S3, EdgeOffset(iconCenter, metrics.StatusCell, metrics.Background));
 
         foreach (var view in _views.Values) view.Apply();
         _glass.Refresh();
@@ -620,24 +627,110 @@ public partial class DockWindow : Window
 
     /// <summary>
     /// Barre collée au bord ; dock flottant à 8 du bord et décalé le long de celui-ci (marges inégales : un élément centré
-    /// l'est dans la place qui reste), sans sortir de l'écran.
+    /// l'est dans la place qui reste), sans sortir de l'écran — ou posé contre le côté gauche / droit (correctif 15a).
     /// </summary>
     private void ApplyDockMargin()
     {
+        double near = AtTop ? DockShape.FloatingGap : 0, far = AtTop ? 0 : DockShape.FloatingGap; // haut, bas
+        if (!IsBar)
+        {
+            var side = PlaceAlignment switch
+            {
+                DockAlignment.Left => HorizontalAlignment.Left,
+                DockAlignment.Right => HorizontalAlignment.Right,
+                _ => HorizontalAlignment.Center,
+            };
+            if (DockRoot.HorizontalAlignment != side) DockRoot.HorizontalAlignment = side;
+        }
         double offset = FloatingOffset();
-        var margin = IsBar ? Borders.None : new Thickness(Math.Max(0, 2 * offset), AtTop ? DockShape.FloatingGap : 0,
-            Math.Max(0, -2 * offset), AtTop ? 0 : DockShape.FloatingGap);
+        var margin = IsBar ? Borders.None : PlaceAlignment switch
+        {
+            DockAlignment.Left => new Thickness(DockShape.FloatingGap, near, 0, far),
+            DockAlignment.Right => new Thickness(0, near, DockShape.FloatingGap, far),
+            _ => new Thickness(Math.Max(0, 2 * offset), near, Math.Max(0, -2 * offset), far),
+        };
         if (DockRoot.Margin != margin) DockRoot.Margin = margin;
+    }
+
+    /// <summary>
+    /// Barre alignée à gauche : les applis commencent juste après la recherche et le profil ; à droite : elles finissent juste
+    /// avant la zone d'état et les icônes d'arrière-plan. Dock flottant : le panneau reste centré dans le fond du dock.
+    /// </summary>
+    private void ApplyItemsAlignment()
+    {
+        var alignment = IsBar ? PlaceAlignment : DockAlignment.Center;
+        var side = alignment switch
+        {
+            DockAlignment.Left => HorizontalAlignment.Left,
+            DockAlignment.Right => HorizontalAlignment.Right,
+            _ => HorizontalAlignment.Center,
+        };
+        if (ItemsPanel.HorizontalAlignment != side) ItemsPanel.HorizontalAlignment = side;
+        if (!IsBar) return; // marges du dock flottant posées dans ApplyAppearance
+        var margin = alignment switch
+        {
+            DockAlignment.Left => new Thickness(EdgeLeft.Margin.Left + EdgeLeft.ActualWidth + EdgeLeft.Margin.Right + DockShape.EdgeGap, 0, 0, 0),
+            DockAlignment.Right => new Thickness(0, 0, EdgeRight.Margin.Left + EdgeRight.ActualWidth + EdgeRight.Margin.Right + DockShape.EdgeGap, 0),
+            _ => Borders.None,
+        };
+        if (ItemsPanel.Margin != margin) ItemsPanel.Margin = margin;
+    }
+
+    /// <summary>La recherche ou la zone d'état a changé de largeur : les applis alignées sur elles suivent.</summary>
+    private void OnEdgeResized()
+    {
+        if (!IsBar || PlaceAlignment == DockAlignment.Center) return;
+        ApplyItemsAlignment();
+        UpdateMagnification();
     }
 
     /// <summary>Décalage du dock flottant depuis le centre du bord, ramené pour qu'il tienne dans l'écran (0 pour la barre).</summary>
     private double FloatingOffset()
     {
-        if (IsBar || PlaceOffset == 0) return 0;
-        double dock = DockRoot.DesiredSize.Width - DockRoot.Margin.Left - DockRoot.Margin.Right;
-        double room = Math.Max(0, (Root.ActualWidth - dock) / 2 - Space.S4);
+        if (IsBar || PlaceOffset == 0 || PlaceAlignment != DockAlignment.Center) return 0;
+        double room = FloatingRoom();
         return Math.Clamp(PlaceOffset, -room, room);
     }
+
+    /// <summary>Décalage le plus grand possible du dock flottant (le dock touche alors presque le côté de l'écran).</summary>
+    private double FloatingRoom()
+    {
+        double dock = DockRoot.DesiredSize.Width - DockRoot.Margin.Left - DockRoot.Margin.Right;
+        return Math.Max(0, (Root.ActualWidth - dock) / 2 - Space.S4);
+    }
+
+    /// <summary>
+    /// Dock flottant lâché après un glisser (correctif 15a) : poussé contre un côté (à moins de l'aimant près) = aligné sur ce
+    /// côté ; sinon centré avec son décalage. Calcul pur, vérifié par --self-test.
+    /// </summary>
+    internal static DockAlignment SnapSide(double offset, double room)
+    {
+        if (room <= DockShape.SnapDistance) return DockAlignment.Center; // presque aussi large que l'écran : pas de côté
+        if (offset <= -room + DockShape.SnapDistance) return DockAlignment.Left;
+        if (offset >= room - DockShape.SnapDistance) return DockAlignment.Right;
+        return DockAlignment.Center;
+    }
+
+    /// <summary>
+    /// Tailles qui suivent celle des icônes (correctif 15b) : fond, milieu des icônes depuis le bord, bouton Rechercher,
+    /// pastille du profil, cases de la zone d'état et des icônes d'arrière-plan. Calcul pur, vérifié par --self-test
+    /// (tout tient dans le fond de 24 à 72 px ; à 40 et 72 px, rien ne change par rapport à avant).
+    /// </summary>
+    internal readonly record struct Metrics(double Background, double IconCenter, double Search, double Profile, double StatusCell, int TrayRows, double TrayCell);
+
+    internal static Metrics MetricsFor(double icon, bool bar)
+    {
+        double scale = icon / DockShape.ReferenceIcon;
+        double dotZone = icon * (bar ? DockShape.BarDotRatio : DockShape.DotRatio);
+        double background = (bar ? DockShape.BarTopInset : DockShape.TopInset) * scale + icon + dotZone;
+        var (rows, cell) = TrayArea.LayoutFor(background);
+        return new Metrics(background, dotZone + icon / 2, Math.Max(DockShape.SearchMinHeight, DockShape.SearchHeight * scale),
+            Math.Round(Math.Max(DockShape.ProfileMin, DockShape.Profile * scale)), StatusArea.CellFor(scale), rows, cell);
+    }
+
+    /// <summary>Marge côté bord d'un élément centré sur les icônes, ramenée pour qu'il ne dépasse pas du fond.</summary>
+    internal static double EdgeOffset(double iconCenter, double height, double background) =>
+        Math.Clamp(iconCenter - height / 2, 0, Math.Max(0, background - height));
 
     /// <summary>Bouton « Rechercher » façon barre des tâches Windows, au début du dock.</summary>
     private Button CreateSearchButton()

@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.Net.Http;
 using System.Text.Json;
+using System.Windows.Threading;
+using DynamicIsland.Settings;
+using Microsoft.Win32;
 
 namespace DynamicIsland.Services;
 
@@ -39,19 +42,35 @@ public sealed record WeatherReport(string City, double Temperature, double Min, 
 }
 
 /// <summary>
-/// Météo via Open-Meteo (gratuit, sans clé). La ville est d'abord géocodée (une fois par nom), puis la
-/// météo actuelle est relue au plus toutes les 15 minutes, et seulement quand l'onglet est affiché.
+/// Météo via Open-Meteo (gratuit, sans clé). La ville est d'abord géocodée (une fois par nom, sauf si ses coordonnées sont
+/// déjà connues), puis la météo actuelle est relue au plus toutes les 5 à 60 minutes (réglage, 10 par défaut), seulement
+/// quand elle est affichée, et à la sortie de veille (correctif 18).
 /// </summary>
 public sealed class WeatherService
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
-    private static readonly TimeSpan RefreshEvery = TimeSpan.FromMinutes(15);
+    /// <summary>Sortie de veille : on laisse le réseau revenir avant de relire.</summary>
+    private static readonly TimeSpan ResumeDelay = TimeSpan.FromSeconds(10);
+    /// <summary>Après un échec (réseau), nouvel essai au plus tôt une minute plus tard.</summary>
+    private static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(1);
 
     private (string Query, double Latitude, double Longitude, string Name)? _place;
     private Task? _pending;
+    private bool _stale;
+    private DateTime _failedAt;
+    private DispatcherTimer? _resumeTimer;
 
     /// <summary>Météo partagée (onglet Widgets de l'île, widgets du bureau, barre de menus) : une seule requête.</summary>
     public static WeatherService Shared { get; } = new();
+
+    private WeatherService()
+    {
+        // Après la veille, la météo affichée peut dater de la veille au soir : marquée périmée puis relue.
+        SystemEvents.PowerModeChanged += (_, e) =>
+        {
+            if (e.Mode == PowerModes.Resume) Guarded.OnUi(OnResume, "Météo : sortie de veille");
+        };
+    }
 
     public WeatherReport? Current { get; private set; }
     public string? Error { get; private set; }
@@ -59,22 +78,43 @@ public sealed class WeatherService
     /// <summary>Levé (sur le thread UI) quand une nouvelle météo est disponible ou en cas d'erreur.</summary>
     public event Action? Changed;
 
+    /// <summary>Âge maximal de la météo affichée (Paramètres → Widgets).</summary>
+    private static TimeSpan RefreshEvery => TimeSpan.FromMinutes(SettingsStore.Current.Widgets.WeatherRefreshMinutes);
+
     /// <summary>Relit la météo si elle est trop ancienne ou si la ville a changé.</summary>
     public void RefreshIfNeeded(string city)
     {
         city = string.IsNullOrWhiteSpace(city) ? "Montréal" : city.Trim();
         bool cityChanged = _place?.Query != city;
-        bool stale = Current == null || DateTime.Now - Current.UpdatedAt > RefreshEvery;
+        bool stale = _stale || Current == null || DateTime.Now - Current.UpdatedAt > RefreshEvery;
         if (!cityChanged && !stale) return;
+        if (!cityChanged && DateTime.Now - _failedAt < RetryAfter) return; // hors ligne : pas un essai à chaque affichage
         if (_pending is { IsCompleted: false }) return;
         _pending = RefreshAsync(city);
+    }
+
+    private void OnResume()
+    {
+        _stale = true;
+        if (Current == null && Error == null) return; // jamais affichée depuis le lancement : rien à relire
+        if (_resumeTimer == null)
+        {
+            _resumeTimer = new DispatcherTimer { Interval = ResumeDelay };
+            _resumeTimer.Tick += (_, _) =>
+            {
+                _resumeTimer.Stop();
+                Guarded.Run(() => RefreshIfNeeded(SettingsStore.Current.Widgets.City), "Météo : sortie de veille");
+            };
+        }
+        _resumeTimer.Stop();
+        _resumeTimer.Start();
     }
 
     private async Task RefreshAsync(string city)
     {
         try
         {
-            if (_place?.Query != city) _place = await GeocodeAsync(city);
+            if (_place?.Query != city) _place = Known(city) ?? await GeocodeAsync(city);
             if (_place is not { } place)
             {
                 Error = Loc.F("weather.city_not_found", city);
@@ -97,13 +137,25 @@ public sealed class WeatherService
                 current.GetProperty("is_day").GetInt32() == 1,
                 DateTime.Now);
             Error = null;
+            _stale = false;
         }
         catch (Exception ex)
         {
             Log.Error("Météo", ex);
             Error = Loc.T("weather.unavailable");
+            _failedAt = DateTime.Now;
         }
         Changed?.Invoke();
+    }
+
+    /// <summary>Coordonnées déjà rangées pour cette ville (détectée, ou cherchée une fois pour le soleil) : pas de géocodage.</summary>
+    private static (string, double, double, string)? Known(string city)
+    {
+        var widgets = SettingsStore.Current.Widgets;
+        return widgets.CityLatitude is double latitude && widgets.CityLongitude is double longitude
+               && string.Equals(widgets.CityCoordinatesFor, city, StringComparison.OrdinalIgnoreCase)
+            ? (city, latitude, longitude, city)
+            : null;
     }
 
     /// <summary>Coordonnées d'une ville (Open-Meteo) : nom demandé, latitude, longitude, nom trouvé ; null si inconnue.</summary>

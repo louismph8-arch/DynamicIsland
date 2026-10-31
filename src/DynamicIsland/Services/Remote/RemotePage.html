@@ -162,6 +162,13 @@
   body.paired #app, body.paired nav { display: flex; }
   body.pairing #pair { display: block; }
   body.pairing { padding-bottom: 20px; }
+.file{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.08)}
+.file:first-child{border-top:0;padding-top:4px}
+.file .name{flex:1 1 100%;min-width:0}
+.file .btn:not(.icon){flex:1}
+.file .name>div:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.file .btn{text-decoration:none}
+.btn.icon{padding:0 12px}
 </style>
 </head>
 <body>
@@ -233,7 +240,13 @@
       <div class="field"><input type="url" id="link" inputmode="url" autocomplete="off"><button class="btn" id="linkGo" data-l="link.button"></button></div>
     </section>
 
-    <section class="card">
+    <section class="card" id="fromPcCard">
+      <div class="label"><span class="i">&#xE0B2;</span><span data-l="files.title"></span></div>
+      <div id="fromPc"></div>
+      <div class="note" id="fromPcEmpty" data-l="files.empty"></div>
+    </section>
+
+    <section class="card" id="sendCard">
       <div class="label"><span class="i">&#xE19E;</span><span data-l="send.title"></span></div>
       <label class="btn" style="width:100%"><span class="i">&#xE5CB;</span><span data-l="send.button"></span><input type="file" id="files" multiple hidden></label>
       <div class="bar" id="sendBar"><div></div></div>
@@ -485,9 +498,16 @@ function render(s) {
   $("gaming").classList.toggle("on", !!g.auto);
   text("gamingText", g.active && g.game ? format("gaming.active", g.game) : "");
   const t = s.timer;
-  text("timerLeft", t ? format("timer.left", Math.floor(t.remaining / 60) + ":" + String(t.remaining % 60).padStart(2, "0")) : "");
+  const two = n => String(n).padStart(2, "0"); // comme l'île : « 05:00 », « 1:30:00 » à partir d'une heure
+  text("timerLeft", t ? format("timer.left", t.remaining >= 3600
+    ? Math.floor(t.remaining / 3600) + ":" + two(Math.floor(t.remaining / 60) % 60) + ":" + two(t.remaining % 60)
+    : two(Math.floor(t.remaining / 60)) + ":" + two(t.remaining % 60)) : "");
   $("timerStop").style.display = t ? "" : "none";
   renderScreenTab();
+  const files = s.files !== false;
+  $("sendCard").style.display = files ? "" : "none";
+  $("fromPcCard").style.display = files ? "" : "none";
+  if (files && s.outbox !== outboxRev) { outboxRev = s.outbox; loadOutbox(); }
   document.querySelectorAll(".power").forEach(b => { b.disabled = !s.full; });
   $("powerNote").style.display = s.full ? "none" : "";
   $("textGet").style.display = s.full ? "" : "none";
@@ -610,6 +630,35 @@ $("files").addEventListener("change", async e => {
   e.target.value = "";
   for (let i = 0; i < files.length; i++) await sendFile(files[i], i, files.length);
 });
+// ------------------------------------------------------------------ fichiers du PC (7E)
+let outboxRev = null;
+function size(bytes) {
+  return bytes < 1e6 ? Math.max(1, Math.round(bytes / 1e3)) + " Ko" : bytes < 1e9 ? (bytes / 1e6).toFixed(1) + " Mo" : (bytes / 1e9).toFixed(2) + " Go";
+}
+async function loadOutbox() {
+  try {
+    const r = await call("/api/outbox");
+    if (!r.ok) return;
+    const data = await r.json();
+    const list = data.files || [];
+    $("fromPcEmpty").style.display = list.length ? "none" : "";
+    $("fromPc").replaceChildren(...list.map(f => {
+      const row = document.createElement("div"); row.className = "file";
+      const name = document.createElement("div"); name.className = "name";
+      const title = document.createElement("div"); title.textContent = f.name;
+      const meta = document.createElement("div"); meta.className = "note"; meta.textContent = size(f.size);
+      name.append(title, meta);
+      const get = document.createElement("a"); get.className = "btn"; get.href = f.url; get.download = f.name;
+      get.innerHTML = '<span class="i">&#xE0B2;</span>'; get.append(L["files.download"] || "");
+      const remove = document.createElement("button"); remove.className = "btn soft icon"; remove.innerHTML = '<span class="i">&#xE1B2;</span>';
+      remove.setAttribute("aria-label", L["files.remove"] || "");
+      remove.onclick = async () => { await call("/api/outbox/remove", { id: f.id }).catch(() => {}); loadOutbox(); };
+      row.append(name, get, remove);
+      return row;
+    }));
+  } catch (e) {}
+}
+
 async function sendFile(file, index, count) {
   const bar = $("sendBar"), status = $("sendStatus");
   if (!file.size) return; // fichier vide : rien à envoyer
@@ -623,7 +672,7 @@ async function sendFile(file, index, count) {
       const r = await call("/api/upload" + q, await chunk.arrayBuffer(), true);
       const data = await r.json().catch(() => ({}));
       if (r.status === 409 && data.offset != null) { offset = data.offset; continue; }
-      if (!r.ok) { status.textContent = L[{ space: "send.space", size: "send.size" }[data.error] || "send.error"]; bar.classList.remove("show"); return; }
+      if (!r.ok) { status.textContent = L[{ space: "send.space", size: "send.size", files_off: "send.off" }[data.error] || "send.error"]; bar.classList.remove("show"); return; }
       if (data.done) { status.textContent = format("send.done", data.name); break; }
       offset = data.offset;
       bar.firstElementChild.style.width = Math.round(offset / file.size * 100) + "%";

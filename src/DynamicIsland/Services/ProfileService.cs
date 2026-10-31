@@ -101,8 +101,9 @@ public static class ProfileService
         profile.AccentEnd = current.Appearance.AccentEnd;
     }
 
-    /// <summary>Active un profil : apps du dock, couleur d'accent et fond d'écran.</summary>
-    public static void Switch(string id)
+    /// <summary>Active un profil : apps du dock, couleur d'accent et fond d'écran (sauf <paramref name="applyWallpaper"/> faux :
+    /// assistant de bienvenue, où le fond n'est changé qu'à « C'est parti »).</summary>
+    public static void Switch(string id, bool applyWallpaper = true)
     {
         if (id == Settings.Active || Find(id) is not { } target) return;
         try
@@ -115,7 +116,7 @@ public static class ProfileService
                 s.Appearance.AccentEnd = target.AccentEnd;
                 s.Profiles.Active = target.Id;
             });
-            WallpaperService.ApplyFor(target);
+            if (applyWallpaper) WallpaperService.ApplyFor(target);
         }
         catch (Exception ex)
         {

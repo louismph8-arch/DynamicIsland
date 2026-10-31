@@ -8,7 +8,8 @@
   <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="128"/>
-      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*"/>
@@ -38,6 +39,13 @@
                   HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
                   PreviewMouseWheel="Profiles_PreviewMouseWheel">
       <StackPanel x:Name="ProfilesPanel" Orientation="Horizontal"/>
+    </ScrollViewer>
+
+    <!-- Appareils connectés (casque, manette, souris, clés USB…), avec la batterie si Windows la donne -->
+    <ScrollViewer x:Name="DevicesRow" Grid.Row="2" Grid.ColumnSpan="2" Margin="{ui:Space 0,s4,0,0}" VerticalAlignment="Top" Visibility="Collapsed"
+                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+                  PreviewMouseWheel="Profiles_PreviewMouseWheel">
+      <StackPanel x:Name="DevicesPanel" Orientation="Horizontal"/>
     </ScrollViewer>
   </Grid>
 </UserControl>

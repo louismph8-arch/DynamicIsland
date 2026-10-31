@@ -51,16 +51,21 @@ public static class AnimatedWallpaper
         SettingsStore.Changed += Apply;
         GamingMode.Changed += UpdatePause;
         DynamicWallpaperService.MoodChanged += PushMood;
-        SystemEvents.DisplaySettingsChanged += (_, _) => Rebuild();
+        // Événements système : sur le thread de l'interface (pas de course avec OnWatch), jamais d'exception sur leur fil.
+        SystemEvents.DisplaySettingsChanged += (_, _) => Guarded.OnUi(Rebuild, "Fond animé : écrans");
         SystemEvents.SessionSwitch += (_, e) =>
         {
             if (e.Reason is SessionSwitchReason.SessionLock or SessionSwitchReason.SessionUnlock)
             {
-                _locked = e.Reason == SessionSwitchReason.SessionLock;
-                UpdatePause();
+                bool locked = e.Reason == SessionSwitchReason.SessionLock;
+                Guarded.OnUi(() =>
+                {
+                    _locked = locked;
+                    UpdatePause();
+                }, "Fond animé : verrouillage");
             }
         };
-        SystemEvents.PowerModeChanged += (_, _) => UpdatePause();
+        SystemEvents.PowerModeChanged += (_, _) => Guarded.OnUi(UpdatePause, "Fond animé : alimentation");
         Apply();
     }
 
@@ -93,7 +98,8 @@ public static class AnimatedWallpaper
     private static void Apply()
     {
         var settings = SettingsStore.Current.Wallpaper;
-        bool on = settings.Animated && !SettingsStore.IsReadOnly && AnimatedAuroraEffect.IsAvailable && !ModuleGuard.IsDisabled(ModuleGuard.Wallpapers);
+        bool on = settings.Animated && !SettingsStore.IsReadOnly && AnimatedAuroraEffect.IsAvailable && !ModuleGuard.IsDisabled(ModuleGuard.Wallpapers)
+                  && !CrashWatch.ReducedEffects;
         if (!on)
         {
             Stop();
@@ -186,6 +192,13 @@ public static class AnimatedWallpaper
         _thread = new Thread(() =>
         {
             _render = Dispatcher.CurrentDispatcher;
+            // Ce fil a son propre Dispatcher : sans ce filet, une erreur d'image tuait toute l'app (correctif urgent 1).
+            _render.UnhandledException += (_, args) =>
+            {
+                args.Handled = true;
+                _frame?.Stop();
+                Guarded.Report(args.Exception, "Fond animé : image");
+            };
             _frame = new DispatcherTimer(DispatcherPriority.Render) { Interval = Wallpapers.FrameInterval };
             var clock = Stopwatch.StartNew();
             var last = TimeSpan.Zero;

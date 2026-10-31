@@ -21,6 +21,83 @@ public static class WallpaperService
 
     public static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tif", ".tiff", ".jfif", ".webp"];
 
+    private static string? _dynamicFile;
+    private static DateTime _lastSet;
+
+    /// <summary>
+    /// Fond qu'Opaline doit garder affiché (<see cref="WallpaperGuard"/>) : l'image du fond dynamique s'il est actif, sinon celle du
+    /// profil actif ; null si le profil n'a pas de fond (le choix fait dans Windows est alors respecté).
+    /// </summary>
+    public static string? Imposed => SettingsStore.Current.Wallpaper.Dynamic
+        ? _dynamicFile
+        : ProfileService.Active?.Wallpaper is { } path && File.Exists(path) ? path : null;
+
+    /// <summary>Opaline vient de changer le fond (Windows met un instant à l'afficher) : pas de vérification tout de suite.</summary>
+    public static bool JustSet => DateTime.UtcNow - _lastSet < TimeSpan.FromSeconds(4);
+
+    /// <summary>Remet ce fond (hors du thread de l'interface).</summary>
+    public static void Reimpose(string file) => Task.Run(() =>
+    {
+        try
+        {
+            Set(file);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Fond d'écran : remise", ex);
+        }
+    });
+
+    /// <summary>Vrai si chaque écran affiche bien ce fichier (une couleur unie ou une autre image = non). Hors thread UI.</summary>
+    public static bool Shows(string file)
+    {
+        try
+        {
+            var wallpaper = (IDesktopWallpaper)new DesktopWallpaperClass();
+            try
+            {
+                var shown = new List<string>();
+                uint count = wallpaper.GetMonitorDevicePathCount();
+                for (uint i = 0; i < count; i++)
+                {
+                    try
+                    {
+                        if (wallpaper.GetWallpaper(wallpaper.GetMonitorDevicePathAt(i)) is { Length: > 0 } path) shown.Add(path);
+                    }
+                    catch (COMException)
+                    {
+                        // Écran inactif : rien à comparer.
+                    }
+                }
+                return SameEverywhere(file, shown);
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(wallpaper);
+            }
+        }
+        catch (Exception ex) when (ex is COMException or InvalidCastException)
+        {
+            return CurrentPath() is { } current && SamePath(current, file);
+        }
+    }
+
+    /// <summary>Décision seule (auto-test) : aucun écran ne montre autre chose, et au moins un montre notre fichier.</summary>
+    internal static bool SameEverywhere(string file, IReadOnlyCollection<string> shown) =>
+        shown.Count > 0 && shown.All(path => SamePath(path, file));
+
+    private static bool SamePath(string a, string b)
+    {
+        try
+        {
+            return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     public static void ApplyFor(Profile profile)
     {
         if (SettingsStore.IsReadOnly) return; // rendu --snapshot : le vrai fond d'écran n'est jamais touché
@@ -61,6 +138,7 @@ public static class WallpaperService
     public static void Apply(string file)
     {
         if (SettingsStore.IsReadOnly) return;
+        _dynamicFile = file;
         var settings = SettingsStore.Current.Profiles;
         bool backupFirst = !settings.WallpaperChanged;
         if (backupFirst)
@@ -85,6 +163,7 @@ public static class WallpaperService
     /// <summary>Même image sur tous les écrans, en remplissage, avec le fondu de Windows si possible.</summary>
     private static void Set(string file)
     {
+        _lastSet = DateTime.UtcNow;
         try
         {
             var wallpaper = (IDesktopWallpaper)new DesktopWallpaperClass();

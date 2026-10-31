@@ -5,7 +5,7 @@
         xmlns:ui="clr-namespace:DynamicIsland.Controls"
         xmlns:views="clr-namespace:DynamicIsland.Views"
         Title="Dynamic Island"
-        Width="560" Height="320" Left="0" Top="0"
+        Width="600" Height="340" Left="0" Top="0"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         FontFamily="{StaticResource UiFont}" Foreground="{StaticResource TextPrimary}"
@@ -13,7 +13,8 @@
 
   <!-- La fenêtre est fixe et transparente (les clics passent à travers) ;
        seule l'île (Border « Island ») change de taille, animée par un ressort. -->
-  <Grid>
+  <!-- Taille de l'île (point 12) : tout le contenu est agrandi / réduit ici, la fenêtre suit (ApplyScale). -->
+  <Grid x:Name="WindowRoot">
     <!-- Placement (bord haut / bas, gauche / centre / droite) appliqué par le code : l'île s'ouvre vers l'intérieur de l'écran. -->
     <Grid x:Name="HoverRoot" HorizontalAlignment="Center" VerticalAlignment="Top"
           MouseEnter="HoverRoot_MouseEnter" MouseLeave="HoverRoot_MouseLeave"
@@ -131,18 +132,33 @@
           </Grid>
 
           <!-- ===== Vue étendue : onglets ===== -->
-          <Grid x:Name="ExpandedView" HorizontalAlignment="Center" VerticalAlignment="Top" Height="260"
+          <Grid x:Name="ExpandedView" HorizontalAlignment="Center" VerticalAlignment="Top" Height="290"
                 Opacity="0" IsHitTestVisible="False" RenderTransformOrigin="0.5,0">
             <Grid.RenderTransform>
               <ScaleTransform x:Name="ExpandedScale" ScaleX="0.92" ScaleY="0.92"/>
             </Grid.RenderTransform>
 
-            <Grid Margin="{ui:Space s8,s5,s8,s8}">
+            <Grid x:Name="ExpandedLayout" Margin="{ui:Space s8,s5,s8,s8}">
               <Grid.RowDefinitions>
-                <RowDefinition Height="32"/>
+                <RowDefinition Height="Auto" MinHeight="32"/>
                 <RowDefinition Height="*"/>
               </Grid.RowDefinitions>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
 
+              <!-- En haut : onglets (défilants s'ils sont trop nombreux) puis l'heure ; en colonne, les onglets passent à gauche (point 12) -->
+              <Grid x:Name="HeaderRow" Grid.Column="1">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+              <ScrollViewer x:Name="TabScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" VerticalAlignment="Center"
+                            Focusable="False" PreviewMouseWheel="TabScroller_PreviewMouseWheel">
+                <ScrollViewer.Resources>
+                  <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinScrollBar}"/>
+                </ScrollViewer.Resources>
               <StackPanel x:Name="TabStrip" Orientation="Horizontal" VerticalAlignment="Center">
                 <RadioButton x:Name="MusicTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Music}"
                              Content="{ui:L island.musique}" Checked="Tab_Checked"/>
@@ -165,15 +181,19 @@
                 <RadioButton x:Name="FriendsTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Friends}"
                              Content="{ui:L island.friends}" Checked="Tab_Checked" Visibility="Collapsed"/>
               </StackPanel>
-              <StackPanel x:Name="HeaderRight" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Margin="{ui:Space 0,0,s2,0}">
+              </ScrollViewer>
+              <TextBlock x:Name="TabTitle" VerticalAlignment="Center" Visibility="Collapsed" Margin="{ui:Space s2,0,0,0}"
+                         FontSize="{x:Static t:TypeRamp.Callout}" FontWeight="SemiBold"/>
+              <StackPanel x:Name="HeaderRight" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Margin="{ui:Space s4,0,s2,0}">
                 <Ellipse x:Name="ExpandedCameraDot" Width="6" Height="6" Margin="{ui:Space 0,0,s3,0}" VerticalAlignment="Center"
                          Fill="{StaticResource CameraBrush}" Visibility="Collapsed"/>
                 <Ellipse x:Name="ExpandedMicDot" Width="6" Height="6" Margin="{ui:Space 0,0,s4,0}" VerticalAlignment="Center"
                          Fill="{StaticResource MicrophoneBrush}" Visibility="Collapsed"/>
                 <TextBlock x:Name="ExpandedClock" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" VerticalAlignment="Center"/>
               </StackPanel>
+              </Grid>
 
-              <Grid Grid.Row="1" Margin="{ui:Space 0,s4,0,0}">
+              <Grid Grid.Row="1" Grid.Column="1" Margin="{ui:Space 0,s4,0,0}">
                 <views:MusicView x:Name="MusicTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:CalendarTimerView x:Name="CalendarTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:ControlCenterView x:Name="ControlTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>

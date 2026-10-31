@@ -15,25 +15,50 @@ using NotifyIcon = ManagedShell.WindowsTray.NotifyIcon;
 namespace DynamicIsland.Dock;
 
 /// <summary>
-/// Icônes d'arrière-plan (zone de notification) à droite du dock, sur deux lignes.
+/// Icônes d'arrière-plan (zone de notification) à droite du dock, sur deux lignes (une seule si la barre est trop fine).
 /// Survol, clics gauche/droit/double-clic sont transmis à l'appli propriétaire de l'icône.
 /// </summary>
 public sealed class TrayArea : WrapPanel
 {
-    public const double CellSize = DockShape.TrayCell;
-
     private static readonly Brush IdleBrush = Paint.HitTarget; // alpha 1 : capte la souris
     private static readonly Brush HoverBrush = Paint.Selected;
 
     private ObservableCollection<NotifyIcon>? _icons;
+    private double _cell = DockShape.TrayCell;
+    private int _rows = 2;
 
     public TrayArea()
     {
         Orientation = Orientation.Vertical; // remplit colonne par colonne (2 icônes par colonne)
-        Height = 2 * CellSize;
+        Height = _rows * _cell;
         Width = 0;
         VerticalAlignment = VerticalAlignment.Bottom;
     }
+
+    /// <summary>
+    /// Lignes et taille des cases pour une barre de cette hauteur (correctif 15b) : deux lignes tant que des cases d'au moins
+    /// 18 tiennent, sinon une seule ; les icônes restent à 16 px (taille de Windows). Calcul pur, vérifié par --self-test.
+    /// </summary>
+    internal static (int Rows, double Cell) LayoutFor(double height)
+    {
+        double two = Math.Min(DockShape.TrayCell, Math.Floor(height / 2));
+        if (two >= DockShape.TrayCellMin) return (2, two);
+        return (1, Math.Clamp(Math.Floor(height), DockShape.TrayCellMin, DockShape.TrayCell));
+    }
+
+    /// <summary>Taille d'après la hauteur du fond du dock.</summary>
+    public void ApplySize(double height)
+    {
+        var (rows, cell) = LayoutFor(height);
+        if (rows == _rows && cell == _cell) return;
+        _rows = rows;
+        _cell = cell;
+        Height = rows * cell;
+        foreach (var child in Children.OfType<FrameworkElement>()) child.Width = child.Height = cell;
+        UpdateWidth();
+    }
+
+    private void UpdateWidth() => Width = (Children.Count + _rows - 1) / _rows * _cell;
 
     /// <summary>Survol d'une icône (élément à viser pour l'étiquette, nom de l'appli).</summary>
     public event Action<FrameworkElement, string>? HoverStarted;
@@ -82,8 +107,7 @@ public sealed class TrayArea : WrapPanel
         if (_icons != null)
             foreach (var icon in _icons.Where(i => !i.IsHidden)) Children.Add(CreateCell(icon));
 
-        int columns = (Children.Count + 1) / 2;
-        Width = columns * CellSize;
+        UpdateWidth();
         if (Children.Count != before) CountChanged?.Invoke();
     }
 
@@ -95,8 +119,8 @@ public sealed class TrayArea : WrapPanel
 
         var cell = new SquircleBorder
         {
-            Width = CellSize,
-            Height = CellSize,
+            Width = _cell,
+            Height = _cell,
             CornerRadius = Corners.XS,
             Background = IdleBrush,
             Child = image,

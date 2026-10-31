@@ -10,8 +10,10 @@ namespace DynamicIsland.Services;
 /// Mises à jour Windows en attente (6B), par l'API officielle « Windows Update Agent » (COM Microsoft.Update.Session),
 /// SANS droits administrateur et en LECTURE seule : on ne télécharge, n'installe ni ne redémarre jamais rien.
 /// Vérification automatique = résultats du dernier scan fait par Windows lui-même (recherche hors ligne, instantanée),
-/// 1 min après le démarrage puis toutes les 3 h ; « Vérifier maintenant » (menu) = vraie recherche en ligne. Rien pendant
-/// le mode Gaming : la vérification attend la fin de la partie.
+/// 15 s après le démarrage, puis toutes les 30 min, à la sortie de veille, au déverrouillage et dès que Windows Update écrit
+/// dans sa clé du registre (installation finie, redémarrage demandé) — correctif urgent 5 : l'icône restait jusqu'à 3 h après
+/// l'installation. « Vérifier maintenant » (menu) = vraie recherche en ligne. Rien pendant le mode Gaming : la vérification
+/// attend la fin de la partie.
 /// </summary>
 public static class WindowsUpdateService
 {
@@ -19,8 +21,14 @@ public static class WindowsUpdateService
     public sealed record Update(string Title, double Size);
 
     private const string Criteria = "IsInstalled=0 and IsHidden=0 and BrowseOnly=0";
-    private static readonly TimeSpan Period = TimeSpan.FromHours(3);
-    private static readonly DispatcherTimer Timer = new() { Interval = TimeSpan.FromMinutes(1) };
+    private static readonly TimeSpan Period = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan FirstCheck = TimeSpan.FromSeconds(15);
+    private static readonly DispatcherTimer Timer = new() { Interval = FirstCheck };
+    /// <summary>Plusieurs écritures de Windows Update d'affilée → une seule vérification, 10 s après la dernière.</summary>
+    private static readonly DispatcherTimer Soon = new() { Interval = TimeSpan.FromSeconds(10) };
+    private const string AutoUpdateKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update";
+    private static RegistryWatcher? _registry;
+    private static bool _hooked;
     private static bool _started;
     private static bool _waitingForGame;
 
@@ -42,6 +50,23 @@ public static class WindowsUpdateService
             Timer.Interval = Period;
             _ = CheckAsync(online: false);
         };
+        if (!_hooked)
+        {
+            _hooked = true; // une seule fois, même si le module est arrêté puis relancé
+            Soon.Tick += (_, _) =>
+            {
+                Soon.Stop();
+                if (Timer.IsEnabled) _ = CheckAsync(online: false);
+            };
+            SystemEvents.PowerModeChanged += (_, e) =>
+            {
+                if (e.Mode == PowerModes.Resume) Guarded.OnUi(CheckSoon, "Windows Update : sortie de veille");
+            };
+            SystemEvents.SessionSwitch += (_, e) =>
+            {
+                if (e.Reason == SessionSwitchReason.SessionUnlock) Guarded.OnUi(CheckSoon, "Windows Update : déverrouillage");
+            };
+        }
         GamingMode.Changed += () =>
         {
             if (!GamingMode.IsActive && _waitingForGame) _ = CheckAsync(online: false);
@@ -50,9 +75,20 @@ public static class WindowsUpdateService
         Apply();
     }
 
+    /// <summary>Vérification hors ligne dans 10 s (regroupe les signaux rapprochés).</summary>
+    private static void CheckSoon()
+    {
+        if (!Timer.IsEnabled) return;
+        Soon.Stop();
+        Soon.Start();
+    }
+
     public static void Stop()
     {
         Timer.Stop();
+        Soon.Stop();
+        _registry?.Dispose();
+        _registry = null;
         SettingsStore.Changed -= Apply;
         _started = false;
     }
@@ -65,12 +101,17 @@ public static class WindowsUpdateService
         if (wanted == Timer.IsEnabled) return;
         if (wanted)
         {
-            Timer.Interval = LastCheck == null ? TimeSpan.FromMinutes(1) : Period;
+            Timer.Interval = LastCheck == null ? FirstCheck : Period;
             Timer.Start();
+            // Windows Update écrit ici quand une installation se termine ou qu'un redémarrage est demandé (lecture seule, sans droits).
+            _registry ??= RegistryWatcher.TryStart(Registry.LocalMachine, AutoUpdateKey, () => Guarded.OnUi(CheckSoon, "Windows Update : registre"));
         }
         else
         {
             Timer.Stop();
+            Soon.Stop();
+            _registry?.Dispose();
+            _registry = null;
         }
     }
 

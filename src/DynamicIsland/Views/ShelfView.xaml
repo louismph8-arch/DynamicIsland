@@ -34,6 +34,17 @@
     <Grid x:Name="Footer" Grid.Row="1" Margin="{ui:Space s1,s2,0,0}">
       <TextBlock x:Name="CountText" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"/>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <!-- « Envoyer au téléphone » (7E) : déposer une tuile ici la propose sur la page de la télécommande -->
+        <ui:SquircleBorder x:Name="PhoneDrop" CornerRadius="{x:Static t:Corners.Pill}" Height="22" Padding="{ui:Space s5,0}" Margin="{ui:Space 0,0,s3,0}"
+                           Background="{StaticResource SurfaceBrush}" BorderThickness="{x:Static t:Borders.Hairline}" BorderBrush="Transparent"
+                           AllowDrop="True" Cursor="Hand" Visibility="Collapsed" ToolTip="{ui:L shelf.phone.tip}"
+                           DragEnter="PhoneDrop_DragEnter" DragOver="PhoneDrop_DragEnter" DragLeave="PhoneDrop_DragLeave" Drop="PhoneDrop_Drop"
+                           MouseLeftButtonUp="PhoneDrop_Click">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="{x:Static t:Icons.Smartphone}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}"/>
+            <TextBlock x:Name="PhoneDropText" FontSize="{x:Static t:TypeRamp.Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          </StackPanel>
+        </ui:SquircleBorder>
         <ui:SquircleBorder x:Name="DragAllHandle" CornerRadius="{x:Static t:Corners.Pill}" Height="22" Padding="{ui:Space s5,0}" Background="{StaticResource SurfaceBrush}"
                 Cursor="SizeAll" MouseLeftButtonDown="DragAll_MouseDown" MouseMove="DragAll_MouseMove">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

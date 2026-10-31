@@ -26,6 +26,7 @@ public enum SettingsPage
     Profiles,
     Sharing,
     Connected,
+    Automations,
     About,
 }
 
@@ -41,6 +42,7 @@ public partial class SettingsWindow : Window
     private SettingsWindow()
     {
         InitializeComponent();
+        InitializeChrome();
         SourceInitialized += (_, _) =>
         {
             ApplyDarkRoundedFrame(new WindowInteropHelper(this).Handle);
@@ -56,6 +58,7 @@ public partial class SettingsWindow : Window
 
         LoadValues();
         NavGeneral.IsChecked = true;
+        WatchAlerts();
         SettingsStore.Changed += OnStoreChanged;
         GlobalHotkey.StateChanged += ShowHotkey;
         UpdateService.Changed += ShowUpdateState;
@@ -80,11 +83,13 @@ public partial class SettingsWindow : Window
     /// <summary>Un réglage a changé ailleurs (profil choisi dans l'île ou le dock…) : la page Profils suit.</summary>
     private void OnStoreChanged()
     {
+        if (!_loading) SyncToggles(); // dock ↔ barre des tâches depuis le dock, mode Gaming depuis le téléphone, thème importé…
         ShowHotkey();
         ShowAutoColors(); // couleurs du fond d'écran lues en arrière-plan, coordonnées de la ville trouvées…
         ShowWallpaperChoice();
         ShowPlacement(); // île ou dock déplacés en les faisant glisser
         if (ProfilesPage.Visibility == Visibility.Visible) LoadProfiles();
+        if (AutomationsPage.Visibility == Visibility.Visible && _sampleRules == null) LoadAutomations(); // règle activée ailleurs, Ne pas déranger…
     }
 
     /// <summary>Ouvre la fenêtre (ou la ramène devant), éventuellement sur une section précise.</summary>
@@ -113,6 +118,7 @@ public partial class SettingsWindow : Window
             SettingsPage.Profiles => NavProfiles,
             SettingsPage.Sharing => NavSharing,
             SettingsPage.Connected => NavConnected,
+            SettingsPage.Automations => NavAutomations,
             SettingsPage.About => NavAbout,
             _ => NavGeneral,
         };
@@ -124,7 +130,8 @@ public partial class SettingsWindow : Window
         (RadioButton Nav, FrameworkElement Page)[] pages =
         [
             (NavGeneral, GeneralPage), (NavAppearance, AppearancePage), (NavWallpaper, WallpaperPage), (NavIsland, IslandPage), (NavDock, DockPage),
-            (NavWidgets, WidgetsPage), (NavProfiles, ProfilesPage), (NavSharing, SharingPage), (NavConnected, ConnectedPage), (NavAbout, AboutPage),
+            (NavWidgets, WidgetsPage), (NavProfiles, ProfilesPage), (NavSharing, SharingPage), (NavConnected, ConnectedPage), (NavAutomations, AutomationsPage),
+            (NavAbout, AboutPage),
         ];
         foreach (var (nav, page) in pages)
             page.Visibility = nav.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
@@ -133,6 +140,7 @@ public partial class SettingsWindow : Window
         if (NavAbout.IsChecked == true) ShowSafety();
         if (NavWallpaper.IsChecked == true) _ = LoadWallpaperPageAsync();
         if (NavSharing.IsChecked == true) LoadSharing();
+        if (NavAutomations.IsChecked == true) LoadAutomations();
         if (NavConnected.IsChecked == true) ShowRemote();
         WatchFriends(NavConnected.IsChecked == true); // liste relue plus souvent tant que la page est ouverte
         Scroller.ScrollToTop();
@@ -166,6 +174,8 @@ public partial class SettingsWindow : Window
         ShowDiscordState();
         FocusSlider.Value = settings.Island.PomodoroFocusMinutes;
         BreakSlider.Value = settings.Island.PomodoroBreakMinutes;
+        TimerVolumeSlider.Value = Math.Round(settings.Timer.Volume * 100);
+        ShowTimerSound();
 
         WeatherToggle.IsChecked = settings.Widgets.Weather;
         CityBox.Text = settings.Widgets.City;
@@ -173,6 +183,8 @@ public partial class SettingsWindow : Window
         RamToggle.IsChecked = settings.Widgets.Ram;
         GpuToggle.IsChecked = settings.Widgets.Gpu;
         NetworkToggle.IsChecked = settings.Widgets.Network;
+        WeatherRefreshSlider.Maximum = WidgetSettings.WeatherRefreshChoices.Length - 1;
+        WeatherRefreshSlider.Value = Array.IndexOf(WidgetSettings.WeatherRefreshChoices, settings.Widgets.WeatherRefreshMinutes);
 
         (settings.Dock.Mode switch
         {
@@ -181,8 +193,27 @@ public partial class SettingsWindow : Window
             _ => FixedMode,
         }).IsChecked = true;
         (settings.Dock.Layout == DockLayout.Bar ? BarLayout : FloatingLayout).IsChecked = true;
+        (settings.Dock.Alignment switch
+        {
+            DockAlignment.Left => DockAlignLeft,
+            DockAlignment.Right => DockAlignRight,
+            _ => DockAlignCenter,
+        }).IsChecked = true;
+        (settings.Dock.CloseSize switch
+        {
+            PreviewCloseSize.Small => CloseSmallOption,
+            PreviewCloseSize.Large => CloseLargeOption,
+            _ => CloseMediumOption,
+        }).IsChecked = true;
+        (settings.Dock.CloseColor switch
+        {
+            PreviewCloseColor.Red => CloseRedOption,
+            PreviewCloseColor.Accent => CloseAccentOption,
+            _ => CloseGrayOption,
+        }).IsChecked = true;
         HideTaskbarToggle.IsChecked = settings.Dock.HideTaskbar;
         TrayIconsToggle.IsChecked = settings.Dock.ShowTrayIcons;
+        HideDesktopIconsToggle.IsChecked = settings.Dock.HideDesktopIcons;
         MagnificationSlider.Value = settings.Dock.Magnification;
         MinimizeEffectToggle.IsChecked = settings.Dock.MinimizeEffect;
         GamingToggle.IsChecked = settings.Gaming.Auto;
@@ -222,6 +253,7 @@ public partial class SettingsWindow : Window
         CalendarWidgetToggle.IsChecked = settings.DesktopWidgets[DesktopWidgetKind.Calendar].Visible;
         StatsWidgetToggle.IsChecked = settings.DesktopWidgets[DesktopWidgetKind.Stats].Visible;
         DynamicWallpaperToggle.IsChecked = settings.Wallpaper.Dynamic;
+        EnforceWallpaperToggle.IsChecked = settings.Wallpaper.Enforce;
         AnimatedWallpaperToggle.IsChecked = settings.Wallpaper.Animated;
         AnimatedAllScreensToggle.IsChecked = settings.Wallpaper.AnimatedAllScreens;
         ShowAutoColors();
@@ -234,6 +266,7 @@ public partial class SettingsWindow : Window
         ShowLanguage();
         ShowStatusItems();
         ShowIslandExtras();
+        ShowIslandLayout(); // taille, onglets, mode, règles par application (priorité 2)
         ShowRemote();
         ShowRgb();
         ShowFriends();
@@ -248,6 +281,24 @@ public partial class SettingsWindow : Window
     {
         if (_loading) return;
         UpdateValueTexts();
+        bool? intended = (sender as System.Windows.Controls.Primitives.ToggleButton)?.IsChecked;
+        _loading = true; // OnStoreChanged ne resynchronise pas pendant notre propre changement
+        try
+        {
+            ApplyControls();
+        }
+        finally
+        {
+            _loading = false;
+        }
+        CheckClickedToggle(sender, intended);
+        if (ReferenceEquals(sender, HideDesktopIconsToggle)) ShowStatusItems(); // la flèche vient d'être ajoutée à la zone d'état
+        ApplyBackdrop();
+        ShowAutoColors();
+    }
+
+    private void ApplyControls()
+    {
         SettingsStore.Update(settings =>
         {
             settings.Island.Enabled = IslandEnabledToggle.IsChecked == true;
@@ -264,12 +315,14 @@ public partial class SettingsWindow : Window
             settings.Claude.Enabled = ClaudeToggle.IsChecked == true;
             settings.Island.PomodoroFocusMinutes = RoundTo(FocusSlider.Value, 5);
             settings.Island.PomodoroBreakMinutes = RoundTo(BreakSlider.Value, 1);
+            settings.Timer.Volume = RoundTo(TimerVolumeSlider.Value, 1) / 100.0;
 
             settings.Widgets.Weather = WeatherToggle.IsChecked == true;
             settings.Widgets.Cpu = CpuToggle.IsChecked == true;
             settings.Widgets.Ram = RamToggle.IsChecked == true;
             settings.Widgets.Gpu = GpuToggle.IsChecked == true;
             settings.Widgets.Network = NetworkToggle.IsChecked == true;
+            settings.Widgets.WeatherRefreshMinutes = WeatherRefreshMinutes;
 
             settings.Dock.Enabled = DockEnabledToggle.IsChecked == true;
             settings.Palette.Enabled = PaletteToggle.IsChecked == true;
@@ -277,8 +330,22 @@ public partial class SettingsWindow : Window
                 : PeekMode.IsChecked == true ? DockMode.Peek
                 : DockMode.Fixed;
             settings.Dock.Layout = FloatingLayout.IsChecked == true ? DockLayout.Floating : DockLayout.Bar;
+            settings.Dock.Alignment = DockAlignLeft.IsChecked == true ? DockAlignment.Left
+                : DockAlignRight.IsChecked == true ? DockAlignment.Right
+                : DockAlignment.Center;
+            settings.Dock.CloseSize = CloseSmallOption.IsChecked == true ? PreviewCloseSize.Small
+                : CloseLargeOption.IsChecked == true ? PreviewCloseSize.Large
+                : PreviewCloseSize.Medium;
+            settings.Dock.CloseColor = CloseRedOption.IsChecked == true ? PreviewCloseColor.Red
+                : CloseAccentOption.IsChecked == true ? PreviewCloseColor.Accent
+                : PreviewCloseColor.Gray;
             settings.Dock.HideTaskbar = HideTaskbarToggle.IsChecked == true;
             settings.Dock.ShowTrayIcons = TrayIconsToggle.IsChecked == true;
+            bool hideIcons = HideDesktopIconsToggle.IsChecked == true;
+            // La flèche de la zone d'état arrive avec l'option (on peut la retirer ensuite dans la liste « Zone d'état »).
+            if (hideIcons && !settings.Dock.HideDesktopIcons && settings.Dock.Status.FirstOrDefault(i => i.Id == StatusItem.Desktop) is { Visible: false } arrow)
+                arrow.Visible = true;
+            settings.Dock.HideDesktopIcons = hideIcons;
             settings.Dock.Magnification = Math.Round(MagnificationSlider.Value, 2);
             settings.Dock.MinimizeEffect = MinimizeEffectToggle.IsChecked == true;
             settings.Gaming.Auto = GamingToggle.IsChecked == true;
@@ -313,11 +380,10 @@ public partial class SettingsWindow : Window
             settings.DesktopWidgets[DesktopWidgetKind.Calendar].Visible = CalendarWidgetToggle.IsChecked == true;
             settings.DesktopWidgets[DesktopWidgetKind.Stats].Visible = StatsWidgetToggle.IsChecked == true;
             settings.Wallpaper.Dynamic = DynamicWallpaperToggle.IsChecked == true;
+            settings.Wallpaper.Enforce = EnforceWallpaperToggle.IsChecked == true;
             settings.Wallpaper.Animated = AnimatedWallpaperToggle.IsChecked == true;
             settings.Wallpaper.AnimatedAllScreens = AnimatedAllScreensToggle.IsChecked == true;
         });
-        ApplyBackdrop();
-        ShowAutoColors();
     }
 
     /// <summary>Couleurs extraites du fond d'écran (pastilles) et horaires du thème automatique.</summary>
@@ -371,6 +437,8 @@ public partial class SettingsWindow : Window
         MagnificationText.Text = $"×{MagnificationSlider.Value:0.00}";
         FocusText.Text = $"{RoundTo(FocusSlider.Value, 5)} min";
         BreakText.Text = $"{RoundTo(BreakSlider.Value, 1)} min";
+        TimerVolumeText.Text = Loc.F("format.percent", RoundTo(TimerVolumeSlider.Value, 1));
+        WeatherRefreshText.Text = Services.Automations.AutomationText.Duration(WeatherRefreshMinutes);
         GlowText.Text = Loc.F("format.percent", Math.Round(GlowSlider.Value * 100));
         OpacityText.Text = Loc.F("format.percent", Math.Round(OpacitySlider.Value * 100));
         DockOpacityText.Text = Loc.F("format.percent", Math.Round(DockOpacitySlider.Value * 100));
@@ -552,6 +620,12 @@ public partial class SettingsWindow : Window
         RevealHotkeyStatus.Text = revealError ? GlobalHotkey.RevealError
             : Loc.T("settings.reveal_hotkey.help");
         RevealHotkeyStatus.Foreground = revealError ? Paint.Timer : Paint.TextSecondary;
+
+        var island = settings.Island.ToggleHotkey;
+        if (!IslandHotkeyBox.IsKeyboardFocused) IslandHotkeyBox.Text = island.Length > 0 ? Hotkeys.Display(island) : Loc.T("settings.island.hotkey.none");
+        bool islandError = settings.Island.Enabled && island.Length > 0 && GlobalHotkey.IslandError != null;
+        IslandHotkeyStatus.Text = islandError ? GlobalHotkey.IslandError : Loc.T("settings.island.hotkey.help");
+        IslandHotkeyStatus.Foreground = islandError ? Paint.Timer : Paint.TextSecondary;
     }
 
     private void HotkeyBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -580,6 +654,12 @@ public partial class SettingsWindow : Window
             Keyboard.ClearFocus(); // annule : l'ancien raccourci revient
             return;
         }
+        if (box == IslandHotkeyBox && key is Key.Delete or Key.Back && modifiers == ModifierKeys.None)
+        {
+            SettingsStore.Update(s => s.Island.ToggleHotkey = ""); // aucun raccourci pour l'île
+            Keyboard.ClearFocus();
+            return;
+        }
         if (Hotkeys.IsModifier(key))
         {
             box.Text = Hotkeys.DisplayPartial(modifiers);
@@ -592,6 +672,7 @@ public partial class SettingsWindow : Window
         }
         var gesture = Hotkeys.Format(modifiers, key);
         if (box == RevealHotkeyBox) SettingsStore.Update(s => s.Dock.RevealHotkey = gesture);
+        else if (box == IslandHotkeyBox) SettingsStore.Update(s => s.Island.ToggleHotkey = gesture);
         else SettingsStore.Update(s => s.Palette.Hotkey = gesture);
         Keyboard.ClearFocus(); // le nouveau raccourci est enregistré en quittant la case
     }
@@ -606,8 +687,13 @@ public partial class SettingsWindow : Window
 
     private void StartupToggle_Click(object sender, RoutedEventArgs e)
     {
-        StartupService.SetEnabled(StartupToggle.IsChecked == true);
+        bool wanted = StartupToggle.IsChecked == true;
+        var error = StartupService.SetEnabled(wanted);
         StartupToggle.IsChecked = StartupService.IsEnabled; // reflète ce qui a vraiment été écrit
+        _applyProblem = error != null ? Loc.F("settings.alert.startup.text", error)
+            : StartupToggle.IsChecked != wanted ? Loc.T("settings.alert.refused.text") : null;
+        _alertDismissed = null;
+        ShowAlert();
     }
 
     // ------------------------------------------------------------------ À propos
@@ -632,7 +718,7 @@ public partial class SettingsWindow : Window
         var window = new SettingsWindow { ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -30000, Top = 0 };
         ((Grid)window.Content).Background = window.Background; // le fond de la fenêtre n'est pas dans le contenu
         window.Show();
-        foreach (var page in new[] { SettingsPage.General, SettingsPage.Appearance, SettingsPage.Wallpaper, SettingsPage.Island, SettingsPage.Dock, SettingsPage.Widgets, SettingsPage.Profiles, SettingsPage.Sharing, SettingsPage.Connected, SettingsPage.About })
+        foreach (var page in new[] { SettingsPage.General, SettingsPage.Appearance, SettingsPage.Wallpaper, SettingsPage.Island, SettingsPage.Dock, SettingsPage.Widgets, SettingsPage.Profiles, SettingsPage.Sharing, SettingsPage.Connected, SettingsPage.Automations, SettingsPage.About })
         {
             window.ShowPage(page);
             if (page == SettingsPage.Connected)
@@ -643,7 +729,21 @@ public partial class SettingsWindow : Window
                     File.WriteAllBytes(Path.Combine(folder, "7-qr-telecommande.png"), OpalineLogo.Png(qr)); // à décoder pour vérifier
             }
             if (page == SettingsPage.Wallpaper) await window.LoadWallpaperPageAsync(); // vignettes dessinées
+            if (page == SettingsPage.Automations) window.ShowAutomationsSample(); // règles d'exemple (rien n'est écrit)
             await SnapshotRenderer.SaveAsync(window, Path.Combine(folder, $"7-parametres-{page.ToString().ToLowerInvariant()}.png"));
+            if (page == SettingsPage.Island) await window.SnapshotScrolledAsync(window.TimerGroupTitle, Path.Combine(folder, "7-parametres-island-minuteur.png"));
+            if (page == SettingsPage.Dock)
+            {
+                // Page longue : la suite, écran par écran (aperçus, icônes du bureau, zone d'état…).
+                var scroller = window.Scroller;
+                for (int part = 2; part <= 5 && scroller.VerticalOffset + scroller.ViewportHeight < scroller.ExtentHeight - 1; part++)
+                {
+                    scroller.ScrollToVerticalOffset(scroller.VerticalOffset + scroller.ViewportHeight * 0.9);
+                    window.UpdateLayout();
+                    await SnapshotRenderer.SaveAsync(window, Path.Combine(folder, $"7-parametres-dock-{part}.png"));
+                }
+                scroller.ScrollToTop();
+            }
         }
         window.Close();
     }

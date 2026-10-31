@@ -84,7 +84,7 @@ public sealed class AppRemoteBackend : IRemoteBackend
         {
             ["pc"] = Environment.MachineName,
             ["accent"] = new JsonArray(Hex(AppearanceService.AccentStart), Hex(AppearanceService.AccentEnd)),
-            ["full"] = device.FullControl,
+            ["full"] = device.FullControl, ["files"] = Settings.SettingsStore.Current.Remote.FileTransfer, ["outbox"] = RemoteOutbox.Revision,
         };
         if (Media is { HasSession: true } media)
         {
@@ -485,7 +485,7 @@ public sealed class DemoRemoteBackend : IRemoteBackend
         {
             ["pc"] = "OPALINE-DEMO",
             ["accent"] = new JsonArray(AppRemoteBackend.Hex(Swatch.AccentStart), AppRemoteBackend.Hex(Swatch.AccentEnd)),
-            ["full"] = device.FullControl,
+            ["full"] = device.FullControl, ["files"] = true, ["outbox"] = RemoteOutbox.Revision,
             ["media"] = new JsonObject
             {
                 ["title"] = "Nuit d'opale",

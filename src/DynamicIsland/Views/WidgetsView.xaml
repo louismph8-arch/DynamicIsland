@@ -21,6 +21,12 @@
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="HorizontalAlignment" Value="Right"/>
     </Style>
+    <Style x:Key="RateValue" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Headline}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="{ui:Space 0,px,0,0}"/>
+      <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
     <Style x:Key="TileBar" TargetType="Border">
       <Setter Property="Height" Value="{x:Static t:Sizes.Bar}"/>
       <Setter Property="CornerRadius" Value="{x:Static t:Corners.Pill}"/>
@@ -56,51 +62,65 @@
         </Grid>
       </ui:SquircleBorder>
 
-      <!-- CPU, RAM, GPU, réseau (les tuiles désactivées sont repliées) -->
-      <UniformGrid x:Name="StatTiles" Grid.Column="1" Columns="2" Margin="{ui:Space 0,0,-s3,-s3}">
-        <ui:SquircleBorder x:Name="CpuTile" Style="{StaticResource Tile}">
-          <Grid>
-            <TextBlock Style="{StaticResource TileLabel}" Text="CPU"/>
-            <TextBlock x:Name="CpuValue" Style="{StaticResource TileValue}" Text="…"/>
-            <ui:SquircleBorder Style="{StaticResource TileBar}">
-              <ui:SquircleBorder x:Name="CpuFill" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource AccentBrush}" RenderTransformOrigin="0,0.5">
-                <Border.RenderTransform><ScaleTransform ScaleX="0"/></Border.RenderTransform>
+      <!-- CPU, RAM, GPU en haut, réseau sur toute la largeur en dessous (les tuiles désactivées sont repliées, voir ApplySettings) -->
+      <Grid x:Name="StatTiles" Grid.Column="1" Margin="{ui:Space 0,0,-s3,-s3}">
+        <Grid.RowDefinitions>
+          <RowDefinition x:Name="GaugeRow"/>
+          <RowDefinition x:Name="NetworkRow"/>
+        </Grid.RowDefinitions>
+        <UniformGrid x:Name="GaugeTiles" Columns="2">
+          <ui:SquircleBorder x:Name="CpuTile" Style="{StaticResource Tile}">
+            <Grid>
+              <TextBlock Style="{StaticResource TileLabel}" Text="CPU"/>
+              <TextBlock x:Name="CpuValue" Style="{StaticResource TileValue}" Text="…"/>
+              <ui:SquircleBorder Style="{StaticResource TileBar}">
+                <ui:SquircleBorder x:Name="CpuFill" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource AccentBrush}" RenderTransformOrigin="0,0.5">
+                  <Border.RenderTransform><ScaleTransform ScaleX="0"/></Border.RenderTransform>
+                </ui:SquircleBorder>
               </ui:SquircleBorder>
-            </ui:SquircleBorder>
-          </Grid>
-        </ui:SquircleBorder>
-        <ui:SquircleBorder x:Name="RamTile" Style="{StaticResource Tile}">
-          <Grid>
-            <TextBlock Style="{StaticResource TileLabel}" Text="RAM"/>
-            <TextBlock x:Name="RamValue" Style="{StaticResource TileValue}" Text="…"/>
-            <ui:SquircleBorder Style="{StaticResource TileBar}">
-              <ui:SquircleBorder x:Name="RamFill" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource AccentBrush}" RenderTransformOrigin="0,0.5">
-                <Border.RenderTransform><ScaleTransform ScaleX="0"/></Border.RenderTransform>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder x:Name="RamTile" Style="{StaticResource Tile}">
+            <Grid>
+              <TextBlock Style="{StaticResource TileLabel}" Text="RAM"/>
+              <TextBlock x:Name="RamValue" Style="{StaticResource TileValue}" Text="…"/>
+              <ui:SquircleBorder Style="{StaticResource TileBar}">
+                <ui:SquircleBorder x:Name="RamFill" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource AccentBrush}" RenderTransformOrigin="0,0.5">
+                  <Border.RenderTransform><ScaleTransform ScaleX="0"/></Border.RenderTransform>
+                </ui:SquircleBorder>
               </ui:SquircleBorder>
-            </ui:SquircleBorder>
-          </Grid>
-        </ui:SquircleBorder>
-        <ui:SquircleBorder x:Name="GpuTile" Style="{StaticResource Tile}">
-          <Grid>
-            <TextBlock Style="{StaticResource TileLabel}" Text="GPU"/>
-            <TextBlock x:Name="GpuValue" Style="{StaticResource TileValue}" Text="…"/>
-            <ui:SquircleBorder Style="{StaticResource TileBar}">
-              <ui:SquircleBorder x:Name="GpuFill" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource AccentBrush}" RenderTransformOrigin="0,0.5">
-                <Border.RenderTransform><ScaleTransform ScaleX="0"/></Border.RenderTransform>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder x:Name="GpuTile" Style="{StaticResource Tile}">
+            <Grid>
+              <TextBlock Style="{StaticResource TileLabel}" Text="GPU"/>
+              <TextBlock x:Name="GpuValue" Style="{StaticResource TileValue}" Text="…"/>
+              <ui:SquircleBorder Style="{StaticResource TileBar}">
+                <ui:SquircleBorder x:Name="GpuFill" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource AccentBrush}" RenderTransformOrigin="0,0.5">
+                  <Border.RenderTransform><ScaleTransform ScaleX="0"/></Border.RenderTransform>
+                </ui:SquircleBorder>
               </ui:SquircleBorder>
-            </ui:SquircleBorder>
-          </Grid>
-        </ui:SquircleBorder>
-        <ui:SquircleBorder x:Name="NetworkTile" Style="{StaticResource Tile}">
-          <Grid>
-            <TextBlock Style="{StaticResource TileLabel}" Text="{ui:L widgets.reseau}"/>
-            <StackPanel VerticalAlignment="Bottom">
-              <TextBlock x:Name="DownloadValue" FontSize="{x:Static t:TypeRamp.Footnote}" FontWeight="SemiBold" Text="↓ …"/>
-              <TextBlock x:Name="UploadValue" FontSize="{x:Static t:TypeRamp.Footnote}" Foreground="{StaticResource TextSecondary}" Text="↑ …"/>
+            </Grid>
+          </ui:SquircleBorder>
+        </UniformGrid>
+        <!-- Réseau : libellé discret au-dessus de chaque débit (correctif 17) -->
+        <ui:SquircleBorder x:Name="NetworkTile" Grid.Row="1" Style="{StaticResource Tile}">
+          <Grid VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition/>
+              <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Style="{StaticResource TileLabel}" Text="{ui:L widgets.download}" TextTrimming="CharacterEllipsis"/>
+              <TextBlock x:Name="DownloadValue" Style="{StaticResource RateValue}" Text="…"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="{ui:Space s4,0,0,0}">
+              <TextBlock Style="{StaticResource TileLabel}" Text="{ui:L widgets.upload}" TextTrimming="CharacterEllipsis"/>
+              <TextBlock x:Name="UploadValue" Style="{StaticResource RateValue}" Text="…"/>
             </StackPanel>
           </Grid>
         </ui:SquircleBorder>
-      </UniformGrid>
+      </Grid>
     </Grid>
 
     <StackPanel x:Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">

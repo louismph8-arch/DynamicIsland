@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using DynamicIsland.Services;
 using DynamicIsland.Settings;
+using DynamicIsland.Themes;
 
 namespace DynamicIsland.Views;
 
@@ -59,8 +60,23 @@ public partial class WidgetsView : UserControl
         RamTile.Visibility = Show(widgets.Ram);
         GpuTile.Visibility = Show(widgets.Gpu);
         NetworkTile.Visibility = Show(widgets.Network);
-        bool anyStat = widgets.Cpu || widgets.Ram || widgets.Gpu || widgets.Network;
+        int gauges = (widgets.Cpu ? 1 : 0) + (widgets.Ram ? 1 : 0) + (widgets.Gpu ? 1 : 0);
+        bool anyStat = gauges > 0 || widgets.Network;
         StatTiles.Visibility = Show(anyStat);
+        // Réseau affiché : une rangée de jauges au-dessus de la tuile réseau (pleine largeur, pour ses deux libellés) ;
+        // sinon les jauges sur deux colonnes, comme avant.
+        GaugeTiles.Rows = widgets.Network ? 1 : 0;
+        GaugeTiles.Columns = widgets.Network ? Math.Max(gauges, 1) : 2;
+        GaugeRow.Height = gauges > 0 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        NetworkRow.Height = widgets.Network ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        // Trois jauges à côté de la météo : tuiles étroites, la valeur passe sous le libellé.
+        bool narrow = widgets.Network && gauges == 3 && widgets.Weather;
+        foreach (var value in new[] { CpuValue, RamValue, GpuValue })
+        {
+            value.HorizontalAlignment = narrow ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+            value.VerticalAlignment = narrow ? VerticalAlignment.Bottom : VerticalAlignment.Top;
+            value.Margin = narrow ? new Thickness(0, 0, 0, Sizes.Bar + Space.S2) : new Thickness(0);
+        }
         WeatherTile.Width = anyStat ? 140 : double.NaN; // seule, la météo prend toute la largeur
         bool any = widgets.Weather || anyStat;
         ContentGrid.Visibility = Show(any);
@@ -102,8 +118,8 @@ public partial class WidgetsView : UserControl
             SetPercent(CpuValue, CpuFill, stats.Cpu);
             SetPercent(RamValue, RamFill, stats.Ram);
             SetPercent(GpuValue, GpuFill, stats.Gpu);
-            DownloadValue.Text = "↓ " + SystemStatsService.FormatRate(stats.Download);
-            UploadValue.Text = "↑ " + SystemStatsService.FormatRate(stats.Upload);
+            DownloadValue.Text = SystemStatsService.FormatRate(stats.Download);
+            UploadValue.Text = SystemStatsService.FormatRate(stats.Upload);
         }
         catch (Exception ex)
         {

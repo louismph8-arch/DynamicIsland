@@ -34,6 +34,9 @@ internal static class AppPaths
     /// <summary>Présent seulement quand l'animation de réduction de Windows est coupée par nous (effet Génie).</summary>
     public static string MinimizeAnimationState => Path.Combine(DataFolder, "animation-reduction.txt");
 
+    /// <summary>Présent seulement quand les icônes du bureau sont cachées par nous (correctif 16) : elles étaient affichées avant.</summary>
+    public static string DesktopIconsState => Path.Combine(DataFolder, "icones-bureau.txt");
+
     /// <summary>Présent seulement quand le dock réserve de l'espace à l'écran : contient le handle de sa fenêtre.</summary>
     public static string AppBarHandle => Path.Combine(DataFolder, "dock-appbar.txt");
     public static string MenuBarHandle => Path.Combine(DataFolder, "barre-de-menus-appbar.txt");

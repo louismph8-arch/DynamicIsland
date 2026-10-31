@@ -14,7 +14,7 @@ public sealed class LiquidGlassEffect : ShaderEffect
     private static readonly PixelShader? Shader = Load();
 
     /// <summary>Faux si le shader n'a pas pu être chargé : le verre est alors simplement désactivé.</summary>
-    public static bool IsAvailable => Shader != null;
+    public static bool IsAvailable => Shader != null && !Services.CrashWatch.ReducedEffects;
 
     public static readonly DependencyProperty InputProperty =
         RegisterPixelShaderSamplerProperty(nameof(Input), typeof(LiquidGlassEffect), 0);

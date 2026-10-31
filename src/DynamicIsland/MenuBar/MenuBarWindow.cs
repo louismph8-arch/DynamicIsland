@@ -221,7 +221,11 @@ public sealed class MenuBarWindow : Window
 
     // ------------------------------------------------------------------ appli au premier plan
 
-    private void OnWinEvent(IntPtr hook, uint eventType, IntPtr hWnd, int idObject, int idChild, uint thread, uint time)
+    /// <summary>Rappel de Windows : une exception ici tuerait l'app → toujours attrapée.</summary>
+    private void OnWinEvent(IntPtr hook, uint eventType, IntPtr hWnd, int idObject, int idChild, uint thread, uint time) =>
+        Services.Guarded.Run(() => HandleWinEvent(eventType, hWnd, idObject, idChild), "Barre de menus : événement de Windows");
+
+    private void HandleWinEvent(uint eventType, IntPtr hWnd, int idObject, int idChild)
     {
         if (idObject != 0 || idChild != 0) return;
         if (eventType == EVENT_SYSTEM_FOREGROUND)

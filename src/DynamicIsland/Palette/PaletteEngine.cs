@@ -34,10 +34,11 @@ public static partial class PaletteEngine
     [GeneratedRegex(@"^(?:timer|minuteur|minuterie|chrono|compte\s*à\s*rebours)\b\s*(?<rest>.*)$", RegexOptions.IgnoreCase)]
     private static partial Regex TimerCommand();
 
-    [GeneratedRegex(@"^(?:(?<h>\d+)\s*h(?:eures?|ours?|rs?)?)?\s*(?:(?<m>\d+)\s*(?:m|mn|min|mins|minutes?)?)?\s*(?:(?<s>\d+)\s*(?:s|sec|secs|secondes?|seconds?))?$", RegexOptions.IgnoreCase)]
+    // (?!\d) : un nombre n'est jamais coupé en deux (« 90 s » lisait 9 min 0 s, « 45s » 4 min 5 s).
+    [GeneratedRegex(@"^(?:(?<h>\d+)(?!\d)\s*h(?:eures?|ours?|rs?)?)?\s*(?:(?<m>\d+)(?!\d)\s*(?:m|mn|min|mins|minutes?)?)?\s*(?:(?<s>\d+)(?!\d)\s*(?:s|sec|secs|secondes?|seconds?))?$", RegexOptions.IgnoreCase)]
     private static partial Regex Duration();
 
-    [GeneratedRegex(@"^(?<m>\d+):(?<s>\d{2})$")]
+    [GeneratedRegex(@"^(?:(?<h>\d+):(?=\d{2}:))?(?<m>\d+):(?<s>\d{2})$")]
     private static partial Regex ClockDuration();
 
     [GeneratedRegex(@"^(?:profils?|profiles?)\b\s*(?<rest>.*)$", RegexOptions.IgnoreCase)]
@@ -172,7 +173,10 @@ public static partial class PaletteEngine
             GlyphBackground = Paint.Timer,
         };
 
-    /// <summary>« 10 », « 10 min », « 1h30 », « 90 s », « 2:30 » (sans unité = minutes).</summary>
+    /// <summary>
+    /// « 10 », « 10 min », « 1h30 », « 90 s », « 2:30 », « 1:30:00 » (sans unité = minutes) ; jusqu'à 24 h, ramené à 23:59:59 (le
+    /// plus long minuteur de l'île, correctif 19).
+    /// </summary>
     public static bool TryParseDuration(string text, out TimeSpan duration)
     {
         duration = TimeSpan.Zero;
@@ -181,9 +185,17 @@ public static partial class PaletteEngine
         var match = clock.Success ? clock : Duration().Match(text);
         if (!match.Success || text.Length == 0) return false;
 
-        int Part(string name) => match.Groups[name].Success ? int.Parse(match.Groups[name].Value) : 0;
-        duration = new TimeSpan(Part("h"), Part("m"), Part("s"));
-        return duration > TimeSpan.Zero && duration <= TimeSpan.FromHours(24);
+        long seconds = 0;
+        foreach (var (name, unit) in new[] { ("h", 3600L), ("m", 60L), ("s", 1L) })
+        {
+            if (!match.Groups[name].Success) continue;
+            // Nombre énorme (« 99999999999 s ») : refusé plutôt qu'une exception.
+            if (!long.TryParse(match.Groups[name].Value, out long value) || value > 24 * 3600) return false;
+            seconds += value * unit;
+        }
+        if (seconds <= 0 || seconds > 24 * 3600) return false;
+        duration = TimeSpan.FromSeconds(Math.Min(seconds, TimerService.MaxDuration.TotalSeconds));
+        return true;
     }
 
     private static string Describe(TimeSpan duration)

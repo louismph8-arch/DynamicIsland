@@ -19,13 +19,13 @@ public enum TimerKind
 }
 
 /// <summary>
-/// Minuteur (1 à 99 min) et Pomodoro, basés sur l'heure de fin pour ne pas dériver. Un Pomodoro enchaîne
+/// Minuteur (1 s à 23:59:59, correctif 19) et Pomodoro, basés sur l'heure de fin pour ne pas dériver. Un Pomodoro enchaîne
 /// la concentration puis la pause automatiquement ; l'alerte de fin ne sonne qu'à la fin de la pause.
 /// </summary>
 public sealed class TimerService
 {
-    private static readonly TimeSpan MinDuration = TimeSpan.FromMinutes(1);
-    private static readonly TimeSpan MaxDuration = TimeSpan.FromMinutes(99);
+    internal static readonly TimeSpan MinDuration = TimeSpan.FromSeconds(1);
+    internal static readonly TimeSpan MaxDuration = new(23, 59, 59);
     private static readonly TimeSpan MinRemaining = TimeSpan.FromSeconds(5);
 
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromMilliseconds(200) };
@@ -85,25 +85,25 @@ public sealed class TimerService
         Changed?.Invoke();
     }
 
-    public void AddMinutes(int minutes)
+    public void AddMinutes(int minutes) => Add(TimeSpan.FromMinutes(minutes));
+
+    /// <summary>Ajoute (ou retire) du temps au minuteur réglé, ou à ce qui tourne (jamais au-delà de 23:59:59).</summary>
+    public void Add(TimeSpan delta)
     {
-        var delta = TimeSpan.FromMinutes(minutes);
         switch (State)
         {
             case TimerState.Running:
-                var remaining = _endsAt - DateTime.UtcNow + delta;
-                if (remaining < MinRemaining) remaining = MinRemaining;
+                var remaining = Adjusted(_endsAt - DateTime.UtcNow, delta, MinRemaining);
                 _endsAt = DateTime.UtcNow + remaining;
                 Remaining = remaining;
                 Total = TimeSpan.FromTicks(Math.Max(Total.Ticks, remaining.Ticks));
                 break;
             case TimerState.Paused:
-                Remaining += delta;
-                if (Remaining < MinRemaining) Remaining = MinRemaining;
+                Remaining = Adjusted(Remaining, delta, MinRemaining);
                 Total = TimeSpan.FromTicks(Math.Max(Total.Ticks, Remaining.Ticks));
                 break;
             default:
-                Duration = Clamp(Duration + delta);
+                Duration = Adjusted(Duration, delta, MinDuration);
                 Remaining = Total = Duration;
                 State = TimerState.Idle;
                 Kind = TimerKind.Timer;
@@ -127,11 +127,23 @@ public sealed class TimerService
         if (State == TimerState.Finished) Reset();
     }
 
+    /// <summary>« 05:00 », ou « 1:30:00 » à partir d'une heure (secondes arrondies au-dessus, comme un compte à rebours).</summary>
     public static string Format(TimeSpan time)
     {
         int seconds = (int)Math.Ceiling(Math.Max(time.TotalSeconds, 0));
-        return $"{seconds / 60:00}:{seconds % 60:00}";
+        return seconds >= 3600
+            ? $"{seconds / 3600}:{seconds / 60 % 60:00}:{seconds % 60:00}"
+            : $"{seconds / 60:00}:{seconds % 60:00}";
     }
+
+    /// <summary>Le texte affiché a des heures (« h:mm:ss ») : île réduite plus large, chiffres un peu plus petits dans l'onglet.</summary>
+    public static bool HasHours(TimeSpan time) => Math.Ceiling(time.TotalSeconds) >= 3600;
+
+    /// <summary>Durée + écart, gardée entre <paramref name="floor"/> et 23:59:59.</summary>
+    internal static TimeSpan Adjusted(TimeSpan duration, TimeSpan delta, TimeSpan floor) => Clamp(duration + delta, floor);
+
+    /// <summary>Durée d'un minuteur : de 1 s à 23:59:59.</summary>
+    internal static TimeSpan Clamp(TimeSpan duration) => Clamp(duration, MinDuration);
 
     private void Begin(TimeSpan duration, TimerKind kind)
     {
@@ -172,6 +184,6 @@ public sealed class TimerService
         Finished?.Invoke();
     }
 
-    private static TimeSpan Clamp(TimeSpan duration) =>
-        duration < MinDuration ? MinDuration : duration > MaxDuration ? MaxDuration : duration;
+    private static TimeSpan Clamp(TimeSpan duration, TimeSpan floor) =>
+        duration < floor ? floor : duration > MaxDuration ? MaxDuration : duration;
 }

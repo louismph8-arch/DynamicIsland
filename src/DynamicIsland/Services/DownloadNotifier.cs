@@ -96,6 +96,7 @@ public static class DownloadNotifier
                     break;
                 case FileState.Complete:
                     Candidates.Remove(path);
+                    if (Remote.RemoteUploads.IsFromPhone(path)) break; // reçu du téléphone : l'île l'annonce elle-même (7E)
                     if (Announced.TryAdd(path, now)) done.Add(path);
                     break;
                 case FileState.Busy:

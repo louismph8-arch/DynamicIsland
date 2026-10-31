@@ -26,9 +26,16 @@ public partial class DockWindow
     private DockIconView? _dragView;
     private FolderWindow? _folderWindow;
     /// <summary>Glisser-déposer : icône sous l'icône glissée, qui devient « prête » (dossier) après un court arrêt.</summary>
-    private readonly DispatcherTimer _mergeDelay = new() { Interval = TimeSpan.FromMilliseconds(350) };
+    private readonly DispatcherTimer _mergeDelay = new() { Interval = TimeSpan.FromMilliseconds(450) };
     private DockIconView? _mergeCandidate;
     private bool _mergeArmed;
+    /// <summary>
+    /// Correctif urgent 4 : pendant le glisser, l'ordre des icônes dans le panneau ne change PAS (sinon l'icône glissée, retirée
+    /// puis remise, perdait la souris et le glisser s'arrêtait — surtout vers la gauche). Les voisines s'écartent par leur
+    /// décalage animé (<see cref="DockIconView.Drag"/>) ; le nouvel ordre n'est rangé qu'au lâcher.
+    /// </summary>
+    private int _dragFrom, _dragTo;
+    private readonly Dictionary<DockIconView, double> _shifts = [];
 
     private void InitializeInteraction()
     {
@@ -108,7 +115,8 @@ public partial class DockWindow
             WindowActions.Minimize(active.Handle);
             return;
         }
-        var target = item.Windows.FirstOrDefault(w => !w.IsMinimized) ?? item.Windows[0];
+        // Toutes réduites : celle qu'on a réduite en dernier (pas une au hasard), rendue comme avant.
+        var target = item.Windows.FirstOrDefault(w => !w.IsMinimized) ?? WindowActions.LastMinimized(item.Windows) ?? item.Windows[0];
         WindowActions.Activate(target.Handle);
     }
 
@@ -124,6 +132,8 @@ public partial class DockWindow
             if (!_pressView.Item.IsPinned || Math.Abs(position.X - _pressPoint.X) < 6) return;
             _dragView = _pressView;
             _dragView.Drag.BeginAnimation(TranslateTransform.XProperty, null);
+            _dragFrom = _dragTo = _pinned.IndexOf(_dragView.Item);
+            _shifts.Clear();
             _previewDelay.Stop();
             HidePreview();
             HideLabel();
@@ -136,19 +146,42 @@ public partial class DockWindow
         if (mergeTarget != _mergeCandidate) SetMergeCandidate(mergeTarget);
         if (mergeTarget == null)
         {
-            // Pas au-dessus d'une autre icône : on réordonne.
-            int from = _pinned.IndexOf(item);
-            int to = _pinned.Count(other => other != item && SlotCenter(_views[other]) < pointer);
-            if (to != from)
+            // Pas au-dessus d'une autre icône : la place visée = nombre de voisines (place d'origine) avant le curseur.
+            int to = _pinned.Count(other => other != item && _views.TryGetValue(other, out var v) && SlotCenter(v) < pointer);
+            if (to != _dragTo)
             {
-                _pinned.RemoveAt(from);
-                _pinned.Insert(to, item);
-                SyncViews();
-                ItemsPanel.UpdateLayout();
+                _dragTo = to;
+                ShiftNeighbours();
             }
         }
         _dragView.Drag.X = pointer - SlotCenter(_dragView);
     }
+
+    /// <summary>Décalage de chaque voisine pour laisser la place à l'icône glissée (une largeur d'icône, animé).</summary>
+    internal static double ShiftFor(int index, int from, int to, double width) =>
+        from < to && index > from && index <= to ? -width
+        : to < from && index >= to && index < from ? width
+        : 0;
+
+    private void ShiftNeighbours()
+    {
+        if (_dragView == null) return;
+        double width = LayoutInformation.GetLayoutSlot(_dragView).Width;
+        for (int i = 0; i < _pinned.Count; i++)
+        {
+            if (!_views.TryGetValue(_pinned[i], out var view) || view == _dragView) continue;
+            double shift = ShiftFor(i, _dragFrom, _dragTo, width);
+            if (_shifts.TryGetValue(view, out var current) && current == shift) continue;
+            _shifts[view] = shift;
+            view.Drag.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(shift, Motion.Swift)
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            });
+        }
+    }
+
+    /// <summary>Position visible d'une voisine (place d'origine + décalage pendant le glisser).</summary>
+    private double VisualCenter(DockIconView view) => SlotCenter(view) + (_shifts.TryGetValue(view, out var shift) ? shift : 0);
 
     private static double SlotCenter(UIElement element)
     {
@@ -163,7 +196,7 @@ public partial class DockWindow
         foreach (var other in _pinned)
         {
             if (other == dragged || !_views.TryGetValue(other, out var view)) continue;
-            if (Math.Abs(pointer - SlotCenter(view)) < DockIconView.BaseWidth * DockShape.MergeZone) return view;
+            if (Math.Abs(pointer - VisualCenter(view)) < DockIconView.BaseWidth * DockShape.MergeZone) return view;
         }
         return null;
     }
@@ -185,19 +218,47 @@ public partial class DockWindow
         var target = _mergeArmed ? _mergeCandidate : null;
         SetMergeCandidate(null);
 
+        // Où chaque icône se trouve à l'écran maintenant (place + décalage), pour glisser en douceur vers sa nouvelle place.
+        var seen = _views.Values.ToDictionary(v => v, v => SlotCenter(v) + v.Drag.X);
         if (target != null)
         {
+            ResetShifts();
             MergeInto(view.Item, target.Item);
         }
         else
         {
-            view.Drag.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, Motion.Swift)
+            int from = _pinned.IndexOf(view.Item);
+            if (from >= 0 && _dragTo != from && _dragTo >= 0 && _dragTo < _pinned.Count)
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            });
-            SavePins();
+                _pinned.RemoveAt(from);
+                _pinned.Insert(_dragTo, view.Item);
+                SyncViews();
+                ItemsPanel.UpdateLayout();
+            }
+            foreach (var (other, before) in seen)
+            {
+                if (PresentationSource.FromVisual(other) == null) continue;
+                other.Drag.BeginAnimation(TranslateTransform.XProperty, null);
+                other.Drag.X = before - SlotCenter(other);
+                other.Drag.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, Motion.Swift)
+                {
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+                });
+            }
+            _shifts.Clear();
+            SavePins(); // ordre enregistré (réglages, 400 ms plus tard)
         }
         UpdateMagnification();
+    }
+
+    private void ResetShifts()
+    {
+        foreach (var other in _shifts.Keys)
+        {
+            other.Drag.BeginAnimation(TranslateTransform.XProperty, null);
+            other.Drag.X = 0;
+        }
+        _shifts.Clear();
     }
 
     // ------------------------------------------------------------------ dossiers
@@ -360,7 +421,8 @@ public partial class DockWindow
         top.IsChecked = AtTop;
         place.Items.Add(bottom);
         place.Items.Add(top);
-        if (!IsBar && _settings.Offset != 0) place.Items.Add(MenuEntry(Loc.T("dock.position.center"), () => MoveDock(_settings.Screen, _settings.Edge, 0)));
+        if (!IsBar && (_settings.Offset != 0 || _settings.Alignment != DockAlignment.Center))
+            place.Items.Add(MenuEntry(Loc.T("dock.position.center"), () => MoveDock(_settings.Screen, _settings.Edge, 0, DockAlignment.Center)));
         place.Items.Add(new Separator());
         var locked = MenuEntry(Loc.T("island.verrouiller_position"), () => SettingsStore.Update(s => s.Dock.LockPosition = !s.Dock.LockPosition));
         locked.IsChecked = _settings.LockPosition;
@@ -369,11 +431,12 @@ public partial class DockWindow
     }
 
     /// <summary>Nouvelle place du dock (menu, paramètres, fin d'un glisser) : enregistrée puis appliquée.</summary>
-    private static void MoveDock(string? screen, DockEdge edge, double offset) => SettingsStore.Update(s =>
+    private static void MoveDock(string? screen, DockEdge edge, double offset, DockAlignment? alignment = null) => SettingsStore.Update(s =>
     {
         s.Dock.Screen = screen;
         s.Dock.Edge = edge;
         s.Dock.Offset = offset;
+        if (alignment is { } side) s.Dock.Alignment = side;
     });
 
     // ------------------------------------------------------------------ déplacer le dock (5I)
@@ -412,7 +475,8 @@ public partial class DockWindow
 
     /// <summary>
     /// Pendant un déplacement : le dock saute sur l'écran sous la souris, au bord (haut / bas) le plus proche ; le dock
-    /// flottant glisse en plus le long du bord (aimanté au centre). Rien n'est enregistré avant le lâcher.
+    /// flottant glisse en plus le long du bord (aimanté au centre, centré + décalage même s'il était aligné sur un côté :
+    /// il suit la souris sans sauter). Rien n'est enregistré avant le lâcher.
     /// </summary>
     private bool OnMoveDock()
     {
@@ -420,7 +484,7 @@ public partial class DockWindow
         if (_live == null)
         {
             if (Math.Abs(cursor.X - press.X) < MoveThreshold && Math.Abs(cursor.Y - press.Y) < MoveThreshold) return true;
-            _live = (_settings.Screen, _settings.Edge, _settings.Offset);
+            _live = (_settings.Screen, _settings.Edge, _settings.Offset, _settings.Alignment);
             _moveReleased = false;
             _previewDelay.Stop();
             HidePreview();
@@ -440,7 +504,8 @@ public partial class DockWindow
             offset = (cursor.X - _moveGrab - (screen.Bounds.Left + screen.WidthPx / 2.0)) / screen.Scale;
             offset = Math.Abs(offset) < DockShape.SnapDistance ? 0 : Math.Round(offset);
         }
-        (string? Screen, DockEdge Edge, double Offset) target = (ScreenInfo.SettingName(screen), edge, offset);
+        (string? Screen, DockEdge Edge, double Offset, DockAlignment Alignment) target =
+            (ScreenInfo.SettingName(screen), edge, offset, IsBar ? _settings.Alignment : DockAlignment.Center);
         var current = _live.Value;
         if (target == current) return true;
         _live = target;
@@ -461,10 +526,12 @@ public partial class DockWindow
     private void EndMoveDock()
     {
         var place = _live!.Value;
+        // Dock flottant poussé contre un côté : il y reste posé (aligné à gauche / à droite), sinon centré avec son décalage.
+        var side = IsBar ? _settings.Alignment : SnapSide(place.Offset, FloatingRoom());
         _live = null;
         DockRoot.Opacity = 1;
         bool samePlace = place.Screen == _settings.Screen && place.Edge == _settings.Edge;
-        MoveDock(place.Screen, place.Edge, place.Offset); // → OnSettingsChanged : nouvelle réservation si écran / bord changé
+        MoveDock(place.Screen, place.Edge, side == DockAlignment.Center ? place.Offset : 0, side); // → OnSettingsChanged : nouvelle réservation si écran / bord changé
         if (samePlace && _moveReleased) ApplySettings(); // revenu à sa place après un détour : la réservation libérée est à refaire
     }
 

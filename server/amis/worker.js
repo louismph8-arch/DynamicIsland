@@ -6,8 +6,15 @@
 // - on ne voit que ses amis MUTUELS (chacun a ajouté le code de l'autre) : « en ligne » ou « joue à … », rien d'autre ;
 // - la présence s'efface d'elle-même 10 minutes après les dernières nouvelles ; le mode invisible l'efface tout de suite ;
 // - aucune adresse IP, aucun historique : seulement le pseudo, la présence du moment et la liste d'amis.
+//
+// Avis et bugs (7C, facultatif) : avec un secret « FEEDBACK_WEBHOOK » (adresse d'un webhook de salon Discord, Paramètres du
+// Worker → Variables and Secrets), « Donner mon avis » dans Opaline arrive dans ce salon. Seuls les PC inscrits ici peuvent
+// envoyer (5 par heure), l'adresse du webhook ne quitte jamais Cloudflare, et les mentions (@everyone…) sont désactivées.
 
-const VERSION = 1;
+const VERSION = 2;
+const FEEDBACK_PER_HOUR = 5;
+const FEEDBACK_MAX_BYTES = 8 * 1024 * 1024; // pièces jointes (un message Discord en accepte 10 Mo)
+const FEEDBACK_MAX_TEXT = 1800;
 const ONLINE_FOR = 10 * 60 * 1000;      // présence valable 10 min sans nouvelles
 const KEEP_PRESENCE = 60 * 60 * 1000;   // vieilles présences effacées après 1 h
 const MAX_LINKS = 100;
@@ -18,6 +25,7 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS presence (id TEXT PRIMARY KEY, status TEXT NOT NULL, game TEXT, updated INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS links (from_id TEXT NOT NULL, to_id TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY (from_id, to_id))",
   "CREATE INDEX IF NOT EXISTS links_to ON links (to_id)",
+  "CREATE TABLE IF NOT EXISTS feedback (id TEXT NOT NULL, at INTEGER NOT NULL)",
 ];
 let schemaReady = false;
 
@@ -28,17 +36,18 @@ export default {
         await env.DB.batch(SCHEMA.map(sql => env.DB.prepare(sql)));
         schemaReady = true;
       }
-      return await route(request, env.DB);
+      return await route(request, env);
     } catch (error) {
       return json({ error: "server", detail: String(error && error.message || error) }, 500);
     }
   },
 };
 
-async function route(request, db) {
+async function route(request, env) {
+  const db = env.DB;
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
-  if (request.method === "GET" && path === "/") return json({ app: "opaline-amis", version: VERSION });
+  if (request.method === "GET" && path === "/") return json({ app: "opaline-amis", version: VERSION, feedback: Boolean(env.FEEDBACK_WEBHOOK) });
   if (request.method === "POST" && path === "/register") return register(db, await body(request));
 
   const me = await authenticate(request, db);
@@ -48,7 +57,63 @@ async function route(request, db) {
   if (request.method === "POST" && path === "/friends/add") return addFriend(db, me, await body(request));
   if (request.method === "POST" && path === "/friends/remove") return removeFriend(db, me, await body(request));
   if (request.method === "POST" && path === "/forget") return forget(db, me);
+  if (request.method === "POST" && path === "/feedback") return sendFeedback(request, env, me);
   return json({ error: "not_found" }, 404);
+}
+
+// ------------------------------------------------------------------ avis et bugs (7C)
+
+/** Formulaire « Donner mon avis » d'Opaline → message dans le salon Discord du webhook (texte + capture + rapport facultatifs). */
+async function sendFeedback(request, env, me) {
+  if (!env.FEEDBACK_WEBHOOK) return json({ error: "feedback_off" }, 503);
+  const db = env.DB;
+  const now = Date.now();
+  await db.prepare("DELETE FROM feedback WHERE at < ?").bind(now - 60 * 60 * 1000).run();
+  const recent = await db.prepare("SELECT COUNT(*) AS n FROM feedback WHERE id = ?").bind(me).first();
+  if (recent && recent.n >= FEEDBACK_PER_HOUR) return json({ error: "too_many" }, 429);
+
+  let form;
+  try {
+    form = await request.formData();
+  } catch {
+    return json({ error: "bad_request" }, 400);
+  }
+  const kind = form.get("kind") === "bug" ? "bug" : "idea";
+  const text = String(form.get("text") || "").replace(/[\u0000-\u0008\u000b-\u001f]/g, "").trim().slice(0, FEEDBACK_MAX_TEXT);
+  if (!text) return json({ error: "empty" }, 400);
+  const version = cleanName(String(form.get("version") || "")) || "?";
+
+  const files = [];
+  let size = 0;
+  for (const [field, name, types] of [["screenshot", "capture.jpg", ["image/jpeg", "image/png"]], ["report", "rapport.zip", ["application/zip"]]]) {
+    const file = form.get(field);
+    if (!file || typeof file === "string" || file.size === 0) continue;
+    if (!types.includes(file.type)) return json({ error: "bad_file" }, 400);
+    size += file.size;
+    files.push([file, name]);
+  }
+  if (size > FEEDBACK_MAX_BYTES) return json({ error: "too_big" }, 413);
+
+  const user = await db.prepare("SELECT name FROM users WHERE id = ?").bind(me).first();
+  const who = `${user && user.name ? user.name : "?"} (${me.slice(0, 4)}-${me.slice(4)})`;
+  const payload = {
+    username: "Opaline",
+    allowed_mentions: { parse: [] }, // jamais de @everyone / @here / @quelqu'un depuis un avis
+    embeds: [{
+      title: kind === "bug" ? "🐞 Bug signalé" : "💬 Avis",
+      description: text,
+      color: kind === "bug" ? 0xff5e5e : 0x7c5cff,
+      fields: [{ name: "De", value: who, inline: true }, { name: "Version", value: version, inline: true }],
+      timestamp: new Date(now).toISOString(),
+    }],
+  };
+  const out = new FormData();
+  out.append("payload_json", JSON.stringify(payload));
+  files.forEach(([file, name], index) => out.append(`files[${index}]`, file, name));
+  const response = await fetch(env.FEEDBACK_WEBHOOK, { method: "POST", body: out });
+  if (!response.ok) return json({ error: "discord", status: response.status }, 502);
+  await db.prepare("INSERT INTO feedback (id, at) VALUES (?, ?)").bind(me, now).run();
+  return json({ ok: true });
 }
 
 // ------------------------------------------------------------------ comptes
@@ -79,6 +144,7 @@ async function forget(db, me) {
     db.prepare("DELETE FROM presence WHERE id = ?").bind(me),
     db.prepare("DELETE FROM links WHERE from_id = ? OR to_id = ?").bind(me, me),
     db.prepare("DELETE FROM users WHERE id = ?").bind(me),
+    db.prepare("DELETE FROM feedback WHERE id = ?").bind(me),
   ]);
   return json({ ok: true });
 }

@@ -19,16 +19,16 @@ public static class DeviceNotifier
     /// <summary>Appareil arrivé : type, nom, batterie en % (null si inconnue), lecteur (clé USB).</summary>
     public sealed record Arrival(Kind Kind, string Name, int? Battery, string? Drive);
 
-    private const string IsConnectedKey = "System.Devices.Aep.IsConnected";
-    private const string AddressKey = "System.Devices.Aep.DeviceAddress";
-    private const string MajorClassKey = "System.Devices.Aep.Bluetooth.Cod.Major";
+    internal const string IsConnectedKey = "System.Devices.Aep.IsConnected";
+    internal const string AddressKey = "System.Devices.Aep.DeviceAddress";
+    internal const string MajorClassKey = "System.Devices.Aep.Bluetooth.Cod.Major";
     /// <summary>Niveau de batterie Bluetooth tel que l'affiche l'app Paramètres (DEVPKEY_Bluetooth_Battery).</summary>
     private const string BatteryKey = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
     private const string ClassicProtocol = "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}";
     private const string LowEnergyProtocol = "{bb7bb05e-5972-42b5-94fc-76eaa7084d49}";
 
     /// <summary>Appareils Bluetooth jumelés (classiques et basse consommation).</summary>
-    private const string PairedBluetooth = $"(System.Devices.Aep.ProtocolId:=\"{ClassicProtocol}\" OR System.Devices.Aep.ProtocolId:=\"{LowEnergyProtocol}\") "
+    internal const string PairedBluetooth = $"(System.Devices.Aep.ProtocolId:=\"{ClassicProtocol}\" OR System.Devices.Aep.ProtocolId:=\"{LowEnergyProtocol}\") "
                                            + "AND System.Devices.Aep.IsPaired:=System.StructuredQueryType.Boolean#True";
 
     private static readonly Dictionary<string, bool> Connected = [];
@@ -136,7 +136,7 @@ public static class DeviceNotifier
     }
 
     /// <summary>Batterie publiée par Windows sur un des périphériques de cet appareil (souvent l'audio « mains libres »).</summary>
-    private static async Task<int?> BatteryAsync(string address)
+    internal static async Task<int?> BatteryAsync(string address)
     {
         try
         {
@@ -196,7 +196,7 @@ public static class DeviceNotifier
         Drives.IntersectWith(RemovableDrives().Select(d => d.Name).ToList());
     }
 
-    private static IEnumerable<DriveInfo> RemovableDrives()
+    internal static IEnumerable<DriveInfo> RemovableDrives()
     {
         foreach (var drive in DriveInfo.GetDrives())
         {

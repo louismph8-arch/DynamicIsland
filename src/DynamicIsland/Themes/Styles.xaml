@@ -111,6 +111,72 @@
   </Style>
 
   <!-- Onglets de l'île : icône + libellé (seul l'onglet actif affiche son nom) -->
+  <!-- Onglet en colonne (priorité 2, point 12) : l'icône seule, le nom dans l'infobulle et en titre au-dessus du contenu -->
+  <Style x:Key="TabButtonIcon" TargetType="RadioButton">
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Width" Value="{x:Static t:Sizes.TabIcon}"/>
+    <Setter Property="Height" Value="{x:Static t:Sizes.TabIcon}"/>
+    <Setter Property="Margin" Value="{ui:Space 0,0,0,s1}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <ui:SquircleBorder x:Name="Bd" Background="Transparent" CornerRadius="{x:Static t:Corners.Pill}">
+            <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" FontFamily="{x:Static t:FontStack.Icons}"
+                       FontSize="{x:Static t:IconSize.M}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </ui:SquircleBorder>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.HoverSubtle}"/>
+              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.Selected}"/>
+              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Barre de défilement fine (onglets de l'île trop nombreux) : seulement le curseur, arrondi -->
+  <ControlTemplate x:Key="ThinThumb" TargetType="Thumb">
+    <ui:SquircleBorder Background="{x:Static t:Paint.ScrollThumb}" CornerRadius="{x:Static t:Corners.Pill}"/>
+  </ControlTemplate>
+  <Style x:Key="ThinScrollBar" TargetType="ScrollBar">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="MinWidth" Value="0"/>
+    <Setter Property="MinHeight" Value="0"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ScrollBar">
+          <Track x:Name="PART_Track" IsDirectionReversed="True">
+            <Track.Thumb><Thumb Template="{StaticResource ThinThumb}"/></Track.Thumb>
+          </Track>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+    <Style.Triggers>
+      <Trigger Property="Orientation" Value="Horizontal">
+        <Setter Property="Height" Value="{x:Static t:IslandShape.TabScrollBar}"/>
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ScrollBar">
+              <Track x:Name="PART_Track" IsDirectionReversed="False">
+                <Track.Thumb><Thumb Template="{StaticResource ThinThumb}"/></Track.Thumb>
+              </Track>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Trigger>
+      <Trigger Property="Orientation" Value="Vertical">
+        <Setter Property="Width" Value="{x:Static t:IslandShape.TabScrollBar}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
   <Style x:Key="TabButton" TargetType="RadioButton">
     <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
     <Setter Property="Height" Value="{x:Static t:Sizes.Tab}"/>

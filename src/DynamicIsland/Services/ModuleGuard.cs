@@ -24,18 +24,36 @@ public static class ModuleGuard
     public const string Rgb = "rgb";
     public const string Friends = "friends";
     public const string Health = "health";
+    public const string Automations = "automations";
+    // Onglets de l'île (correctif urgent 1) : un onglet qui plante est caché pour la session, l'île continue.
+    public const string MusicTab = "tab.music";
+    public const string CalendarTab = "tab.calendar";
+    public const string ControlTab = "tab.control";
+    public const string WidgetsTab = "tab.widgets";
+    public const string ShelfTab = "tab.shelf";
+    public const string ClocksTab = "tab.clocks";
+    /// <summary>L'île elle-même : jamais arrêtée (journal seulement), mais elle n'est plus prise pour un autre module.</summary>
+    public const string Island = "island";
 
     /// <summary>Préfixes des types de chaque module (espaces de noms ou classes).</summary>
     private static readonly (string Id, string[] Owners)[] Ownership =
     [
+        (MusicTab, ["DynamicIsland.Views.MusicView", "DynamicIsland.Services.AppVolumeService"]),
+        (CalendarTab, ["DynamicIsland.Views.CalendarTimerView"]),
+        (ControlTab, ["DynamicIsland.Views.ControlCenterView", "DynamicIsland.Services.BrightnessService"]),
+        (WidgetsTab, ["DynamicIsland.Views.WidgetsView"]),
+        (ShelfTab, ["DynamicIsland.Views.ShelfView"]),
+        (ClocksTab, ["DynamicIsland.Views.WorldClockView"]),
         // Zone d'état avant le dock : une erreur dans la corbeille ou Windows Update ne coupe pas tout le dock.
         (Status, ["DynamicIsland.Dock.StatusArea", "DynamicIsland.Dock.DownloadsWindow", "DynamicIsland.Services.KeyboardLayoutService",
-            "DynamicIsland.Services.WindowsUpdateService", "DynamicIsland.Services.RecycleBinService", "DynamicIsland.Services.DownloadsService"]),
+            "DynamicIsland.Services.WindowsUpdateService", "DynamicIsland.Services.RecycleBinService", "DynamicIsland.Services.DownloadsService",
+            "DynamicIsland.Services.DesktopIconsService"]), // flèche + icônes du bureau (correctif 16) : module arrêté = icônes remises
         (Dock, ["DynamicIsland.Dock.", "DynamicIsland.Services.TrayIconHost"]),
         (Notices, ["DynamicIsland.Services.DeviceNotifier", "DynamicIsland.Services.DownloadNotifier"]),
         (MenuBar, ["DynamicIsland.MenuBar."]),
         (Widgets, ["DynamicIsland.DesktopWidgets."]),
-        (Wallpapers, ["DynamicIsland.Services.AnimatedWallpaper", "DynamicIsland.Services.DynamicWallpaperService", "DynamicIsland.Controls.AnimatedAuroraEffect"]),
+        (Wallpapers, ["DynamicIsland.Services.AnimatedWallpaper", "DynamicIsland.Services.DynamicWallpaperService", "DynamicIsland.Controls.AnimatedAuroraEffect",
+            "DynamicIsland.Services.WallpaperGuard"]),
         (Colors, ["DynamicIsland.Services.WallpaperPalette", "DynamicIsland.Services.WindowsAccentService", "DynamicIsland.Services.AutoThemeService", "DynamicIsland.Services.CursorTheme"]),
         (Discord, ["DynamicIsland.Services.DiscordVoice", "DynamicIsland.Views.VoiceView"]),
         (Claude, ["DynamicIsland.Services.ClaudeService", "DynamicIsland.Views.ClaudeView"]),
@@ -46,6 +64,9 @@ public static class ModuleGuard
         (Rgb, ["DynamicIsland.Services.Rgb."]),
         (Friends, ["DynamicIsland.Services.Friends.", "DynamicIsland.Views.FriendsView"]),
         (Health, ["DynamicIsland.Services.Health.", "DynamicIsland.Views.HealthView"]),
+        (Automations, ["DynamicIsland.Services.Automations.", "DynamicIsland.Automations.", "DynamicIsland.Services.AudioOutputService"]),
+        // En dernier : une erreur DANS l'île appelée depuis la palette n'arrête plus la palette (premier cadre = l'île).
+        (Island, ["DynamicIsland.IslandWindow"]),
     ];
 
     private static readonly Dictionary<string, Action> Stoppers = [];
@@ -68,6 +89,11 @@ public static class ModuleGuard
     /// <summary>Exception d'un module connu : journal, puis arrêt du module (une seule fois) et annonce.</summary>
     public static void Fail(string id, Exception ex)
     {
+        if (id == Island)
+        {
+            Log.Error("Île : erreur (l'île continue)", ex);
+            return;
+        }
         Log.Error($"Module « {id} » : erreur, module arrêté pour la session", ex);
         if (DisabledList.Contains(id)) return;
         DisabledList.Add(id);
@@ -95,7 +121,7 @@ public static class ModuleGuard
     /// <summary>Exception sans module connu d'avance : on cherche son module ; vrai si un module a été arrêté.</summary>
     public static bool TryFail(Exception ex)
     {
-        if (OwnerOf(ex.ToString()) is not { } id) return false;
+        if (OwnerOf(ex.ToString()) is not { } id || id == Island) return false;
         Fail(id, ex);
         return true;
     }

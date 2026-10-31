@@ -12,14 +12,41 @@ using DynamicIsland.Settings;
 
 namespace DynamicIsland.Services;
 
+/// <summary>
+/// Numéro de version avec pré-version (7C) : 1.24.0 &gt; 1.24.0-beta.2 &gt; 1.24.0-beta.1 &gt; 1.23.0. Une bêta s'écrit
+/// « v1.24.0-beta.1 » (tag GitHub et &lt;Version&gt; du csproj).
+/// </summary>
+public readonly record struct ReleaseVersion(Version Core, int? Beta) : IComparable<ReleaseVersion>
+{
+    public bool IsBeta => Beta != null;
+
+    public int CompareTo(ReleaseVersion other)
+    {
+        int core = Core.CompareTo(other.Core);
+        if (core != 0) return core;
+        if (Beta == other.Beta) return 0;
+        if (Beta == null) return 1; // la version finale passe après ses bêtas
+        if (other.Beta == null) return -1;
+        return Beta.Value.CompareTo(other.Beta.Value);
+    }
+
+    public static bool operator >(ReleaseVersion a, ReleaseVersion b) => a.CompareTo(b) > 0;
+    public static bool operator <(ReleaseVersion a, ReleaseVersion b) => a.CompareTo(b) < 0;
+    public static bool operator >=(ReleaseVersion a, ReleaseVersion b) => a.CompareTo(b) >= 0;
+    public static bool operator <=(ReleaseVersion a, ReleaseVersion b) => a.CompareTo(b) <= 0;
+
+    public override string ToString() => Beta is int beta ? $"{Core.ToString(3)}-beta.{beta}" : Core.ToString(3);
+}
+
 /// <summary>Dernière version publiée, plus récente que celle qui tourne.</summary>
 /// <param name="AssetSha256">Empreinte SHA-256 de l'installeur publiée par GitHub (« digest » de l'asset), en hexadécimal.</param>
-public sealed record UpdateInfo(Version Version, string Tag, string Notes, string PageUrl, string? AssetName, string? AssetUrl, long AssetSize,
+public sealed record UpdateInfo(ReleaseVersion Version, string Tag, string Notes, string PageUrl, string? AssetName, string? AssetUrl, long AssetSize,
                                 string? AssetSha256 = null);
 
 /// <summary>
 /// Mises à jour via les « Releases » GitHub du dépôt choisi dans les paramètres : vérification 30 s après le
-/// démarrage puis une fois par jour (rien n'est téléchargé sans accord). « Installer » télécharge l'installeur
+/// démarrage puis une fois par jour (rien n'est téléchargé sans accord). Canal Stable = dernière version normale
+/// (/releases/latest) ; canal Bêta = la plus récente, pré-versions comprises (7C). « Installer » télécharge l'installeur
 /// .exe de la release (adresse github.com uniquement, taille et empreinte SHA-256 vérifiées — 7B), le lance et ferme l'app.
 /// </summary>
 public static partial class UpdateService
@@ -27,8 +54,8 @@ public static partial class UpdateService
     private static readonly HttpClient Http = CreateClient();
     private static readonly DispatcherTimer Daily = new() { Interval = TimeSpan.FromHours(24) };
 
-    public static Version Current { get; } = ReadCurrentVersion();
-    public static string CurrentText => Current.ToString(3);
+    public static ReleaseVersion Current { get; } = ReadCurrentVersion();
+    public static string CurrentText => Current.ToString();
 
     public static UpdateInfo? Available { get; private set; }
     public static string Status { get; private set; } = Loc.T("updates.status.unchecked");
@@ -80,7 +107,10 @@ public static partial class UpdateService
             }
 
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            using var response = await Http.GetAsync($"https://api.github.com/repos/{repository}/releases/latest", timeout.Token);
+            bool beta = SettingsStore.Current.Updates.Channel == UpdateChannel.Beta;
+            var address = beta ? $"https://api.github.com/repos/{repository}/releases?per_page=20"
+                               : $"https://api.github.com/repos/{repository}/releases/latest";
+            using var response = await Http.GetAsync(address, timeout.Token);
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
                 Status = Loc.T("updates.status.no_release");
@@ -89,9 +119,13 @@ public static partial class UpdateService
             response.EnsureSuccessStatusCode();
 
             using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
-            var release = json.RootElement;
+            if ((beta ? PickNewest(json.RootElement) : json.RootElement) is not { } release)
+            {
+                Status = Loc.T("updates.status.no_release");
+                return;
+            }
             var tag = release.GetProperty("tag_name").GetString() ?? "";
-            if (!TryParseVersion(tag, out var version))
+            if (!TryParseRelease(tag, out var version))
             {
                 Status = Loc.F("updates.status.unreadable", tag);
                 return;
@@ -224,6 +258,53 @@ public static partial class UpdateService
         return (best.Name, best.Url, best.Size, best.Sha256);
     }
 
+    /// <summary>Canal Bêta : la release la plus récente (pré-versions comprises, brouillons exclus) parmi la liste de GitHub.</summary>
+    internal static JsonElement? PickNewest(JsonElement releases)
+    {
+        if (releases.ValueKind != JsonValueKind.Array) return null;
+        JsonElement? best = null;
+        ReleaseVersion bestVersion = default;
+        foreach (var release in releases.EnumerateArray())
+        {
+            if (release.TryGetProperty("draft", out var draft) && draft.ValueKind == JsonValueKind.True) continue;
+            if (!release.TryGetProperty("tag_name", out var tag) || !TryParseRelease(tag.GetString() ?? "", out var version)) continue;
+            if (best == null || version > bestVersion)
+            {
+                best = release;
+                bestVersion = version;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>« v1.24.0-beta.2 », « 1.24.0-rc1 » (traité comme une bêta), « v1.24.0 », « 1.24.0+abc123 » (métadonnées ignorées).</summary>
+    public static bool TryParseRelease(string tag, out ReleaseVersion release)
+    {
+        var text = tag.Trim().TrimStart('v', 'V');
+        int plus = text.IndexOf('+');
+        if (plus >= 0) text = text[..plus];
+        string? pre = null;
+        int dash = text.IndexOf('-');
+        if (dash > 0)
+        {
+            pre = text[(dash + 1)..];
+            text = text[..dash];
+        }
+        if (!TryParseVersion(text, out var core))
+        {
+            release = default;
+            return false;
+        }
+        int? beta = null;
+        if (pre != null)
+        {
+            var digits = new string(pre.Reverse().TakeWhile(char.IsDigit).Reverse().ToArray());
+            beta = int.TryParse(digits, out var number) ? number : 0;
+        }
+        release = new ReleaseVersion(core, beta);
+        return true;
+    }
+
     /// <summary>« v1.2.0 », « 1.2 », « v1.2.0-beta » → 1.2.0.</summary>
     public static bool TryParseVersion(string tag, out Version version)
     {
@@ -239,16 +320,20 @@ public static partial class UpdateService
         return true;
     }
 
-    private static Version ReadCurrentVersion()
+    /// <summary>« 1.24.0-beta.1+commit » (InformationalVersion, bêta comprise), sinon la version de l'assembly.</summary>
+    private static ReleaseVersion ReadCurrentVersion()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 1, 0);
-        return new Version(version.Major, version.Minor, Math.Max(0, version.Build));
+        var assembly = Assembly.GetExecutingAssembly();
+        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (informational != null && TryParseRelease(informational, out var release)) return release;
+        var version = assembly.GetName().Version ?? new Version(0, 1, 0);
+        return new ReleaseVersion(new Version(version.Major, version.Minor, Math.Max(0, version.Build)), null);
     }
 
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd($"DynamicIsland/{ReadCurrentVersion().ToString(3)}");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd($"DynamicIsland/{ReadCurrentVersion().Core.ToString(3)}");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         return client;
     }

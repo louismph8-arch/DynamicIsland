@@ -144,6 +144,12 @@ public sealed class AppTrayIcon : IDisposable
             restart.Click += (_, _) => RestartRequested?.Invoke();
             menu.Items.Add(restart);
         }
+        if (!_safeMode)
+        {
+            var feedback = new MenuItem { Header = Loc.T("tray.feedback") };
+            feedback.Click += (_, _) => Feedback.FeedbackWindow.Open();
+            menu.Items.Add(feedback);
+        }
         menu.Items.Add(new Separator());
         menu.Items.Add(quit);
         SetForegroundWindow(_window.Handle); // sinon le menu ne se ferme pas en cliquant ailleurs

@@ -19,17 +19,20 @@ public static class GlobalHotkey
     private const int WM_HOTKEY = 0x0312;
     private const int PaletteId = 0x4449;
     private const int RevealId = 0x444A;
+    private const int IslandId = 0x444B;
     private const uint MOD_NOREPEAT = 0x4000;
     private static readonly IntPtr HWND_MESSAGE = new(-3);
 
     private static HwndSource? _window;
-    private static string? _palette, _reveal; // raccourcis enregistrés
+    private static string? _palette, _reveal, _island; // raccourcis enregistrés
     private static bool _suspended;
 
     /// <summary>Le raccourci de la palette a été pressé (thread UI).</summary>
     public static event Action? Pressed;
     /// <summary>Le raccourci « Afficher le dock » a été pressé (thread UI).</summary>
     public static event Action? RevealPressed;
+    /// <summary>Le raccourci « Cacher / afficher l'île » a été pressé (thread UI, priorité 2 point 14).</summary>
+    public static event Action? IslandPressed;
     /// <summary>Un raccourci a été (ou n'a pas pu être) enregistré.</summary>
     public static event Action? StateChanged;
 
@@ -37,6 +40,8 @@ public static class GlobalHotkey
     public static string? Error { get; private set; }
     /// <summary>Idem pour le raccourci « Afficher le dock ».</summary>
     public static string? RevealError { get; private set; }
+    /// <summary>Idem pour le raccourci « Cacher / afficher l'île ».</summary>
+    public static string? IslandError { get; private set; }
 
     public static void Start()
     {
@@ -68,6 +73,10 @@ public static class GlobalHotkey
         _reveal = Register(RevealId, _reveal,
             settings.Dock.Enabled && !_suspended ? settings.Dock.RevealHotkey : null,
             "Afficher le dock", error => RevealError = error);
+        // Actif même en jeu (comme « Afficher le dock ») : c'est là qu'on peut vouloir l'île tout de suite.
+        _island = Register(IslandId, _island,
+            settings.Island.Enabled && !_suspended && settings.Island.ToggleHotkey.Length > 0 ? settings.Island.ToggleHotkey : null,
+            "Cacher / afficher l'île", error => IslandError = error);
     }
 
     /// <returns>Le raccourci enregistré après l'appel (null si aucun).</returns>
@@ -101,11 +110,12 @@ public static class GlobalHotkey
     {
         if (msg != WM_HOTKEY) return IntPtr.Zero;
         int id = wParam.ToInt32();
-        if (id != PaletteId && id != RevealId) return IntPtr.Zero;
+        if (id != PaletteId && id != RevealId && id != IslandId) return IntPtr.Zero;
         handled = true;
         try
         {
             if (id == PaletteId) Pressed?.Invoke();
+            else if (id == IslandId) IslandPressed?.Invoke();
             else RevealPressed?.Invoke();
         }
         catch (Exception ex)
@@ -127,6 +137,7 @@ public static class Hotkeys
 {
     public const string Default = "Ctrl+Space";
     /// <summary>« Afficher le dock » : D comme Dock ; Ctrl+Alt ne se tape pas par hasard en jeu.</summary>
+    public const string DefaultIsland = "Ctrl+Alt+I"; // cacher / afficher l'île (priorité 2, point 14)
     public const string DefaultReveal = "Ctrl+Alt+D";
 
     public static bool TryParse(string? text, out ModifierKeys modifiers, out Key key)

@@ -32,6 +32,24 @@ public static class SettingsStore
     /// <summary>Levé (sur le thread UI) après chaque changement de réglage.</summary>
     public static event Action? Changed;
 
+    /// <summary>
+    /// Dernière erreur d'enregistrement (null = tout va bien) : affichée en haut des paramètres au lieu de passer inaperçue
+    /// (correctif urgent 2 : un interrupteur qui « ne fait rien » chez un ami = fichier impossible à écrire).
+    /// </summary>
+    public static string? SaveError { get; private set; }
+
+    /// <summary>Enregistrement réussi ou raté (sur le thread de l'interface).</summary>
+    public static event Action? SaveStateChanged;
+
+    /// <summary>Réglages remis d'une sauvegarde : plus rien n'est écrit jusqu'au redémarrage (bandeau des paramètres).</summary>
+    public static bool SavingSuppressed { get; private set; }
+
+    /// <summary>Erreur levée par un module en appliquant le DERNIER changement (null = appliqué partout).</summary>
+    public static string? ApplyError { get; private set; }
+
+    /// <summary>Réglages illisibles au lancement : repartis des valeurs par défaut (copie gardée en « .illisible »).</summary>
+    public static bool RecoveredFromBrokenFile { get; private set; }
+
     /// <param name="testFile">Mode --snapshot uniquement : réglages de test à lire à la place (jamais écrits).</param>
     /// <param name="readOnly">Ne jamais écrire sur le disque (mode --snapshot).</param>
     public static void Load(string? testFile = null, bool readOnly = false)
@@ -68,6 +86,7 @@ public static class SettingsStore
             // Fichier illisible : on le met de côté (sans l'écraser) et on repart des valeurs par défaut.
             Log.Error("Réglages : lecture", ex);
             TryKeepBrokenFile();
+            RecoveredFromBrokenFile = true;
             Current = new AppSettings { Dock = { Pinned = DockSettings.CreateDefaultPins() } };
         }
         Current.Normalize();
@@ -107,25 +126,52 @@ public static class SettingsStore
         SaveNow();
     }
 
+    /// <summary>Réessaie tout de suite (bouton « Réessayer » du bandeau d'erreur).</summary>
+    public static bool SaveAgain()
+    {
+        if (_readOnly) return false;
+        _saveTimer?.Stop();
+        SaveNow();
+        return SaveError == null;
+    }
+
     private static void SaveNow()
     {
+        string? error = null;
         try
         {
             AppPaths.EnsureDataFolder();
             var temp = AppPaths.Settings + ".tmp";
             File.WriteAllText(temp, JsonSerializer.Serialize(Current, JsonOptions));
+            // Fichier marqué « lecture seule » (copié depuis une clé, synchronisé…) : on enlève juste cet attribut.
+            if (File.Exists(AppPaths.Settings) && File.GetAttributes(AppPaths.Settings).HasFlag(FileAttributes.ReadOnly))
+                File.SetAttributes(AppPaths.Settings, File.GetAttributes(AppPaths.Settings) & ~FileAttributes.ReadOnly);
             File.Move(temp, AppPaths.Settings, overwrite: true);
             SettingsBackup.AfterSave(); // copie automatique (au plus une par heure)
         }
         catch (Exception ex)
         {
             Log.Error("Réglages : sauvegarde", ex);
+            error = Describe(ex);
         }
+        if (error == SaveError) return;
+        SaveError = error;
+        SaveStateChanged?.Invoke();
     }
+
+    /// <summary>Cause lisible d'un échec d'écriture.</summary>
+    internal static string Describe(Exception ex) => ex switch
+    {
+        UnauthorizedAccessException => Loc.F("settings.save.denied", AppPaths.DataFolder),
+        IOException io when (io.HResult & 0xFFFF) is 0x70 or 0x27 => Loc.T("settings.save.full"),             // disque plein
+        IOException io when (io.HResult & 0xFFFF) is 0x20 or 0x21 => Loc.T("settings.save.locked"),           // fichier pris par une autre appli
+        _ => Loc.F("settings.save.other", ex.Message),
+    };
 
     /// <summary>Chaque module est prévenu séparément : si l'un plante, les autres sont quand même mis à jour.</summary>
     private static void RaiseChanged()
     {
+        ApplyError = null;
         if (Changed == null) return;
         foreach (var handler in Changed.GetInvocationList().Cast<Action>())
         {
@@ -135,6 +181,7 @@ public static class SettingsStore
             }
             catch (Exception ex)
             {
+                ApplyError = ex.Message;
                 // Un module qui plante en appliquant un réglage est arrêté pour la session (les autres continuent).
                 if (Services.ModuleGuard.OwnerOf(handler.Method.DeclaringType) is { } module) Services.ModuleGuard.Fail(module, ex);
                 else if (!Services.ModuleGuard.TryFail(ex)) Log.Error("Réglages : application d'un changement", ex);
@@ -166,6 +213,7 @@ public static class SettingsStore
     {
         _saveTimer?.Stop();
         _readOnly = true;
+        SavingSuppressed = true;
     }
 
     /// <summary>Les réglages actuels en JSON (rapport de bug, avant nettoyage des données personnelles).</summary>
@@ -178,7 +226,7 @@ public static class SettingsStore
             if (File.Exists(AppPaths.Settings))
                 File.Move(AppPaths.Settings, AppPaths.Settings + ".illisible", overwrite: true);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Tant pis : le fichier sera simplement réécrit.
         }

@@ -23,6 +23,12 @@ public sealed class AppSettings
     public RgbSettings Rgb { get; set; } = new();
     public FriendsSettings Friends { get; set; } = new();
     public HealthSettings Health { get; set; } = new();
+    public AutomationSettings Automations { get; set; } = new();
+    public FocusSettings Focus { get; set; } = new();
+    /// <summary>Minuteur de l'île (correctif 19) : son de fin, volume, dernière durée « Perso ».</summary>
+    public TimerSettings Timer { get; set; } = new();
+    /// <summary>Règles par application pour l'île et le dock (priorité 2, point 13).</summary>
+    public List<AppRule> AppRules { get; set; } = [];
     /// <summary>Langue de l'interface (6A) : « auto » (celle de Windows), « fr » ou « en ». Appliquée au démarrage.</summary>
     public string Language { get; set; } = "auto";
     /// <summary>
@@ -51,12 +57,18 @@ public sealed class AppSettings
         Rgb ??= new RgbSettings();
         Friends ??= new FriendsSettings();
         Health ??= new HealthSettings();
+        Automations ??= new AutomationSettings();
+        Focus ??= new FocusSettings();
+        Timer ??= new TimerSettings();
+        Timer.Normalize();
+        Automations.Normalize();
         Friends.Normalize();
         Claude.Normalize();
         Remote.Normalize();
         if (Language is not ("auto" or Loc.French or Loc.English)) Language = "auto";
         Appearance.Normalize();
         Island.Normalize();
+        AppRules = AppRule.NormalizeList(AppRules);
         Widgets.Normalize();
         Dock.Normalize();
         Profiles.Normalize();
@@ -121,7 +133,7 @@ public sealed class AppearanceSettings
         Opacity = Math.Clamp(Opacity, 0.5, 1);
         DockOpacity = Math.Clamp(DockOpacity, 0, 1);
         Roundness = Math.Clamp(Roundness, 0, 1);
-        DockIconSize = Math.Clamp(Math.Round(DockIconSize), 36, 72);
+        DockIconSize = double.IsFinite(DockIconSize) ? Math.Clamp(Math.Round(DockIconSize), DockShape.MinIcon, DockShape.MaxIcon) : 40;
         AnimationSpeed = Math.Clamp(AnimationSpeed, 0.5, 2);
         GlassIntensity = Math.Clamp(GlassIntensity, 0.2, 1);
     }
@@ -183,6 +195,18 @@ public sealed class IslandSettings
     public bool DownloadNotices { get; set; } = true;
     /// <summary>Horloges du monde (6C), 4 au plus : onglet « Horloges » de l'île.</summary>
     public List<WorldClock> WorldClocks { get; set; } = [];
+    /// <summary>Taille de l'île (priorité 2, point 12) : 0,8 à 1,25 (petite 0,85, moyenne 1, grande 1,15).</summary>
+    public double Scale { get; set; } = 1;
+    /// <summary>Onglets de l'île : affichés ou non, dans cet ordre (point 12).</summary>
+    public List<IslandTabItem> Tabs { get; set; } = IslandTabItem.Defaults();
+    /// <summary>Onglets en colonne à gauche du contenu (sinon en rangée en haut).</summary>
+    public bool VerticalTabs { get; set; }
+    /// <summary>Fixe / Intelligent / Peek, comme le dock (point 13).</summary>
+    public IslandMode Mode { get; set; }
+    /// <summary>Raccourci « Cacher / afficher l'île » (point 14) ; vide = aucun.</summary>
+    public string ToggleHotkey { get; set; } = Services.Hotkeys.DefaultIsland;
+
+    public const double MinScale = 0.8, MaxScale = 1.25;
 
     public void Normalize()
     {
@@ -194,6 +218,11 @@ public sealed class IslandSettings
         CollapseDelayMs = Math.Clamp(CollapseDelayMs, 100, 2000);
         PomodoroFocusMinutes = Math.Clamp(PomodoroFocusMinutes, 5, 90);
         PomodoroBreakMinutes = Math.Clamp(PomodoroBreakMinutes, 1, 30);
+        Scale = double.IsFinite(Scale) ? Math.Clamp(Math.Round(Scale, 2), MinScale, MaxScale) : 1;
+        Tabs = IslandTabItem.NormalizeList(Tabs);
+        if (!Enum.IsDefined(Mode)) Mode = IslandMode.Fixed;
+        ToggleHotkey ??= "";
+        if (ToggleHotkey.Length > 0 && !Services.Hotkeys.TryParse(ToggleHotkey, out _, out _)) ToggleHotkey = Services.Hotkeys.DefaultIsland;
     }
 }
 
@@ -327,6 +356,8 @@ public sealed class RemoteSettings
 
     public bool Enabled { get; set; }
     public int Port { get; set; } = 48765;
+    /// <summary>Transfert de fichiers téléphone ↔ PC (7E) : désactivé par défaut (envois du téléphone ET « Envoyer au téléphone »).</summary>
+    public bool FileTransfer { get; set; }
     public List<RemoteDevice> Devices { get; set; } = [];
     /// <summary>La règle du pare-feu a été ajoutée par Opaline (à retirer quand on coupe la télécommande).</summary>
     public bool FirewallRule { get; set; }
@@ -351,6 +382,11 @@ public sealed class WallpaperSettings
     public bool Animated { get; set; }
     /// <summary>Fond animé sur tous les écrans (sinon l'écran principal seulement).</summary>
     public bool AnimatedAllScreens { get; set; } = true;
+    /// <summary>
+    /// Le fond d'Opaline (profil ou fond dynamique) est remis aussitôt si Windows, un thème, Spotlight ou une autre appli le
+    /// change (demandé par l'utilisateur, correctif urgent 6). Sans effet si le profil n'a pas de fond.
+    /// </summary>
+    public bool Enforce { get; set; } = true;
 
     public void Normalize()
     {
@@ -442,10 +478,16 @@ public sealed class RgbSettings
 }
 
 /// <summary>Mises à jour par les « Releases » GitHub (voir Services/UpdateService).</summary>
+/// <summary>Canal des mises à jour (7C) : versions normales seulement, ou aussi les bêtas (pré-versions GitHub).</summary>
+public enum UpdateChannel { Stable, Beta }
+
 public sealed class UpdateSettings
 {
     /// <summary>Vérifier 30 s après le démarrage puis chaque jour (rien n'est installé sans accord).</summary>
     public bool CheckAutomatically { get; set; } = true;
+    public UpdateChannel Channel { get; set; } = UpdateChannel.Stable;
+    /// <summary>Dernière version dont l'écran « Nouveautés » a été montré (7C) ; null = pas encore (premier lancement).</summary>
+    public string? LastSeenVersion { get; set; }
     /// <summary>Dépôt « propriétaire/nom » dont les releases contiennent l'installeur.</summary>
     public string Repository { get; set; } = "louismph8-arch/DynamicIsland";
     /// <summary>Version qu'on a choisi d'ignorer (« v0.2.0 ») : plus d'annonce pour elle.</summary>
@@ -470,9 +512,41 @@ public sealed class WidgetSettings
     public bool Ram { get; set; } = true;
     public bool Gpu { get; set; } = true;
     public bool Network { get; set; } = true;
+    /// <summary>Météo relue au plus toutes les … minutes (correctif 18), et à la sortie de veille.</summary>
+    public int WeatherRefreshMinutes { get; set; } = 10;
+
+    /// <summary>Choix proposés pour <see cref="WeatherRefreshMinutes"/>.</summary>
+    public static readonly int[] WeatherRefreshChoices = [5, 10, 15, 30, 60];
 
     public void Normalize()
     {
         if (string.IsNullOrWhiteSpace(City)) City = "Montréal";
+        // Valeur modifiée à la main : le choix le plus proche.
+        int minutes = WeatherRefreshMinutes;
+        WeatherRefreshMinutes = WeatherRefreshChoices.OrderBy(c => Math.Abs(c - minutes)).ThenBy(c => c).First();
+    }
+}
+
+/// <summary>Minuteur de l'île (correctif 19) : son de fin au choix, volume, dernière durée « Perso ».</summary>
+public sealed class TimerSettings
+{
+    /// <summary>
+    /// Son de fin : « opaline » (son d'Opaline, comme avant), « windows:Alarm01.wav » (alarme ou sonnerie de C:\Windows\Media)
+    /// ou « file » (<see cref="CustomFile"/>).
+    /// </summary>
+    public string Sound { get; set; } = Services.TimerSound.OpalineId;
+    /// <summary>Son perso (.wav / .mp3) choisi par une fenêtre Ouvrir de Windows.</summary>
+    public string? CustomFile { get; set; }
+    /// <summary>Volume du son de fin, de 0 à 1.</summary>
+    public double Volume { get; set; } = 0.8;
+    /// <summary>Dernière durée « Perso » réglée dans l'île, en secondes (rouverte telle quelle).</summary>
+    public int CustomSeconds { get; set; } = 15 * 60;
+
+    public void Normalize()
+    {
+        CustomFile = string.IsNullOrWhiteSpace(CustomFile) ? null : CustomFile.Trim();
+        Sound = Services.TimerSound.NormalizeId(Sound, CustomFile);
+        Volume = double.IsFinite(Volume) ? Math.Clamp(Math.Round(Volume, 2), 0, 1) : 0.8;
+        CustomSeconds = Math.Clamp(CustomSeconds, 1, (int)Services.TimerService.MaxDuration.TotalSeconds);
     }
 }

@@ -20,6 +20,33 @@ public sealed record RemoteResponse(int Status, string ContentType, byte[] Body)
     /// <summary>Fichier qui ne change pas (police, icône) : le téléphone le garde en cache.</summary>
     public bool Cacheable { get; init; }
     public string? Security { get; init; }
+    /// <summary>Fichier envoyé en flux à la place de <see cref="Body"/> (« Envoyer au téléphone », 7E).</summary>
+    public string? FilePath { get; init; }
+    /// <summary>En-tête Content-Disposition (nom du fichier téléchargé).</summary>
+    public string? Disposition { get; init; }
+
+    /// <summary>Téléchargement d'un fichier : nom propre au format RFC 5987 (accents compris), type d'après l'extension.</summary>
+    public static RemoteResponse File(string path, string name) => new(200, TypeOf(name), [])
+    {
+        FilePath = path,
+        Disposition = $"attachment; filename=\"{Ascii(name)}\"; filename*=UTF-8''{Uri.EscapeDataString(name)}",
+    };
+
+    private static string Ascii(string name) => new(name.Select(c => c is >= ' ' and < (char)127 and not '"' and not '\\' ? c : '_').ToArray());
+
+    private static string TypeOf(string name) => Path.GetExtension(name).ToLowerInvariant() switch
+    {
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".gif" => "image/gif",
+        ".heic" => "image/heic",
+        ".mp4" => "video/mp4",
+        ".mov" => "video/quicktime",
+        ".pdf" => "application/pdf",
+        ".mp3" => "audio/mpeg",
+        ".txt" => "text/plain; charset=utf-8",
+        _ => "application/octet-stream",
+    };
 
     public static RemoteResponse Json(int status, string json) => new(status, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(json));
     public static RemoteResponse Empty(int status) => new(status, "text/plain; charset=utf-8", []);
@@ -40,6 +67,7 @@ public sealed class RemoteServer : IDisposable
     private const int MaxBodyBytes = 16 * 1024;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan UploadTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(30); // gros fichier vers le téléphone
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromSeconds(15);
     private const int MaxRequestsPerConnection = 500;
 
@@ -136,7 +164,8 @@ public sealed class RemoteServer : IDisposable
                     if (!closed) await WriteAsync(stream, RemoteResponse.Empty(400), keepAlive: false, timeout.Token);
                     return;
                 }
-                timeout.CancelAfter(request.Path == UploadPath ? UploadTimeout : RequestTimeout);
+                timeout.CancelAfter(request.Path == UploadPath ? UploadTimeout
+                                    : request.Path.StartsWith(RemoteOutbox.DownloadPrefix, StringComparison.Ordinal) ? DownloadTimeout : RequestTimeout);
                 var response = await _handler(request);
                 bool keepAlive = served + 1 < MaxRequestsPerConnection
                                  && !string.Equals(request.Header("connection"), "close", StringComparison.OrdinalIgnoreCase);
@@ -227,7 +256,10 @@ public sealed class RemoteServer : IDisposable
         var head = new StringBuilder();
         head.Append($"HTTP/1.1 {response.Status} {Reason(response.Status)}\r\n");
         head.Append($"Content-Type: {response.ContentType}\r\n");
-        head.Append($"Content-Length: {response.Body.Length}\r\n");
+        using var file = response.FilePath != null
+            ? new FileStream(response.FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 81920, useAsync: true) : null;
+        head.Append($"Content-Length: {file?.Length ?? response.Body.Length}\r\n");
+        if (response.Disposition != null) head.Append($"Content-Disposition: {response.Disposition}\r\n");
         head.Append(response.Cacheable ? "Cache-Control: max-age=604800\r\n" : "Cache-Control: no-store\r\n");
         head.Append("X-Content-Type-Options: nosniff\r\n");
         head.Append("X-Frame-Options: DENY\r\n");
@@ -235,7 +267,8 @@ public sealed class RemoteServer : IDisposable
         if (response.Security != null) head.Append($"Content-Security-Policy: {response.Security}\r\n");
         head.Append(keepAlive ? $"Connection: keep-alive\r\nKeep-Alive: timeout={(int)IdleTimeout.TotalSeconds}\r\n\r\n" : "Connection: close\r\n\r\n");
         await stream.WriteAsync(Encoding.ASCII.GetBytes(head.ToString()), token);
-        if (response.Body.Length > 0) await stream.WriteAsync(response.Body, token);
+        if (file != null) await file.CopyToAsync(stream, 81920, token);
+        else if (response.Body.Length > 0) await stream.WriteAsync(response.Body, token);
         await stream.FlushAsync(token);
     }
 

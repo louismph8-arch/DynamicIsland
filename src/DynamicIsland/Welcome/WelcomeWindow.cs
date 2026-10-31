@@ -42,6 +42,7 @@ public sealed class WelcomeWindow : Window
     private int _page = -1;
     private bool _finished;
     private bool _building = true;
+    private bool _profileChosen;
 
     // Page « Style »
     private readonly WrapPanel _swatches = new();
@@ -60,13 +61,18 @@ public sealed class WelcomeWindow : Window
     // Page « Modules » (appliqué à la fin)
     private readonly CheckBox _islandToggle, _dockToggle, _taskbarToggle, _menuBarToggle, _widgetsToggle, _startupToggle;
     private readonly RadioButton _barLayout, _floatingLayout;
+    // Ville de la météo (correctif 18) : écrite ou détectée au clic, appliquée à « C'est parti »
+    private readonly TextBox _cityBox;
+    private readonly Button _detectCity;
+    private readonly TextBlock _cityStatus;
+    private CityDetector.Place? _detected;
 
     /// <summary>Ouvre l'assistant (ou le ramène devant).</summary>
     public static void Open()
     {
         if (_instance == null)
         {
-            _instance = new WelcomeWindow(snapshot: false);
+            _instance = new WelcomeWindow(snapshot: false) { Topmost = true }; // Windows peut refuser le premier plan au démarrage
             _instance.Closed += (_, _) => _instance = null;
             _instance.Show();
         }
@@ -79,8 +85,9 @@ public sealed class WelcomeWindow : Window
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/Settings/SettingsStyles.xaml") });
         Title = Loc.F("welcome.title", AppInfo.Name);
         Icon = OpalineLogo.Get(64);
-        Width = WelcomeShape.Width;
-        Height = WelcomeShape.Height;
+        // Petit écran ou grande échelle (1366 × 768 à 150 %…) : la carte tient dans la zone de travail, les pages défilent.
+        Width = Math.Min(WelcomeShape.Width, SystemParameters.WorkArea.Width);
+        Height = Math.Min(WelcomeShape.Height, SystemParameters.WorkArea.Height);
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         Background = Brushes.Transparent;
@@ -94,15 +101,35 @@ public sealed class WelcomeWindow : Window
         _wallpaperColorsToggle = Switch(settings.Appearance.AccentFromWallpaper, on => SettingsStore.Update(s => s.Appearance.AccentFromWallpaper = on));
         _glassToggle = Switch(settings.Appearance.LiquidGlass && LiquidGlassEffect.IsAvailable, on => SettingsStore.Update(s => s.Appearance.LiquidGlass = on));
         _glassToggle.IsEnabled = LiquidGlassEffect.IsAvailable;
+        if (!LiquidGlassEffect.IsAvailable) _glassToggle.ToolTip = Loc.T("settings.glass.unavailable"); // grisé : on dit pourquoi
         _dynamicToggle = Switch(settings.Wallpaper.Dynamic, _ => { });
         _islandToggle = Switch(settings.Island.Enabled);
         _dockToggle = Switch(settings.Dock.Enabled);
+        _dockToggle.Click += (_, _) =>
+        {
+            _taskbarToggle!.IsEnabled = _dockToggle.IsChecked == true;
+            if (_dockToggle.IsChecked != true) _taskbarToggle.IsChecked = false;
+        };
         _taskbarToggle = Switch(settings.Dock.HideTaskbar);
+        _taskbarToggle.IsEnabled = settings.Dock.Enabled; // sans le dock, rien ne remplace la barre des tâches
         _menuBarToggle = Switch(settings.MenuBar.Enabled);
         _widgetsToggle = Switch(settings.DesktopWidgets.Enabled);
         _startupToggle = Switch(StartupService.IsEnabled);
         _barLayout = Option(Loc.T("welcome.layout.bar"), Loc.T("welcome.layout.bar.description"), "WelcomeLayout", settings.Dock.Layout == DockLayout.Bar);
         _floatingLayout = Option(Loc.T("welcome.layout.floating"), Loc.T("welcome.layout.floating.description"), "WelcomeLayout", settings.Dock.Layout == DockLayout.Floating);
+        _cityBox = new TextBox { Style = (Style)FindResource("HexBox"), Width = WelcomeShape.CityBox, MaxLength = 60, FontFamily = FontStack.Ui, Text = settings.Widgets.City };
+        _detectCity = new Button { Style = (Style)FindResource("SettingsButton"), Margin = new Thickness(Space.S4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        _detectCity.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children =
+            {
+                new TextBlock { Text = Icons.MapPin, FontFamily = FontStack.Icons, FontSize = IconSize.S, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, Space.S3, 0) },
+                new TextBlock { Text = Loc.T("city.detect.button"), VerticalAlignment = VerticalAlignment.Center },
+            },
+        };
+        _detectCity.Click += (_, _) => DetectCity();
+        _cityStatus = new TextBlock { Text = Loc.T("city.detect.explain"), Style = (Style)FindResource("CardDescription"), Margin = new Thickness(0, Space.S3, 0, 0) };
 
         _back = new Button { Style = (Style)FindResource("SettingsButton"), Content = Loc.T("welcome.back"), Visibility = Visibility.Hidden };
         _back.Click += (_, _) => GoTo(_page - 1);
@@ -149,8 +176,10 @@ public sealed class WelcomeWindow : Window
         };
         PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape) Skip();
-            else if (e.Key == Key.Enter && _next.IsEnabled) _next.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            if (e.Key == Key.Escape && _page == _pages.Count - 1) Finish();
+            else if (e.Key == Key.Escape) Skip();
+            else if (e.Key == Key.Enter && _next.IsEnabled && Keyboard.FocusedElement is not (Button or TextBox)) // Entrée dans la ville : on reste
+                _next.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             else return;
             e.Handled = true;
         };
@@ -158,6 +187,7 @@ public sealed class WelcomeWindow : Window
         {
             GoTo(0, animate: !_snapshot);
             if (_snapshot) return;
+            Dispatcher.BeginInvoke(() => Topmost = false, System.Windows.Threading.DispatcherPriority.ApplicationIdle); // devant, puis normale
             // La carte arrive en se « déployant », comme l'île.
             _shell.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Motion.Long) { EasingFunction = EaseOut });
             var grow = new DoubleAnimation(0.92, 1, Motion.Page) { EasingFunction = Overshoot };
@@ -198,10 +228,17 @@ public sealed class WelcomeWindow : Window
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition());
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        Grid.SetRow(_pageHost, 1);
+        var pageScroller = new ScrollViewer
+        {
+            Content = _pageHost,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Focusable = false,
+        };
+        Grid.SetRow(pageScroller, 1);
         Grid.SetRow(footer, 2);
         layout.Children.Add(header);
-        layout.Children.Add(_pageHost);
+        layout.Children.Add(pageScroller);
         layout.Children.Add(footer);
         _card.Child = layout;
 
@@ -277,7 +314,8 @@ public sealed class WelcomeWindow : Window
             option.Checked += (_, _) =>
             {
                 if (_building || _snapshot) return;
-                ProfileService.Switch(id); // dock et couleur changent tout de suite
+                ProfileService.Switch(id, applyWallpaper: false); // dock et couleur tout de suite ; son fond à « C'est parti »
+                _profileChosen = true;
                 ShowStyle();
             };
             grid.Children.Add(option);
@@ -385,8 +423,9 @@ public sealed class WelcomeWindow : Window
         _gallery.Children.Add(GalleryTile(null, Loc.T("welcome.wallpaper.keep"), null));
         foreach (var (design, name) in WallpaperArt.Designs)
             _gallery.Children.Add(GalleryTile(design, name, Thumbnails.GetValueOrDefault(design)));
-        _dynamicToggle.IsEnabled = _wallpaper != null;
-        if (_wallpaper == null) _dynamicToggle.IsChecked = false;
+        bool dynamicOn = SettingsStore.Current.Wallpaper.Dynamic;
+        _dynamicToggle.IsEnabled = _wallpaper != null || dynamicOn; // déjà actif : on peut le couper ici
+        if (_wallpaper == null && !dynamicOn) _dynamicToggle.IsChecked = false;
     }
 
     private SquircleBorder GalleryTile(WallpaperDesign? design, string name, BitmapSource? image)
@@ -441,10 +480,12 @@ public sealed class WelcomeWindow : Window
                  })
         {
             var card = Row(title, description, toggle);
-            card.Margin = cards.Children.Count % 2 == 0 ? new Thickness(0, 0, Space.S2, Space.S4) : new Thickness(Space.S2, 0, 0, Space.S4);
+            card.Padding = new Thickness(Space.S9, Space.S5, Space.S9, Space.S5); // un peu plus serrées : la ville de la météo tient aussi
+            card.Margin = cards.Children.Count % 2 == 0 ? new Thickness(0, 0, Space.S2, Space.S3) : new Thickness(Space.S2, 0, 0, Space.S3);
             cards.Children.Add(card);
         }
         page.Children.Add(cards);
+        page.Children.Add(CityCard());
         page.Children.Add(new TextBlock { Text = Loc.T("welcome.modules.layout"), Style = (Style)FindResource("GroupTitle"), Margin = new Thickness(Space.S2, Space.S3, 0, Space.S4) });
         var layouts = new UniformGrid { Columns = 2 };
         _barLayout.Margin = new Thickness(0, 0, Space.S2, 0);
@@ -453,6 +494,62 @@ public sealed class WelcomeWindow : Window
         layouts.Children.Add(_floatingLayout);
         page.Children.Add(layouts);
         return page;
+    }
+
+    /// <summary>« Ville de la météo » : champ + « Détecter ma ville » (seulement au clic) + ce qui est utilisé, ou le résultat.</summary>
+    private SquircleBorder CityCard()
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var title = new TextBlock { Text = Loc.T("welcome.modules.city"), Style = (Style)FindResource("CardTitle"), VerticalAlignment = VerticalAlignment.Center };
+        grid.Children.Add(title);
+        Grid.SetColumn(_cityBox, 1);
+        grid.Children.Add(_cityBox);
+        Grid.SetColumn(_detectCity, 2);
+        grid.Children.Add(_detectCity);
+        Grid.SetRow(_cityStatus, 1);
+        Grid.SetColumnSpan(_cityStatus, 3);
+        grid.Children.Add(_cityStatus);
+        return new SquircleBorder
+        {
+            Style = (Style)FindResource("SettingCard"),
+            Padding = new Thickness(Space.S9, Space.S5, Space.S9, Space.S5),
+            Margin = new Thickness(0),
+            Child = grid,
+        };
+    }
+
+    private async void DetectCity()
+    {
+        if (_snapshot) return;
+        _detectCity.IsEnabled = false;
+        _cityStatus.Text = Loc.T("city.detect.searching");
+        _cityStatus.Foreground = Paint.TextSecondary;
+        try
+        {
+            var outcome = await CityDetector.DetectAsync();
+            if (outcome.Place is { } place)
+            {
+                _detected = place; // rangée à « C'est parti », avec ses coordonnées
+                _cityBox.Text = place.City;
+            }
+            _cityStatus.Text = outcome.Message;
+            _cityStatus.Foreground = outcome.Place != null ? Paint.TextSecondary : Paint.Timer; // orange : à écrire à la main
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Bienvenue : détecter la ville", ex);
+            _cityStatus.Text = Loc.T("city.detect.failed");
+            _cityStatus.Foreground = Paint.Timer;
+        }
+        finally
+        {
+            _detectCity.IsEnabled = true;
+        }
     }
 
     private FrameworkElement BuildDone()
@@ -518,7 +615,7 @@ public sealed class WelcomeWindow : Window
             shift.X = 0;
         }
 
-        _back.Visibility = index > 0 && index < _pages.Count - 1 ? Visibility.Visible : Visibility.Hidden;
+        _back.Visibility = index > 0 ? Visibility.Visible : Visibility.Hidden; // la dernière page aussi : revenir corriger les modules
         _nextText.Text = Loc.T(index == 0 ? "welcome.start" : index == _pages.Count - 1 ? "welcome.finish" : "welcome.next");
         for (int i = 0; i < _dots.Children.Count; i++)
         {
@@ -540,30 +637,34 @@ public sealed class WelcomeWindow : Window
         try
         {
             var design = _wallpaper;
-            bool dynamic = design != null && _dynamicToggle.IsChecked == true;
+            bool dynamic = _dynamicToggle.IsChecked == true && (design != null || SettingsStore.Current.Wallpaper.Dynamic);
+            var city = _cityBox.Text.Trim();
             SettingsStore.Update(s =>
             {
+                if (_detected is { } place && string.Equals(place.City, city, StringComparison.OrdinalIgnoreCase))
+                    CityDetector.Apply(s.Widgets, place); // détectée : nom + coordonnées (pas besoin de la rechercher)
+                else if (city.Length > 0 && city != s.Widgets.City)
+                    s.Widgets.City = city;
                 s.Island.Enabled = _islandToggle.IsChecked == true;
                 s.Dock.Enabled = _dockToggle.IsChecked == true;
                 s.Dock.Layout = _floatingLayout.IsChecked == true ? DockLayout.Floating : DockLayout.Bar;
                 s.Dock.HideTaskbar = _taskbarToggle.IsChecked == true;
                 s.MenuBar.Enabled = _menuBarToggle.IsChecked == true;
                 s.DesktopWidgets.Enabled = _widgetsToggle.IsChecked == true;
-                if (design is { } chosen)
-                {
-                    s.Wallpaper.Design = chosen;
-                    s.Wallpaper.Dynamic = dynamic; // le fond dynamique sauve d'abord le fond d'origine
-                }
+                if (design is { } chosen) s.Wallpaper.Design = chosen;
+                s.Wallpaper.Dynamic = dynamic; // le fond dynamique sauve d'abord le fond d'origine ; le couper remet celui du profil
                 s.WelcomeDone = true;
             });
             bool startup = _startupToggle.IsChecked == true;
-            if (startup != StartupService.IsEnabled) StartupService.SetEnabled(startup);
+            if (startup != StartupService.IsEnabled && StartupService.SetEnabled(startup) is { } error)
+                Log.Info($"Bienvenue : démarrage avec Windows non enregistré ({error})");
             if (design is { } picked && !dynamic && ProfileService.Active is { } profile)
             {
                 _nextText.Text = Loc.T("welcome.drawing");
                 var path = await Task.Run(() => WallpaperArt.RenderForScreen(picked));
                 ProfileService.SetWallpaper(profile, path); // le fond d'origine est sauvé avant le premier changement
             }
+            else if (design == null && !dynamic) ApplyChosenProfileWallpaper();
         }
         catch (Exception ex)
         {
@@ -574,8 +675,16 @@ public sealed class WelcomeWindow : Window
 
     private void Skip()
     {
+        if (_finished) return;
+        _finished = true;
+        ApplyChosenProfileWallpaper(); // le profil choisi a déjà changé le dock et la couleur : son fond le suit
         MarkDone();
         CloseAnimated();
+    }
+
+    private void ApplyChosenProfileWallpaper()
+    {
+        if (_profileChosen && ProfileService.Active is { } profile) WallpaperService.ApplyFor(profile);
     }
 
     private static void MarkDone()
@@ -614,6 +723,7 @@ public sealed class WelcomeWindow : Window
             swatch.Background = selected ? Paint.SurfaceHover : Brushes.Transparent;
         }
         _wallpaperColorsToggle.IsChecked = look.AccentFromWallpaper;
+        _glassToggle.IsChecked = look.LiquidGlass && LiquidGlassEffect.IsAvailable;
         _preview.BorderBrush = new SolidColorBrush(AppearanceService.RimColor());
         AppearanceService.ApplyGlow(_previewGlow, Shadows.Island);
         AppearanceService.ApplyGlow(_shadow, Shadows.Window);

@@ -15,6 +15,29 @@ internal static class DockNative
     public const int SW_SHOWNA = 8;
     public const int SW_MINIMIZE = 6;
     public const int SW_RESTORE = 9;
+    public const int SW_SHOWMAXIMIZED = 3;
+    public const int SW_SHOWMINNOACTIVE = 7;
+    public const int WPF_RESTORETOMAXIMIZED = 0x2;
+
+    /// <summary>Place d'une fenêtre : rcNormalPosition est en coordonnées de la zone de travail (pas de l'écran).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WINDOWPLACEMENT
+    {
+        public int length;
+        public int flags;
+        public int showCmd;
+        public POINT ptMinPosition;
+        public POINT ptMaxPosition;
+        public RECT rcNormalPosition;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT placement);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT placement);
     public const uint WM_CLOSE = 0x0010;
 
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);

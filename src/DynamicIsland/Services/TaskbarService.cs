@@ -125,7 +125,8 @@ public static class TaskbarService
 
 /// <summary>
 /// Processus gardien : « DynamicIsland.exe --shell-guard &lt;pid&gt; » attend la fin du processus principal
-/// (fermeture, plantage ou arrêt forcé) puis remet la barre des tâches et libère l'espace réservé au dock.
+/// (fermeture, plantage ou arrêt forcé) puis remet la barre des tâches et libère l'espace réservé au dock. Après un PLANTAGE
+/// (voir <see cref="CrashWatch"/>), il relance l'app : 3 fois au plus en 10 minutes, puis en mode sans échec.
 /// </summary>
 public static class ShellGuard
 {
@@ -152,17 +153,32 @@ public static class ShellGuard
     /// <summary>Exécuté dans le processus gardien.</summary>
     public static void Run(int processId)
     {
+        int exitCode = 0;
         try
         {
             using var watched = Process.GetProcessById(processId);
             watched.WaitForExit();
+            exitCode = watched.ExitCode;
         }
-        catch (ArgumentException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            // Déjà terminé.
+            // Déjà terminé (ou code de sortie illisible) : on ne relance pas.
         }
         RecoverAll();
         AskAppsToReAddTrayIcons();
+        if (CrashWatch.DecideRestart(processId, exitCode, DateTime.UtcNow) is { } arguments && Environment.ProcessPath is { } exe)
+        {
+            try
+            {
+                Thread.Sleep(1500); // le temps que Windows libère tout (fenêtres, mutex d'instance unique)
+                Process.Start(new ProcessStartInfo(exe, arguments) { UseShellExecute = true })?.Dispose();
+                Log.Info($"Gardien : app relancée ({arguments})");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Gardien : relance après plantage", ex);
+            }
+        }
     }
 
     /// <summary>Remet le bureau dans son état normal si une session précédente ne l'a pas fait.</summary>
@@ -174,6 +190,8 @@ public static class ShellGuard
         catch (Exception ex) { Log.Error("Récupération : espace réservé au dock et à la barre de menus", ex); }
         try { SystemMinimizeAnimation.RecoverIfNeeded(); }
         catch (Exception ex) { Log.Error("Récupération : animation de réduction", ex); }
+        try { DesktopIconsService.RecoverIfNeeded(); }
+        catch (Exception ex) { Log.Error("Récupération : icônes du bureau", ex); }
     }
 
     /// <summary>

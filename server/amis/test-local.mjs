@@ -36,6 +36,23 @@ function d1() {
 
 const env = { DB: d1() };
 
+// Faux webhook Discord (7C) : rien n'est envoyé, la dernière requête est gardée pour les vérifications. Pour essayer avec un
+// vrai salon : OPALINE_WEBHOOK=https://discord.com/api/webhooks/… node test-local.mjs --serve 8799
+let lastWebhook = null;
+const realFetch = globalThis.fetch;
+if (process.env.OPALINE_WEBHOOK) env.FEEDBACK_WEBHOOK = process.env.OPALINE_WEBHOOK;
+else {
+  env.FEEDBACK_WEBHOOK = "https://discord.example/api/webhooks/essai";
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith("https://discord.example/")) {
+      lastWebhook = { url: String(url), form: init.body };
+      if (process.argv[2] === "--serve") console.log("Avis reçu (faux webhook) :", JSON.parse(init.body.get("payload_json")).embeds[0].description);
+      return new Response(null, { status: 204 });
+    }
+    return realFetch(url, init);
+  };
+}
+
 if (process.argv[2] === "--serve") {
   const port = Number(process.argv[3] || 8799);
   http.createServer(async (req, res) => {
@@ -97,6 +114,33 @@ async function scenario() {
   await call("POST", "/friends/remove", max, { code: louis.id });
   check((await call("GET", "/friends", louis)).data.friends.length === 0 && (await call("GET", "/friends", max)).data.incoming.length === 0,
     "ami retiré : plus rien des deux côtés");
+
+  // Avis et bugs (7C)
+  check((await call("GET", "/")).data.feedback === true, "le serveur annonce les avis (webhook configuré)");
+  const sendFeedback = async (auth, fields, files = {}) => {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) form.append(key, value);
+    for (const [key, [bytes, type]] of Object.entries(files)) form.append(key, new Blob([bytes], { type }), key);
+    const headers = auth ? { Authorization: `Bearer ${auth.id}.${auth.secret}` } : {};
+    const response = await worker.fetch(new Request("https://amis.example/feedback", { method: "POST", headers, body: form }), env);
+    return { status: response.status, data: await response.json() };
+  };
+  check((await sendFeedback(null, { kind: "bug", text: "x" })).status === 401, "avis sans compte : refusé");
+  check((await sendFeedback(max, { kind: "bug", text: "   " })).status === 400, "avis vide : refusé");
+  check((await sendFeedback(max, { kind: "bug", text: "x" }, { report: [new Uint8Array([1]), "text/html"] })).status === 400, "pièce jointe d'un type inattendu : refusée");
+  const sent = await sendFeedback(max, { kind: "bug", text: "Le dock clignote @everyone", version: "1.24.0" },
+    { screenshot: [new Uint8Array([0xff, 0xd8, 0xff]), "image/jpeg"], report: [new Uint8Array([0x50, 0x4b]), "application/zip"] });
+  const payload = lastWebhook ? JSON.parse(lastWebhook.form.get("payload_json")) : null;
+  check(sent.status === 200 && payload && payload.embeds[0].description === "Le dock clignote @everyone" && payload.allowed_mentions.parse.length === 0
+    && payload.embeds[0].fields[0].value.startsWith("Max (") && lastWebhook.form.get("files[0]").name === "capture.jpg" && lastWebhook.form.get("files[1]").name === "rapport.zip",
+    "avis transmis au salon : texte, auteur, capture et rapport, sans mention possible");
+  for (let i = 0; i < 4; i++) await sendFeedback(max, { kind: "idea", text: "idée " + i });
+  check((await sendFeedback(max, { kind: "idea", text: "une de trop" })).status === 429, "plus de 5 avis en une heure : refusé");
+  const saved = env.FEEDBACK_WEBHOOK;
+  delete env.FEEDBACK_WEBHOOK;
+  check((await call("GET", "/")).data.feedback === false && (await sendFeedback(louis, { kind: "bug", text: "x" })).status === 503,
+    "sans webhook : avis désactivés proprement");
+  env.FEEDBACK_WEBHOOK = saved;
 
   await call("POST", "/forget", louis);
   check((await call("GET", "/friends", louis)).status === 401, "« Oublier » : le compte de Louis est effacé");

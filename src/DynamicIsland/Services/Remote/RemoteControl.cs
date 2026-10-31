@@ -51,7 +51,7 @@ public static class RemoteControl
             () => Settings.Devices,
             device => SettingsStore.Update(s => s.Remote.Devices.Add(device)),
             id => SettingsStore.Update(s => s.Remote.Devices.RemoveAll(d => d.Id == id)),
-            uploads);
+            uploads, () => Settings.FileTransfer);
         _api.Changed += () => Changed?.Invoke();
         _timer = new DispatcherTimer { Interval = Recheck };
         _timer.Tick += (_, _) => Refresh();

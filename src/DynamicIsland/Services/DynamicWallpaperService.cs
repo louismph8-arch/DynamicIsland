@@ -29,10 +29,10 @@ public static class DynamicWallpaperService
         Timer.Tick += (_, _) => Check();
         SettingsStore.Changed += Check;
         GamingMode.Changed += Check;
-        SystemEvents.TimeChanged += (_, _) => Check();
+        SystemEvents.TimeChanged += (_, _) => Guarded.OnUi(Check, "Fond dynamique");
         SystemEvents.PowerModeChanged += (_, e) =>
         {
-            if (e.Mode == PowerModes.Resume) Check();
+            if (e.Mode == PowerModes.Resume) Guarded.OnUi(Check, "Fond dynamique");
         };
         Check();
     }

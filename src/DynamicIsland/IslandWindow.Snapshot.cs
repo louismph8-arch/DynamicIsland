@@ -61,6 +61,11 @@ public partial class IslandWindow
             Path.Combine(windows, "notepad.exe"),
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         ]);
+        // Zone « Téléphone » de l'étagère (7E) : réglages en lecture seule, on l'active en mémoire avec un fichier qui attend.
+        var remote = SettingsStore.Current.Remote;
+        remote.Enabled = remote.FileTransfer = true;
+        if (remote.Devices.Count == 0) remote.Devices.Add(new RemoteDevice { Id = "demo", Name = "iPhone" });
+        Services.Remote.RemoteOutbox.Add([Path.Combine(windows, "win.ini")]);
         await Task.Delay(1500); // laisse les services (média, écrans) répondre
 
         FinishAnimations();
@@ -83,6 +88,13 @@ public partial class IslandWindow
         FriendsTabButton.Visibility = Visibility.Visible; // amis d'exemple (rien n'est envoyé)
         FriendsTab.ShowSample(Settings.SettingsWindow.SampleFriends.Friends);
         HealthTab.ShowSample();
+        ControlTab.ShowDevices( // appareils d'exemple (correctif urgent 8)
+        [
+            new(Services.DeviceListService.Kind.Headset, "PRO X 2 LIGHTSPEED", 80, null),
+            new(Services.DeviceListService.Kind.Controller, "Xbox Wireless Controller", 15, null),
+            new(Services.DeviceListService.Kind.Mouse, "PRO Wireless", null, null),
+            new(Services.DeviceListService.Kind.Storage, "Clé USB (E:)", null, "E:\\"),
+        ]);
         foreach (var (tab, name) in new[] { (Tab.Music, "1-musique"), (Tab.Calendar, "2-calendrier"), (Tab.Control, "3-controles"), (Tab.Widgets, "3b-widgets"), (Tab.Shelf, "3c-etagere"), (Tab.Voice, "3d-vocal"), (Tab.Claude, "3e-claude"), (Tab.Clocks, "3f-horloges"), (Tab.Friends, "3g-amis"), (Tab.Health, "3h-sante") })
         {
             Expand();
@@ -108,6 +120,21 @@ public partial class IslandWindow
                 SeasonLayer.Show(Services.Seasons.Season.None);
             }
         }
+
+        // Minuteur (correctif 19) : éditeur « Perso », puis un minuteur de plus d'une heure (onglet, île réduite).
+        SelectTab(Tab.Calendar, animate: false);
+        CalendarTab.ShowCustomSample(new TimeSpan(1, 30, 0));
+        FinishAnimations();
+        await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "2b-minuteur-perso.png"));
+        CalendarTab.ShowToday();
+        _timer.StartWith(new TimeSpan(23, 59, 59));
+        _timer.StartPause(); // en pause : le rendu ne dépend pas de l'heure
+        FinishAnimations();
+        await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "2c-minuteur-heures.png"));
+        Collapse();
+        FinishAnimations();
+        await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "0d-minuteur-heures.png"));
+        _timer.Reset();
 
         Collapse();
         FinishAnimations();

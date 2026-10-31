@@ -16,8 +16,15 @@ public sealed partial class RemoteUploads
     private const string Prefix = ".opaline-";
 
     private readonly string _folder;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> Recent = new(StringComparer.OrdinalIgnoreCase);
 
     public RemoteUploads(string folder) => _folder = folder;
+
+    /// <summary>Fichier entièrement reçu (chemin final), sur un thread de travail : l'île le met dans l'étagère (7E).</summary>
+    public static event Action<string>? Received;
+
+    /// <summary>Reçu du téléphone il y a moins de 2 min : l'annonce « téléchargement terminé » ne le montre pas en double.</summary>
+    public static bool IsFromPhone(string path) => Recent.TryGetValue(path, out var when) && DateTime.UtcNow - when < TimeSpan.FromMinutes(2);
 
     [GeneratedRegex("^[a-z0-9]{8,32}$")]
     private static partial Regex UploadId();
@@ -52,6 +59,8 @@ public sealed partial class RemoteUploads
         File.Move(partial, final);
         File.SetAttributes(final, File.GetAttributes(final) & ~FileAttributes.Hidden);
         Log.Info($"Télécommande : fichier reçu ({total / 1024} Ko)");
+        Recent[final] = DateTime.UtcNow;
+        Received?.Invoke(final);
         return RemoteResponse.Json(200, new JsonObject { ["done"] = true, ["name"] = Path.GetFileName(final) }.ToJsonString());
     }
 

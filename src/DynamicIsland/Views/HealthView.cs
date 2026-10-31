@@ -140,7 +140,7 @@ public sealed class HealthView : UserControl
         foreach (var app in top) _list.Children.Add(AppRow(app));
     }
 
-    private static string Percent(double? value) => value is { } v ? $"{Math.Round(v)} %" : "—";
+    private static string Percent(double? value) => value is { } v ? Loc.F("format.percent", Math.Round(v)) : "—";
 
     private static SquircleBorder Tile(string glyph, string label, string value, Brush? valueBrush = null)
     {
@@ -177,7 +177,7 @@ public sealed class HealthView : UserControl
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.Children.Add(new TextBlock { Text = app.Name, FontSize = TypeRamp.Footnote, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-        var cpu = new TextBlock { Text = $"{app.Cpu:0.#} %", FontSize = TypeRamp.Footnote, Foreground = _sortByMemory ? Paint.TextSecondary : Paint.TextPrimary, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        var cpu = new TextBlock { Text = Loc.F("format.percent", app.Cpu.ToString("0.#", Loc.Culture)), FontSize = TypeRamp.Footnote, Foreground = _sortByMemory ? Paint.TextSecondary : Paint.TextPrimary, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(cpu, 1);
         row.Children.Add(cpu);
         var memory = new TextBlock { Text = FormatBytes(app.Memory), FontSize = TypeRamp.Footnote, Foreground = _sortByMemory ? Paint.TextPrimary : Paint.TextSecondary, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };

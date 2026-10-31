@@ -219,7 +219,7 @@ public static class DesktopWidgetsService
     private static void HookForeground()
     {
         if (_hook != IntPtr.Zero) return;
-        _hookProc = (_, _, _, _, _, _, _) => UpdateFocus();
+        _hookProc = (_, _, _, _, _, _, _) => Services.Guarded.Run(UpdateFocus, "Widgets : événement de Windows"); // jamais d'exception vers Windows
         _hook = DockNative.SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _hookProc, 0, 0, DockNative.WINEVENT_OUTOFCONTEXT);
     }
 

@@ -15,10 +15,10 @@ using DynamicIsland.Themes;
 namespace DynamicIsland.Dock;
 
 /// <summary>
-/// Zone d'état à droite du dock (6B) : langue du clavier, Windows Update, corbeille, pile Téléchargements, dans l'ordre et
-/// avec l'affichage choisis dans les paramètres. Chaque case a son survol (étiquette du dock), son clic et son menu.
-/// Aucune action importante sans l'utilisateur : rien n'est installé ni redémarré, la corbeille n'est vidée qu'après
-/// confirmation, un fichier déposé va dans la corbeille (récupérable).
+/// Zone d'état à droite du dock (6B) : langue du clavier, Windows Update, corbeille, pile Téléchargements, flèche des icônes
+/// du bureau (correctif 16), dans l'ordre et avec l'affichage choisis dans les paramètres. Chaque case a son survol (étiquette
+/// du dock), son clic et son menu. Aucune action importante sans l'utilisateur : rien n'est installé ni redémarré, la corbeille
+/// n'est vidée qu'après confirmation, un fichier déposé va dans la corbeille (récupérable).
 /// </summary>
 public sealed class StatusArea : StackPanel
 {
@@ -42,6 +42,11 @@ public sealed class StatusArea : StackPanel
     private bool _stopped;
     /// <summary>Dernier élément des Téléchargements (relu seulement quand le dossier change, pas à chaque réglage).</summary>
     private DownloadsService.Entry? _newestDownload;
+    /// <summary>Flèche des icônes du bureau : elle pivote (et glisse un peu) quand on les cache ou les remet.</summary>
+    private readonly RotateTransform _arrowTurn = new();
+    private readonly TranslateTransform _arrowSlide = new();
+    /// <summary>État affiché par la flèche (null avant le premier affichage : pas d'animation au démarrage).</summary>
+    private bool? _desktopHidden;
 
     public StatusArea()
     {
@@ -88,6 +93,7 @@ public sealed class StatusArea : StackPanel
     /// <summary>Cases dans l'ordre et selon l'affichage des réglages.</summary>
     public void Rebuild()
     {
+        UpdateCell(StatusItem.Desktop); // la flèche suit le réglage (clic dessus, paramètres, module arrêté…)
         int before = Children.Count;
         var wanted = _stopped || ModuleGuard.IsDisabled(ModuleGuard.Status)
             ? []
@@ -100,17 +106,20 @@ public sealed class StatusArea : StackPanel
         if (Children.Count != before) CountChanged?.Invoke();
     }
 
+    /// <summary>Côté d'une case pour une échelle du dock (1 = icônes de 48) ; calcul pur, vérifié par --self-test.</summary>
+    internal static double CellFor(double scale) => Math.Round(Math.Max(DockShape.StatusCellMin, DockShape.StatusCell * scale));
+
     /// <summary>Taille des cases d'après la taille des icônes du dock.</summary>
     public void ApplySize(double scale)
     {
-        _cellSize = Math.Round(Math.Max(DockShape.StatusCellMin, DockShape.StatusCell * scale));
+        _cellSize = CellFor(scale);
         foreach (var cell in _cells.Values)
         {
             cell.Border.Width = cell.Border.Height = _cellSize;
             cell.Border.Margin = new Thickness(Space.Px, 0, Space.Px, 0);
             cell.Glyph.FontSize = cell.Id == StatusItem.Keyboard
-                ? Math.Max(10, DockShape.StatusText * Math.Max(scale, 0.8))
-                : Math.Max(14, DockShape.StatusGlyph * scale);
+                ? Math.Max(DockShape.StatusTextMin, DockShape.StatusText * Math.Max(scale, 0.8))
+                : Math.Max(DockShape.StatusGlyphMin, DockShape.StatusGlyph * scale);
         }
         UpdateWidth();
     }
@@ -140,6 +149,11 @@ public sealed class StatusArea : StackPanel
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = Paint.TextPrimary,
         };
+        if (id == StatusItem.Desktop)
+        {
+            glyph.RenderTransformOrigin = new Point(0.5, 0.5);
+            glyph.RenderTransform = new TransformGroup { Children = { _arrowTurn, _arrowSlide } };
+        }
         var badgeText = new TextBlock
         {
             FontSize = TypeRamp.Caption2,
@@ -265,6 +279,17 @@ public sealed class StatusArea : StackPanel
                 cell.Glyph.Foreground = Paint.TextPrimary;
                 dot = _newestDownload is { } newest && newest.When > DownloadsService.SeenUntil;
                 break;
+            case StatusItem.Desktop:
+                bool hidden = SettingsStore.Current.Dock.HideDesktopIcons;
+                cell.Glyph.Text = Icons.ChevronDown;
+                cell.Glyph.Foreground = hidden ? Paint.TextPrimary : Paint.TextSecondary; // discrète tant que le bureau est normal
+                if (_desktopHidden != hidden)
+                {
+                    bool animate = _desktopHidden != null && cell.Border.Parent != null;
+                    _desktopHidden = hidden;
+                    TurnArrow(cell, hidden, animate);
+                }
+                break;
         }
         cell.Dot.Visibility = dot && badge == null ? Visibility.Visible : Visibility.Collapsed;
         cell.Badge.Visibility = badge != null ? Visibility.Visible : Visibility.Collapsed;
@@ -286,6 +311,9 @@ public sealed class StatusArea : StackPanel
                 return (count == 0 ? Loc.T("status.trash.empty")
                            : Loc.F(count == 1 ? "status.trash.one" : "status.trash.many", count, WindowsUpdateService.FormatSize(RecycleBinService.Size)))
                        + "\n" + Loc.T("status.trash.help");
+            case StatusItem.Desktop:
+                bool hidden = SettingsStore.Current.Dock.HideDesktopIcons;
+                return Loc.T(hidden ? "status.desktop.hidden" : "status.desktop.shown") + "\n" + Loc.T(hidden ? "status.desktop.help.show" : "status.desktop.help.hide");
             default:
                 return Loc.T("folders.downloads") + (_newestDownload is { } newest ? "\n" + Loc.F("status.downloads.latest", newest.Name) : "");
         }
@@ -333,8 +361,14 @@ public sealed class StatusArea : StackPanel
                 UpdateCell(StatusItem.Downloads);
                 DownloadsRequested?.Invoke(cell.Border);
                 break;
+            case StatusItem.Desktop:
+                ToggleDesktopIcons();
+                break;
         }
     }
+
+    /// <summary>Clic sur la flèche : même réglage que « Cacher les icônes du bureau » (le service cache ou remet aussitôt).</summary>
+    private static void ToggleDesktopIcons() => SettingsStore.Update(s => s.Dock.HideDesktopIcons = !s.Dock.HideDesktopIcons);
 
     private ContextMenu Menu(string id)
     {
@@ -367,6 +401,9 @@ public sealed class StatusArea : StackPanel
                 break;
             case StatusItem.Downloads:
                 menu.Items.Add(Entry(Loc.T("status.downloads.open"), () => DownloadsService.Open(DownloadsService.Folder)));
+                break;
+            case StatusItem.Desktop:
+                menu.Items.Add(Entry(Loc.T(SettingsStore.Current.Dock.HideDesktopIcons ? "status.desktop.show" : "status.desktop.hide"), ToggleDesktopIcons));
                 break;
         }
         menu.Items.Add(new Separator());
@@ -448,6 +485,67 @@ public sealed class StatusArea : StackPanel
 
     /// <summary>Nouvelle langue du clavier : le texte rebondit.</summary>
     private static void Pop(Cell cell) => Animate(cell.Scale, 0.6, 1, new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut });
+
+    /// <summary>
+    /// Flèche des icônes du bureau : vers le bas = les ranger, vers le haut = les ressortir. Au changement elle pivote d'un
+    /// demi-tour en glissant un peu, la case rebondit et de petites icônes rentrent dans la case (ou en ressortent).
+    /// </summary>
+    private void TurnArrow(Cell cell, bool hidden, bool animate)
+    {
+        double angle = hidden ? 180 : 0;
+        if (!animate)
+        {
+            _arrowTurn.BeginAnimation(RotateTransform.AngleProperty, null);
+            _arrowTurn.Angle = angle;
+            return;
+        }
+        var duration = new Duration(Motion.Scale);
+        _arrowTurn.BeginAnimation(RotateTransform.AngleProperty,
+            new DoubleAnimation(angle, duration) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } });
+        double slide = hidden ? DockShape.DesktopArrowSlide : -DockShape.DesktopArrowSlide; // dans le sens où partent les icônes
+        var glide = new DoubleAnimationUsingKeyFrames { Duration = duration };
+        glide.KeyFrames.Add(new EasingDoubleKeyFrame(slide, KeyTime.FromPercent(0.4), new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        glide.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromPercent(1), new QuadraticEase { EasingMode = EasingMode.EaseInOut }));
+        _arrowSlide.BeginAnimation(TranslateTransform.YProperty, glide);
+        Animate(cell.Scale, 0.82, 1, new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut });
+        Tuck(cell, hidden);
+    }
+
+    /// <summary>Trois mini-icônes descendent du bureau dans la case (icônes cachées) ou en remontent (icônes remises).</summary>
+    private static void Tuck(Cell cell, bool hiding)
+    {
+        const int count = 3;
+        double size = DockShape.DesktopTuckDot;
+        double desk = (DockIconView.AtTop ? 1 : -1) * DockShape.DesktopTuckDistance; // côté bureau (au-dessus de la case, ou dessous si le dock est en haut)
+        var duration = new Duration(Motion.Scale);
+        for (int i = 0; i < count; i++)
+        {
+            double x = (i - (count - 1) / 2.0) * size * 1.6 - size / 2;
+            var move = new TranslateTransform(x, (hiding ? desk : 0) - size / 2);
+            var icon = new SquircleBorder
+            {
+                Width = size,
+                Height = size,
+                CornerRadius = Corners.Marker,
+                Background = Paint.TextSecondary,
+                RenderTransform = move,
+                Opacity = 0,
+            };
+            cell.Effects.Children.Add(icon);
+            var delay = TimeSpan.FromTicks(Motion.DelayShort.Ticks * i); // l'une après l'autre
+            move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation((hiding ? 0 : desk) - size / 2, duration)
+            {
+                BeginTime = delay,
+                EasingFunction = new CubicEase { EasingMode = hiding ? EasingMode.EaseIn : EasingMode.EaseOut },
+            });
+            var fade = new DoubleAnimationUsingKeyFrames { Duration = duration, BeginTime = delay };
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(hiding ? 0.9 : 0, KeyTime.FromPercent(0)));
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.9, KeyTime.FromPercent(hiding ? 0.3 : 0.35)));
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(1)));
+            fade.Completed += (_, _) => cell.Effects.Children.Remove(icon);
+            icon.BeginAnimation(OpacityProperty, fade);
+        }
+    }
 
     private static void Animate(ScaleTransform scale, double to) => Animate(scale, null, to);
 

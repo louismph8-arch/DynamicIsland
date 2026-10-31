@@ -301,7 +301,8 @@ public sealed class CalendarWidget : DesktopWidget
 public sealed class StatsWidget : DesktopWidget
 {
     private readonly (TextBlock Value, Border Fill, Border Track)[] _bars = new (TextBlock, Border, Border)[3];
-    private readonly TextBlock _network = Text("", TypeRamp.Footnote, Paint.TextSecondary);
+    private readonly TextBlock _download = Text("…", TypeRamp.Footnote, Paint.TextSecondary);
+    private readonly TextBlock _upload = Text("…", TypeRamp.Footnote, Paint.TextSecondary);
 
     public StatsWidget() : base(Desk.Stats, card: true)
     {
@@ -331,8 +332,25 @@ public sealed class StatsWidget : DesktopWidget
             stack.Children.Add(bar);
             _bars[i] = (value, fill, track);
         }
-        _network.Margin = new Thickness(0, Space.S6, 0, 0);
-        stack.Children.Add(_network);
+        // Réseau (correctif 17) : « Débit descendant » et « Débit ascendant » en toutes lettres, valeur à droite.
+        stack.Children.Add(RateRow(Icons.ArrowDown, Loc.T("widgets.download"), _download, Space.S6));
+        stack.Children.Add(RateRow(Icons.ArrowUp, Loc.T("widgets.upload"), _upload, Space.S2));
+    }
+
+    private static Grid RateRow(string glyph, string label, TextBlock value, double top)
+    {
+        var row = new Grid { Margin = new Thickness(0, top, 0, 0) };
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var name = new StackPanel { Orientation = Orientation.Horizontal };
+        name.Children.Add(Glyph(glyph, IconSize.S, Paint.TextTertiary));
+        var text = Text(label, TypeRamp.Footnote, Paint.TextSecondary);
+        text.Margin = new Thickness(Space.S3, 0, Space.S4, 0);
+        name.Children.Add(text);
+        row.Children.Add(name);
+        Grid.SetColumn(value, 1);
+        row.Children.Add(value);
+        return row;
     }
 
     public override DesktopWidgetKind Kind => DesktopWidgetKind.Stats;
@@ -346,6 +364,7 @@ public sealed class StatsWidget : DesktopWidget
             _bars[i].Value.Text = values[i] is double v ? Loc.F("format.percent", Math.Round(v)) : "—";
             _bars[i].Fill.Width = width * Math.Clamp((values[i] ?? 0) / 100, 0, 1);
         }
-        _network.Text = $"{Loc.T("settings.reseau")}   ↓ {SystemStatsService.FormatRate(stats.Download)}   ↑ {SystemStatsService.FormatRate(stats.Upload)}";
+        _download.Text = SystemStatsService.FormatRate(stats.Download);
+        _upload.Text = SystemStatsService.FormatRate(stats.Upload);
     }
 }

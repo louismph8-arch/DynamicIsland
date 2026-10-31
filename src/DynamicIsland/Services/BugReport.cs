@@ -18,11 +18,12 @@ public static partial class BugReport
 {
     private const int LegacyLogTail = 200 * 1024; // fin de l'ancien journal (%LOCALAPPDATA%), s'il existe encore
 
-    /// <summary>Crée le rapport sur le Bureau et renvoie son chemin.</summary>
-    public static string Create()
+    /// <summary>Crée le rapport (sur le Bureau, ou dans <paramref name="folder"/> pour « Donner mon avis ») et renvoie son chemin.</summary>
+    public static string Create(string? folder = null)
     {
-        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        var path = Path.Combine(desktop, $"Opaline-rapport-bug-{DateTime.Now:yyyyMMdd-HHmm}.zip");
+        folder ??= Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, $"Opaline-rapport-bug-{DateTime.Now:yyyyMMdd-HHmm}.zip");
         if (File.Exists(path)) File.Delete(path);
         using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
         Add(zip, "rapport.txt", SystemReport());
@@ -108,9 +109,24 @@ public static partial class BugReport
             }
         }
         if (root["Widgets"] is JsonObject widgets)
-            foreach (var name in new[] { "City", "CityLatitude", "CityLongitude" }) widgets.Remove(name);
+            foreach (var name in new[] { "City", "CityLatitude", "CityLongitude", "CityCoordinatesFor" }) widgets.Remove(name);
+        if (root["Timer"] is JsonObject timer && timer["CustomFile"] != null) timer["CustomFile"] = "(un fichier)"; // chemin perso du son de fin
         if (root["Discord"] is JsonObject discord) discord.Remove("ClientId");
         if (root["Remote"] is JsonObject remote && remote["Devices"] is JsonArray phones) remote["Devices"] = $"{phones.Count} appareils";
+        // Automatisations (7D) : on garde la forme des règles (déclencheur, actions), pas les noms, applis, dossiers ni images.
+        if (root["Automations"] is JsonObject automations && automations["Rules"] is JsonArray rules)
+            foreach (var rule in rules.OfType<JsonObject>())
+            {
+                rule["Name"] = "(règle)";
+                if (rule["Trigger"] is JsonObject trigger)
+                    foreach (var name in new[] { "App", "AppName", "DeviceName" }) trigger.Remove(name);
+                if (rule["Actions"] is JsonArray actions)
+                    foreach (var action in actions.OfType<JsonObject>())
+                    {
+                        action.Remove("Label");
+                        if (action["Value"] != null) action["Value"] = "(choisi)";
+                    }
+            }
         return Clean(root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
     }
 
@@ -119,10 +135,9 @@ public static partial class BugReport
     private static string SystemReport()
     {
         var text = new StringBuilder();
-        var version = typeof(BugReport).Assembly.GetName().Version;
         text.AppendLine($"Rapport de bug {AppInfo.Name} — {DateTime.Now:yyyy-MM-dd HH:mm}");
         text.AppendLine();
-        text.AppendLine($"Version : {version?.ToString(3)} · .NET {Environment.Version} · {(Environment.Is64BitProcess ? "64 bits" : "32 bits")}");
+        text.AppendLine($"Version : {UpdateService.CurrentText} (canal {SettingsStore.Current.Updates.Channel}) · .NET {Environment.Version} · {(Environment.Is64BitProcess ? "64 bits" : "32 bits")}");
         text.AppendLine($"Mode sans échec : {(App.SafeMode ? "oui" : "non")} · langue : {Loc.Language} (Windows : {System.Globalization.CultureInfo.CurrentUICulture.Name})");
         text.AppendLine($"Lancée depuis : {(Environment.ProcessPath?.Contains(@"\Programs\", StringComparison.OrdinalIgnoreCase) == true ? "installation" : "autre dossier (développement ?)")}");
         text.AppendLine($"En marche depuis : {DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime:hh\\:mm\\:ss} · mémoire : {Environment.WorkingSet / (1024 * 1024)} Mo");

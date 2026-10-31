@@ -168,12 +168,18 @@ public partial class IslandWindow : Window
         DiscordVoice.Changed += UpdateCompact;
         ClaudeService.Changed += OnClaudeChanged;
         ClaudeTab.AskRequested += () => Palette.PaletteWindow.Toggle(this, "? "); // la barre de saisie sort de l'île
+        ControlTab.HeightChanged += () =>
+        {
+            if (_expanded && _tab == Tab.Control) AnimateTo(ExpandedSize(Tab.Control), ExpandedRadius, Springs.Resize);
+        };
+        ModuleGuard.ModuleDisabled += _ => HideStoppedTabs();
         ApplySettings();
 
         SelectTab(Tab.Music, animate: false);
         ApplyGeometry();
         UpdateClock();
         UpdateCompact();
+        InitializeClickThrough(); // le halo laisse passer les clics
         Loaded += OnLoaded;
     }
 
@@ -187,7 +193,7 @@ public partial class IslandWindow : Window
         var settings = SettingsStore.Current.Island;
         _expandDelay.Interval = TimeSpan.FromMilliseconds(Math.Max(settings.ExpandDelayMs, 1));
         _collapseDelay.Interval = TimeSpan.FromMilliseconds(settings.CollapseDelayMs);
-        if (!settings.HideInFullscreen && _hiddenForFullscreen) CheckFullscreen();
+        if (IsLoaded) CheckFullscreen(); // mode, règles, plein écran : réévalués tout de suite
         UpdateCloak(); // option « trait discret pendant les jeux »
 
         if (_barsRunning)
@@ -197,17 +203,10 @@ public partial class IslandWindow : Window
             UpdateCompact();
         }
         if (!settings.PrivacyDots) UpdatePrivacyDots();
-        bool claude = SettingsStore.Current.Claude.Enabled;
-        ClaudeTabButton.Visibility = claude ? Visibility.Visible : Visibility.Collapsed;
-        if (!claude && _tab == Tab.Claude) SelectTab(Tab.Music, animate: _expanded);
-        bool clocks = settings.WorldClocks.Count > 0; // onglet seulement s'il y a des villes
-        ClocksTabButton.Visibility = clocks ? Visibility.Visible : Visibility.Collapsed;
-        if (!clocks && _tab == Tab.Clocks) SelectTab(Tab.Music, animate: _expanded);
         ClocksTab.Refresh();
-        UpdateFriendsTab();
-        bool health = SettingsStore.Current.Health.Tab;
-        HealthTabButton.Visibility = health ? Visibility.Visible : Visibility.Collapsed;
-        if (!health && _tab == Tab.Health) SelectTab(Tab.Music, animate: _expanded);
+        ApplyScale(); // taille de l'île (point 12)
+        ApplyTabLayout(); // rangée ou colonne d'onglets
+        UpdateFriendsTab(); // puis visibilité et ordre de tous les onglets (RefreshTabs)
         if (SnapshotFolder == null && IsLoaded)
         {
             if (settings.FollowMouse) _followWatch.Start();
@@ -328,7 +327,14 @@ public partial class IslandWindow : Window
     /// </summary>
     private void PositionOnMonitor(IntPtr monitor)
     {
-        if (ScreenInfo.Describe(monitor) is not { } screen) return;
+        if (ScreenInfo.Describe(monitor) is not { } screen)
+        {
+            // Écran débranché / éteint (sortie de veille) : l'île ne reste pas hors de l'écran, elle va sur le principal.
+            var primary = ScreenInfo.Find(null);
+            if (primary.Handle == monitor || ScreenInfo.Describe(primary.Handle) is not { } fallback) return;
+            _monitor = primary.Handle;
+            screen = fallback;
+        }
         var place = SettingsStore.Current.Island.Placement;
         _placement = place.Signature;
         ApplyAnchors(place.Horizontal, place.Vertical);
@@ -707,6 +713,7 @@ public partial class IslandWindow : Window
         ClocksTab.IsActive = _tab == Tab.Clocks;
         FriendsTab.IsActive = _tab == Tab.Friends;
         HealthTab.IsActive = _tab == Tab.Health && SnapshotFolder == null;
+        ControlTab.IsActive = _tab == Tab.Control && SnapshotFolder == null;
         SetBarsRunning(false);
         SeasonLayer.Wake(open: true); // 7A : les particules ne bougent que quand on regarde l'île
 
@@ -729,6 +736,7 @@ public partial class IslandWindow : Window
         ClocksTab.IsActive = false;
         FriendsTab.IsActive = false;
         HealthTab.IsActive = false;
+        ControlTab.IsActive = false;
         SeasonLayer.Wake(open: false); // encore un moment, puis elles se figent
 
         CompactView.IsHitTestVisible = true;
@@ -751,11 +759,18 @@ public partial class IslandWindow : Window
         // Le nom de l'onglet actif vient d'apparaître (déclencheur du modèle) : on force une mesure fraîche de toute la rangée.
         InvalidateMeasureTree(TabStrip);
         TabStrip.Measure(any);
-        HeaderRight.Visibility = Visibility.Visible;
         HeaderRight.Measure(any);
-        double needed = TabStrip.DesiredSize.Width + HeaderRight.DesiredSize.Width + 2 * Space.S8 + Space.S5;
-        // Beaucoup d'onglets (santé, amis…) : si même l'île la plus large ne suffit pas, l'heure s'efface (elle est dans la pilule fermée).
-        if (needed > IslandShape.MaxExpandedWidth) HeaderRight.Visibility = Visibility.Collapsed;
+        if (SettingsStore.Current.Island.VerticalTabs)
+        {
+            // Colonne d'onglets à gauche (point 12) : l'île s'élargit de sa largeur ; trop d'onglets → elle défile.
+            double column = TabStrip.DesiredSize.Width + Space.S4 + IslandShape.TabScrollBar;
+            // Assez haute pour toute la colonne (sinon des onglets coupés sur les onglets courts), sans dépasser l'île la plus haute.
+            double tabs = TabStrip.DesiredSize.Height + Space.S5 + Space.S8;
+            return new Size(Math.Min(IslandShape.MaxExpandedWidthVertical, size.Width + column),
+                Math.Min(IslandShape.MaxExpandedHeightVertical, Math.Max(size.Height, tabs)));
+        }
+        double needed = TabStrip.DesiredSize.Width + HeaderRight.DesiredSize.Width + 2 * Space.S8 + Space.S5 + Space.S4;
+        // Trop d'onglets même pour l'île la plus large : la rangée défile (barre fine), l'heure reste.
         return new Size(Math.Min(IslandShape.MaxExpandedWidth, Math.Max(size.Width, needed)), size.Height);
     }
 
@@ -765,10 +780,10 @@ public partial class IslandWindow : Window
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++) InvalidateMeasureTree(VisualTreeHelper.GetChild(element, i));
     }
 
-    private static Size SizeFor(Tab tab) => tab switch
+    private Size SizeFor(Tab tab) => tab switch
     {
         Tab.Calendar => IslandShape.Calendar,
-        Tab.Control => IslandShape.Control, // + pastilles des profils
+        Tab.Control => new Size(IslandShape.Control.Width, IslandShape.Control.Height + (ControlTab.HasDevices ? IslandShape.DevicesRow : 0)), // + profils, appareils
         Tab.Widgets or Tab.Shelf or Tab.Voice or Tab.Clocks or Tab.Friends => IslandShape.Panel,
         Tab.Claude => IslandShape.Claude,
         Tab.Health => IslandShape.Health,
@@ -779,6 +794,7 @@ public partial class IslandWindow : Window
         _gaming ? IslandShape.Gaming
         : _noticeVisible ? _noticeSize
         : _hudVisible ? IslandShape.Hud
+        : _timer.State is TimerState.Running or TimerState.Paused && TimerService.HasHours(_timer.Remaining) ? IslandShape.CompactWideHours // « 1:30:00 »
         : (_media.HasSession && _media.IsPlaying) || _timer.State != TimerState.Idle || InVoice ? IslandShape.CompactWide
         : IslandShape.Compact;
 
@@ -814,6 +830,7 @@ public partial class IslandWindow : Window
         FriendsTabButton.IsChecked = tab == Tab.Friends;
         HealthTabButton.IsChecked = tab == Tab.Health;
         _syncingTabs = false;
+        UpdateTabTitle();
 
         foreach (var (view, viewTab) in new (FrameworkElement, Tab)[]
                  { (MusicTab, Tab.Music), (CalendarTab, Tab.Calendar), (ControlTab, Tab.Control), (WidgetsTab, Tab.Widgets), (ShelfTab, Tab.Shelf), (VoiceTab, Tab.Voice), (ClaudeTab, Tab.Claude), (ClocksTab, Tab.Clocks), (FriendsTab, Tab.Friends), (HealthTab, Tab.Health) })
@@ -832,6 +849,7 @@ public partial class IslandWindow : Window
         }
 
         if (tab == Tab.Control) ControlTab.Refresh();
+        ControlTab.IsActive = _expanded && tab == Tab.Control && SnapshotFolder == null; // appareils relus onglet ouvert seulement
         MusicTab.IsActive = _expanded && tab == Tab.Music;
         WidgetsTab.IsActive = _expanded && tab == Tab.Widgets;
         VoiceTab.IsActive = _expanded && tab == Tab.Voice;
@@ -842,13 +860,33 @@ public partial class IslandWindow : Window
         if (_expanded) AnimateTo(ExpandedSize(tab), ExpandedRadius, Springs.Resize);
     }
 
+    /// <summary>Module de chaque onglet : arrêté après une erreur → onglet caché pour la session (correctif urgent 1).</summary>
+    private static readonly Dictionary<Tab, string> TabModules = new()
+    {
+        [Tab.Music] = ModuleGuard.MusicTab, [Tab.Calendar] = ModuleGuard.CalendarTab, [Tab.Control] = ModuleGuard.ControlTab,
+        [Tab.Widgets] = ModuleGuard.WidgetsTab, [Tab.Shelf] = ModuleGuard.ShelfTab, [Tab.Voice] = ModuleGuard.Discord,
+        [Tab.Claude] = ModuleGuard.Claude, [Tab.Clocks] = ModuleGuard.ClocksTab, [Tab.Health] = ModuleGuard.Health,
+        [Tab.Friends] = ModuleGuard.Friends,
+    };
+
+    private static bool TabStopped(Tab tab) => TabModules.TryGetValue(tab, out var module) && ModuleGuard.IsDisabled(module);
+
+    private IEnumerable<(System.Windows.Controls.RadioButton Button, Tab Tab)> TabButtons() =>
+    [
+        (MusicTabButton, Tab.Music), (CalendarTabButton, Tab.Calendar), (ControlTabButton, Tab.Control), (WidgetsTabButton, Tab.Widgets),
+        (ShelfTabButton, Tab.Shelf), (VoiceTabButton, Tab.Voice), (ClaudeTabButton, Tab.Claude), (ClocksTabButton, Tab.Clocks),
+        (HealthTabButton, Tab.Health), (FriendsTabButton, Tab.Friends),
+    ];
+
+    /// <summary>Onglets dont le module s'est arrêté : cachés ; l'onglet ouvert passe au premier qui marche encore.</summary>
+    private void HideStoppedTabs() => RefreshTabs();
+
     /// <summary>Onglet « Amis » (6D-4) : seulement si la fonction est activée et qu'il y a au moins un ami.</summary>
     private void UpdateFriendsTab()
     {
-        bool friends = SnapshotFolder == null && SettingsStore.Current.Friends.Enabled && Services.Friends.FriendsService.Lists.Friends.Count > 0
-                       || SnapshotFolder != null && FriendsTabButton.Visibility == Visibility.Visible;
-        FriendsTabButton.Visibility = friends ? Visibility.Visible : Visibility.Collapsed;
-        if (!friends && _tab == Tab.Friends) SelectTab(Tab.Music, animate: _expanded);
+        _friendsWanted = SnapshotFolder == null && SettingsStore.Current.Friends.Enabled && Services.Friends.FriendsService.Lists.Friends.Count > 0
+                         || SnapshotFolder != null && FriendsTabButton.Visibility == Visibility.Visible;
+        RefreshTabs();
     }
 
     // ------------------------------------------------------------------ mini Claude (5J)
@@ -992,21 +1030,14 @@ public partial class IslandWindow : Window
         };
         _rimBrush.BeginAnimation(SolidColorBrush.ColorProperty, pulse);
         IslandShadow.BeginAnimation(DropShadowEffect.ColorProperty, pulse);
-        _ = RingAsync();
-    }
-
-    private async Task RingAsync()
-    {
-        for (int i = 0; i < 3 && _timer.State == TimerState.Finished; i++)
-        {
-            SystemSounds.Exclamation.Play();
-            await Task.Delay(1500);
-        }
+        // Son choisi dans Paramètres → Île → Minuteur (correctif 19) : 3 fois au plus, coupé dès que l'alerte est acquittée.
+        TimerSound.Ring(() => _timer.State == TimerState.Finished);
     }
 
     private void StopAlert()
     {
         _alerting = false;
+        TimerSound.Stop(); // alerte acquittée (île ouverte) ou nouveau minuteur : le son se tait
         _rimBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
         IslandShadow.BeginAnimation(DropShadowEffect.ColorProperty, null);
         UpdateGlow();
@@ -1104,6 +1135,8 @@ public partial class IslandWindow : Window
     public bool ShowNotice(string glyph, string text, Action? onClick = null, TimeSpan? duration = null, string? detail = null,
         IReadOnlyList<string>? files = null)
     {
+        if (FocusService.DoNotDisturb) return true; // « Ne pas déranger » (7D) : l'annonce est simplement oubliée
+        RevealForNotice(duration); // cachée par son mode (Intelligent, Peek) ou une règle : elle se montre pour l'annonce
         if (_gaming || _hiddenForFullscreen || _expanded || !IsVisible) return false; // jamais pendant qu'on s'en sert
         NoticeIcon.Text = glyph;
         NoticeIcon.FontSize = detail != null ? IconSize.XXL : IconSize.M;
@@ -1274,7 +1307,11 @@ public partial class IslandWindow : Window
     private void CheckFullscreen()
     {
         if (SnapshotFolder != null) return; // rendu hors écran : la fenêtre au premier plan de l'utilisateur ne compte pas
-        bool fullscreen = SettingsStore.Current.Island.HideInFullscreen && !_gaming && ScreenInfo.IsForegroundFullscreen(_monitor);
+        AdjustModeWatch();
+        // Plein écran, mode Intelligent / Peek, règle d'une appli ou raccourci (IslandWindow.Modes.cs).
+        var reason = HideDecision();
+        _hideReason = reason;
+        bool fullscreen = reason != HideReason.None;
         if (fullscreen == _hiddenForFullscreen) return;
         _hiddenForFullscreen = fullscreen;
 
@@ -1295,7 +1332,7 @@ public partial class IslandWindow : Window
 
     private void OnGamingChanged()
     {
-        ApplyGaming(GamingMode.IsActive);
+        ApplyGaming(GamingMode.IsActive && GamingMode.IsOnMonitor(_monitor)); // une partie sur un AUTRE écran ne touche pas l'île
         UpdateSeason(); // pas d'animation pendant un jeu
     }
 
@@ -1373,7 +1410,22 @@ public partial class IslandWindow : Window
 
     private void OnRendering(object? sender, EventArgs e)
     {
-        var now = ((RenderingEventArgs)e).RenderingTime;
+        try
+        {
+            StepAnimation((RenderingEventArgs)e);
+        }
+        catch (Exception ex)
+        {
+            // Sinon : plus aucune animation (_animating resté vrai) et une ligne de journal par image.
+            CompositionTarget.Rendering -= OnRendering;
+            _animating = false;
+            Log.Error("Île : animation", ex);
+        }
+    }
+
+    private void StepAnimation(RenderingEventArgs e)
+    {
+        var now = e.RenderingTime;
         if (now == _lastFrame) return; // Rendering peut être levé plusieurs fois par image
         double dt = _lastFrame == TimeSpan.Zero ? 1 / 60.0 : Math.Min((now - _lastFrame).TotalSeconds, 1 / 30.0);
         _lastFrame = now;

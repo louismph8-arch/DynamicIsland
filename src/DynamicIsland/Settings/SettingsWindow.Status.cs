@@ -13,6 +13,7 @@ public partial class SettingsWindow
         StatusItem.Keyboard => Icons.Keyboard,
         StatusItem.Updates => Icons.WindowsUpdate,
         StatusItem.Trash => Icons.Trash,
+        StatusItem.Desktop => Icons.ChevronDown,
         _ => Icons.FolderDown,
     };
 

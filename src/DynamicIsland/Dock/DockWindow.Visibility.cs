@@ -17,6 +17,7 @@ public partial class DockWindow
     private bool _hidden;
     private bool _fullscreen;
     private bool _overlapped;
+    private Settings.AppBehavior _appRule;
     private int _watchTicks;
     private DateTime _lastInside = DateTime.MinValue;
     /// <summary>Raccourci « Afficher le dock » : visible jusqu'à cette heure (prolongée tant que la souris est dessus).</summary>
@@ -48,6 +49,8 @@ public partial class DockWindow
             TaskbarService.EnforceHidden();
         }
         if (_settings.Mode == DockMode.Smart && _watchTicks % 3 == 0) _overlapped = IsOverlapped();
+        // Règle de l'appli au premier plan (priorité 2, point 13) : « se cache » / « toujours visible ».
+        if (_watchTicks % 3 == 0) _appRule = AppRuleService.HasRules ? AppRuleService.ForForeground(dock: true) : Settings.AppBehavior.Default;
         UpdateVisibility();
     }
 
@@ -65,12 +68,17 @@ public partial class DockWindow
 
         // Plein écran (vidéo) ou jeu sur l'écran du dock : il reste caché, même souris au bord de l'écran, sauf s'il a été
         // appelé par le raccourci « Afficher le dock ». Sur un AUTRE écran que le jeu, il reste utilisable.
-        bool covered = _fullscreen || GamingMode.IsOnMonitor(_screen.Handle);
-        bool visible = revealed || (covered ? false : _settings.Mode switch
+        bool covered = (_fullscreen || GamingMode.IsOnMonitor(_screen.Handle)) && _appRule != Settings.AppBehavior.Show;
+        bool visible = revealed || (covered ? false : _appRule switch
         {
-            DockMode.Fixed => true,
-            DockMode.Smart => !_overlapped || atEdge || stayOpen,
-            _ => atEdge || stayOpen, // Peek
+            Settings.AppBehavior.Show => true,               // ex. Spotify : le dock reste là, même agrandi ou en plein écran
+            Settings.AppBehavior.Hide => atEdge || stayOpen, // ex. Chrome : caché, la souris au bord le fait revenir
+            _ => _settings.Mode switch
+            {
+                DockMode.Fixed => true,
+                DockMode.Smart => !_overlapped || atEdge || stayOpen,
+                _ => atEdge || stayOpen, // Peek
+            },
         });
         UpdateCloak(!visible && covered);
         SetHidden(!visible);

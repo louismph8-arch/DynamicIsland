@@ -119,6 +119,9 @@ public partial class SettingsWindow
     {
         var update = UpdateService.Available;
         CurrentVersionText.Text = Loc.F("updates.installed", UpdateService.CurrentText);
+        bool beta = SettingsStore.Current.Updates.Channel == UpdateChannel.Beta;
+        if (StableChannelOption.IsChecked == beta) StableChannelOption.IsChecked = !beta;
+        if (BetaChannelOption.IsChecked != beta) BetaChannelOption.IsChecked = beta;
         UpdateStatusText.Text = UpdateService.Status;
         CheckUpdateButton.IsEnabled = !UpdateService.Busy;
         UpdateActions.Visibility = update != null ? Visibility.Visible : Visibility.Collapsed;
@@ -132,6 +135,20 @@ public partial class SettingsWindow
     }
 
     private async void CheckUpdate_Click(object sender, RoutedEventArgs e) => await UpdateService.CheckAsync();
+
+    /// <summary>« Donner mon avis / Signaler un bug » et « Nouveautés de cette version » (À propos, 7C).</summary>
+    private void Feedback_Click(object sender, RoutedEventArgs e) => Feedback.FeedbackWindow.Open();
+
+    private void WhatsNew_Click(object sender, RoutedEventArgs e) => Feedback.WhatsNewWindow.Open();
+
+    /// <summary>Canal Stable / Bêta (7C) : on revérifie tout de suite avec le nouveau canal.</summary>
+    private async void UpdateChannel_Click(object sender, RoutedEventArgs e)
+    {
+        var channel = BetaChannelOption.IsChecked == true ? UpdateChannel.Beta : UpdateChannel.Stable;
+        if (channel == SettingsStore.Current.Updates.Channel) return;
+        SettingsStore.Update(s => s.Updates.Channel = channel);
+        await UpdateService.CheckAsync();
+    }
 
     private async void InstallUpdate_Click(object sender, RoutedEventArgs e)
     {

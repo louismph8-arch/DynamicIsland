@@ -385,10 +385,41 @@ public static class LogoArt
 }
 
 /// <summary>Assistant de bienvenue (5H, premier lancement).</summary>
+/// <summary>Fenêtres « carte » (7C) : « Donner mon avis » et « Nouveautés ».</summary>
+public static class CardShape
+{
+    public const double Width = 600;
+    public const double FeedbackHeight = 720;
+    public const double NewsHeight = 690;
+    public const double TextHeight = 100;          // zone de texte de l'avis
+    public const double Thumbnail = 128;           // aperçu de la capture d'écran (largeur)
+    public const double ButtonWidth = 140;
+    public const int Logo = 56;
+    public const double Bullet = 7;                // pastille des nouveautés
+    public const double Rise = 14;                 // montée à l'apparition (DIP)
+    public const double FirstReveal = 0.18;        // s avant la première ligne
+    public const double Stagger = 0.055;           // s entre deux lignes
+    public const double EditorWidth = 640;         // éditeur de règle (7D)
+    public const double EditorHeight = 740;
+    public const double FieldWidth = 220;          // champ de texte d'une règle
+    public const double PickerMaxWidth = 220;      // texte d'un bouton de choix
+}
+
+/// <summary>Fenêtre des paramètres : notre propre barre de titre (correctif 10) et la recherche (correctif 11).</summary>
+public static class SettingsShape
+{
+    public const double TitleBar = 40;            // hauteur de la barre (zone de déplacement)
+    public static readonly GridLength TitleBarRow = new(TitleBar); // la même, pour une ligne de grille (XAML)
+    public const double SearchBox = 34;
+    public const double SearchPopup = 320;
+    public const int SearchResults = 8;
+    public const double SearchScrollMargin = 24;  // le réglage trouvé s'arrête un peu sous le haut
+}
+
 public static class WelcomeShape
 {
     public const double Width = 760;
-    public const double Height = 600;
+    public const double Height = 656;              // la page Modules tient sans défiler, ville de la météo comprise
     public const double Margin = 28;               // autour de la carte (halo)
     public const int Logo = 112;                   // logo de la première page
     public const int SmallLogo = 56;               // logo de la dernière page
@@ -400,6 +431,7 @@ public static class WelcomeShape
     public const double PreviewHeight = 40;
     public const double TipIcon = 34;              // pastille d'icône des astuces
     public const double NextWidth = 150;           // bouton « Suivant »
+    public const double CityBox = 180;             // champ « Ville de la météo » (page Modules)
 }
 
 /// <summary>Curseur de souris Dynamic Island (5G) : formes dessinées sur une grille de 32 unités.</summary>
@@ -561,6 +593,9 @@ public static class IconSize
 /// <summary>Tailles des contrôles.</summary>
 public static class Sizes
 {
+    public const double CaptionButton = 40;         // réduire / fermer des paramètres
+    public const double TabIcon = 26;               // onglet de l'île en colonne (icône seule) : 9 onglets tiennent sans défiler
+    public const double CaptionButtonHeight = 30;
     public const double IconButton = 36;
     public const double SmallIconButton = 26;
     public const double TinyButton = 20;     // « × » des tuiles
@@ -598,6 +633,12 @@ public static class Sizes
     public const double VoiceRow = 200;
     public const double ProfileDot = 36;     // pastille de profil
     public const double PaletteWidth = 640;  // palette de commandes ouverte
+    public const double MenuMinWidth = 180;
+    public const double MenuMaxHeight = 360; // menu sombre long (sons du minuteur) : il défile au-delà
+    public const double TimerStepButton = 22; // − / + d'un compteur du minuteur « Perso »
+    public const double TimerStepColumn = 44; // largeur d'un compteur (heures, minutes, secondes)
+    public const double TimerDigits = 52;     // rangée des chiffres du minuteur (« 05:00 » en Hero)
+    public const double TimerStart = 112;     // bouton « Démarrer » du minuteur
 }
 
 /// <summary>Géométrie de l'île (en DIP).</summary>
@@ -605,16 +646,19 @@ public static class IslandShape
 {
     public static readonly Size Compact = new(124, 36);
     public static readonly Size CompactWide = new(220, 36);
+    public static readonly Size CompactWideHours = new(252, 36); // minuteur d'une heure ou plus (« 1:30:00 ») : l'heure reste dégagée
     public static readonly Size Hud = new(250, 36);
     public static readonly Size Gaming = new(64, 6);
     public const double IntroDot = 8;            // intro : le point lumineux d'où l'île se déploie
     public static readonly Size Music = new(440, 218);   // + curseur du volume de l'appli
     public static readonly Size Calendar = new(488, 262);
     public static readonly Size Control = new(440, 238);
+    /// <summary>Rangée « Appareils connectés » sous les profils (centre de contrôle), ajoutée seulement s'il y en a.</summary>
+    public const double DevicesRow = 38;
     public static readonly Size Panel = new(440, 196);   // widgets, étagère, vocal
     public static readonly Size Claude = new(480, 262);  // mini Claude : la conversation défile
     public static readonly Size Health = new(488, 272);  // santé du PC : mesures, disques, 3 applis
-    public const double WideTabs = 512;          // l'île peut s'élargir jusque-là si la rangée d'onglets est longue (fenêtre de 560 moins le halo)
+    public const double WideTabs = 552;          // l'île peut s'élargir jusque-là si la rangée d'onglets est longue (fenêtre de 600 moins le halo)
     public const double HealthContentWidth = 454;
     public const double MinExpandedInnerWidth = 438;
     public const double ContentWidth = 406;
@@ -631,6 +675,12 @@ public static class IslandShape
     public const double ClaudeContentWidth = 444; // contenu de l'onglet Claude (île de 480 moins ses marges)
     public const double ClaudeContentHeight = 192;
     public const double EdgeMargin = 24;         // place du halo quand l'île part du bord gauche / droit de sa fenêtre
+    /// <summary>Fenêtre de l'île à la taille 100 % (multipliée par le réglage « Taille de l'île ») ; assez large pour les onglets en colonne.</summary>
+    public static readonly Size Window = new(600, 340);
+    /// <summary>Onglets en colonne : l'île peut s'élargir de la largeur de la colonne (fenêtre moins la place du halo).</summary>
+    public const double MaxExpandedWidthVertical = 552;
+    public const double MaxExpandedHeightVertical = 290;   // = hauteur de la vue ouverte (ExpandedView)
+    public const double TabScrollBar = 3;         // barre de défilement fine des onglets (trop d'onglets)
     public const double SnapDistance = 16;       // aimantation au bord de l'écran / au centre
 }
 
@@ -638,6 +688,8 @@ public static class IslandShape
 public static class DockShape
 {
     public const double ReferenceIcon = 48;
+    public const double MinIcon = 24;               // réglage « Taille du dock » (correctif 15b : barre de ~31 px)
+    public const double MaxIcon = 72;
     public const double GapRatio = 1 / 12.0;        // marge de chaque côté d'une icône
     public const double DotRatio = 0.25;            // zone du point sous l'icône (dock flottant)
     public const double BarDotRatio = 0.2;          // … en mode barre
@@ -651,20 +703,28 @@ public static class DockShape
     public const double WindowExtra = 45;
     public const double HiddenExtra = 50;           // décalage en plus pour cacher aussi le halo
     public const double MagnificationRange = 2.6;   // portée du grossissement, en largeurs d'icône
-    public const double MergeZone = 0.28;           // zone de dépôt (dossier), en largeur d'icône
+    public const double MergeZone = 0.22;           // zone de dépôt (dossier), en largeur d'icône
     public const double HighlightRadius = 0.28;     // arrondi du cadre de dépôt, en fraction de sa taille
     public const double HighlightPadding = 1.4;     // marge du cadre de dépôt, en marges d'icône
     public const double Separator = 40;
     public const double SearchWidth = 128;
     public const double SearchHeight = 40;
-    public const double SearchMinHeight = 30;
+    public const double SearchMinHeight = 22;       // minimums : tout tient encore dans la barre à 24 px
     public const double Profile = 34;
-    public const double ProfileMin = 28;
+    public const double ProfileMin = 20;
     public const double ProfileGlyph = 15;
     public const double ProfileGlyphMin = 12;
     public const double LabelOffset = 10;           // étiquette du nom au-dessus de l'icône
     public const double TrayCell = 22;
-    public const double TrayIcon = 16;
+    public const double TrayCellMin = 18;           // 2 lignes seulement si des cases de 18 tiennent, sinon une seule
+    public const double TrayIcon = 16;              // taille des icônes de Windows : jamais réduite
+    public const double EdgeGap = 6;                // applis alignées à gauche / à droite : écart avec la recherche ou la zone d'état
+    public const double PreviewCloseSmall = 16;     // « × » d'une fenêtre dans l'aperçu (correctif 15c)
+    public const double PreviewCloseMedium = 20;
+    public const double PreviewCloseLarge = 26;
+    public const double PreviewCloseGlyphSmall = 8;
+    public const double PreviewCloseGlyphMedium = 9;
+    public const double PreviewCloseGlyphLarge = 12;
     public const double FolderTileWidth = 96;       // case de la grille d'un dossier ouvert
     public const double FolderTileIcon = 52;
     public const double FolderMinWidth = 220;
@@ -672,9 +732,14 @@ public static class DockShape
     public const int FolderColumns = 4;
     public const double SnapDistance = 24;          // dock flottant déplacé : aimanté au centre du bord
     public const double StatusCell = 36;            // case de la zone d'état (6B), pour des icônes de 48
-    public const double StatusCellMin = 28;
+    public const double StatusCellMin = 22;
     public const double StatusGlyph = 18;           // icône Lucide d'une case
+    public const double StatusGlyphMin = 12;
     public const double StatusText = 12.5;          // « FR » (langue du clavier)
+    public const double StatusTextMin = 10;
+    public const double DesktopTuckDot = 5;         // flèche des icônes du bureau : petites icônes qui rentrent / sortent
+    public const double DesktopTuckDistance = 16;
+    public const double DesktopArrowSlide = 3;      // la flèche glisse un peu pendant qu'elle pivote
     public const double StatusBadge = 15;           // pastille du nombre (mises à jour)
     public const double StatusDot = 6;              // point « nouveau » / « pleine »
     public const double PoofDistance = 26;          // effet « poof » de la corbeille : distance des bulles
@@ -714,6 +779,7 @@ public static class Motion
     public static readonly TimeSpan Brisk = TimeSpan.FromMilliseconds(140);
     public static readonly TimeSpan Short = TimeSpan.FromMilliseconds(160);
     public static readonly TimeSpan Swift = TimeSpan.FromMilliseconds(180);
+    public static readonly TimeSpan Highlight = TimeSpan.FromMilliseconds(1600); // réglage trouvé par la recherche (2 clignements)
     public static readonly TimeSpan Base = TimeSpan.FromMilliseconds(200);
     public static readonly TimeSpan Medium = TimeSpan.FromMilliseconds(220);
     public static readonly TimeSpan Long = TimeSpan.FromMilliseconds(250);
@@ -779,6 +845,7 @@ public static class Icons
     public const string Next = "\uE160"; // skip-forward
     public const string ChevronLeft = "\uE06E"; // chevron-left
     public const string ChevronRight = "\uE06F"; // chevron-right
+    public const string ChevronDown = "\uE06D"; // chevron-down (fl\u00E8che des ic\u00F4nes du bureau, correctif 16)
     public const string VolumeMute = "\uE1AC"; // volume-x
     public const string VolumeLow = "\uE1A9"; // volume
     public const string VolumeMedium = "\uE1AA"; // volume-1
@@ -821,6 +888,19 @@ public static class Icons
     public const string Smile = "\uE164"; // smile
     public const string Plane = "\uE1DE"; // plane
     public const string Seasons = "\uE165"; // snowflake
+    public const string Feedback = "\uE56F"; // message-square-heart (« Donner mon avis », 7C)
+    public const string Bug = "\uE20C"; // bug
+    public const string Send = "\uE152"; // send
+    public const string News = "\uE343"; // party-popper (« Nouveautés », 7C)
+    public const string Beta = "\uE0D5"; // flask-conical (canal Bêta)
+    public const string Picture = "\uE0F6"; // image
+    public const string Archive = "\uE30D"; // file-archive
+    public const string Automations = "\uE1B4"; // zap (automatisations, 7D)
+    public const string FolderOpen = "\uE247"; // folder-open
+    public const string BellOff = "\uE05A"; // bell-off (Ne pas déranger)
+    public const string Bell = "\uE059"; // bell
+    public const string Message = "\uE117"; // message-square
+    public const string ArrowRight = "\uE049"; // arrow-right
     public const string HardDrive = "\uE0ED"; // hard-drive
     public const string Thermometer = "\uE186"; // thermometer
     public const string Sleep = "\uE410"; // moon-star
@@ -835,6 +915,7 @@ public static class Icons
     public const string Bluetooth = "\uE05C"; // bluetooth
     public const string Usb = "\uE356"; // usb
     public const string Gamepad = "\uE0DF"; // gamepad-2
+    public const string Mouse = "\uE28E"; // mouse
     public const string FileDown = "\uE318"; // file-down
     public const string Clock = "\uE087"; // clock
 

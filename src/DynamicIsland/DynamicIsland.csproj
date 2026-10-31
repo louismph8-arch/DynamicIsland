@@ -20,7 +20,7 @@
     <!-- Nom affiché (5H) ; l'exe et les dossiers gardent « DynamicIsland » (voir AppInfo.cs). -->
     <Product>Opaline</Product>
     <AssemblyTitle>Opaline</AssemblyTitle>
-    <Version>1.23.0</Version>
+    <Version>1.28.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -46,6 +46,9 @@
     <EmbeddedResource Include="Services\Remote\RemotePage.html" LogicalName="DynamicIsland.Remote.RemotePage.html" />
     <!-- Code du serveur « Amis en ligne » (6D-4), copié depuis les paramètres pour être collé dans Cloudflare -->
     <EmbeddedResource Include="..\..\server\amis\worker.js" LogicalName="DynamicIsland.Friends.worker.js" />
+    <!-- Écran « Nouveautés » (7C) : notes de CETTE version (notes/vX.Y.Z.md, et .en.md en anglais s'il existe) -->
+    <EmbeddedResource Include="..\..\notes\v$(Version).md" LogicalName="DynamicIsland.WhatsNew.fr.md" WithCulture="false" Condition="Exists('..\..\notes\v$(Version).md')" />
+    <EmbeddedResource Include="..\..\notes\v$(Version).en.md" LogicalName="DynamicIsland.WhatsNew.en.md" WithCulture="false" Condition="Exists('..\..\notes\v$(Version).en.md')" />
   </ItemGroup>
 
 </Project>

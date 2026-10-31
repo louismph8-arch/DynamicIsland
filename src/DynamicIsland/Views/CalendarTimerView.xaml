@@ -35,29 +35,48 @@
     <Border Grid.Column="1" Width="1" Margin="{ui:Space 0,s2}" HorizontalAlignment="Center" Background="{StaticResource DividerBrush}"/>
 
     <!-- Minuteur -->
-    <StackPanel Grid.Column="2" VerticalAlignment="Center">
-      <TextBlock x:Name="PhaseText" Text="{ui:L calendar.minuteur}" FontSize="{x:Static t:TypeRamp.Caption2}" FontWeight="SemiBold" Foreground="{StaticResource TextTertiary}"
-                 HorizontalAlignment="Center"/>
+    <Grid Grid.Column="2">
+      <StackPanel x:Name="TimerPanel" VerticalAlignment="Center">
+        <TextBlock x:Name="PhaseText" Text="{ui:L calendar.minuteur}" FontSize="{x:Static t:TypeRamp.Caption2}" FontWeight="SemiBold" Foreground="{StaticResource TextTertiary}"
+                   HorizontalAlignment="Center"/>
 
-      <Grid Margin="{ui:Space 0,s1,0,0}">
-        <Button Style="{StaticResource SmallIconButton}" HorizontalAlignment="Left" Content="{x:Static t:Icons.Minus}" Click="Minus_Click"/>
-        <TextBlock x:Name="TimerText" HorizontalAlignment="Center" FontFamily="{StaticResource DisplayFont}"
-                   FontSize="{x:Static t:TypeRamp.Hero}" FontWeight="Light" Text="05:00"/>
-        <Button Style="{StaticResource SmallIconButton}" HorizontalAlignment="Right" Content="{x:Static t:Icons.Plus}" Click="Plus_Click"/>
-      </Grid>
+        <!-- Hauteur fixe : « 1:30:00 » s'écrit un peu plus petit sans faire bouger le reste -->
+        <Grid Margin="{ui:Space 0,s1,0,0}" Height="{x:Static t:Sizes.TimerDigits}">
+          <Button Style="{StaticResource SmallIconButton}" HorizontalAlignment="Left" Content="{x:Static t:Icons.Minus}" Click="Minus_Click"/>
+          <TextBlock x:Name="TimerText" HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="{StaticResource DisplayFont}"
+                     FontSize="{x:Static t:TypeRamp.Hero}" FontWeight="Light" Text="05:00"/>
+          <Button Style="{StaticResource SmallIconButton}" HorizontalAlignment="Right" Content="{x:Static t:Icons.Plus}" Click="Plus_Click"/>
+        </Grid>
 
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="{ui:Space 0,s3,0,0}">
-        <Button Style="{StaticResource ChipButton}" Content="1 min" Tag="1" Click="Preset_Click"/>
-        <Button Style="{StaticResource ChipButton}" Content="5 min" Tag="5" Click="Preset_Click" Margin="{ui:Space s2,0,0,0}"/>
-        <Button Style="{StaticResource ChipButton}" Content="10 min" Tag="10" Click="Preset_Click" Margin="{ui:Space s2,0,0,0}"/>
-        <Button Style="{StaticResource ChipButton}" Content="{ui:L calendar.pomodoro}" Tag="pomodoro" Click="Preset_Click" Margin="{ui:Space s2,0,0,0}"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="{ui:Space 0,s3,0,0}">
+          <Button Style="{StaticResource ChipButton}" Content="1 min" Tag="1" Click="Preset_Click"/>
+          <Button Style="{StaticResource ChipButton}" Content="5 min" Tag="5" Click="Preset_Click" Margin="{ui:Space s2,0,0,0}"/>
+          <Button Style="{StaticResource ChipButton}" Content="10 min" Tag="10" Click="Preset_Click" Margin="{ui:Space s2,0,0,0}"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="{ui:Space 0,s2,0,0}">
+          <Button Style="{StaticResource ChipButton}" Content="{ui:L calendar.pomodoro}" Tag="pomodoro" Click="Preset_Click"/>
+          <Button Style="{StaticResource ChipButton}" Content="{ui:L timer.custom}" Click="Custom_Click" Margin="{ui:Space s2,0,0,0}"/>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="{ui:Space 0,s5,0,0}">
+          <Button x:Name="StartButton" Style="{StaticResource SoftButton}" Width="{x:Static t:Sizes.TimerStart}" Content="{ui:L calendar.demarrer}" Click="Start_Click"/>
+          <Button x:Name="ResetButton" Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="{x:Static t:TypeRamp.Body}"
+                  Margin="{ui:Space s4,0,0,0}" Content="{x:Static t:Icons.Reset}" Click="Reset_Click"/>
+        </StackPanel>
       </StackPanel>
 
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="{ui:Space 0,s6,0,0}">
-        <Button x:Name="StartButton" Style="{StaticResource SoftButton}" Width="112" Content="{ui:L calendar.demarrer}" Click="Start_Click"/>
-        <Button x:Name="ResetButton" Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="{x:Static t:TypeRamp.Body}"
-                Margin="{ui:Space s4,0,0,0}" Content="{x:Static t:Icons.Reset}" Click="Reset_Click"/>
+      <!-- Durée « Perso » (correctif 19) : heures / minutes / secondes avec − / + et la molette (l'île ne prend jamais le clavier) -->
+      <StackPanel x:Name="CustomPanel" VerticalAlignment="Center" Visibility="Collapsed">
+        <TextBlock Text="{ui:L timer.custom.title}" FontSize="{x:Static t:TypeRamp.Caption2}" FontWeight="SemiBold" Foreground="{StaticResource TextTertiary}"
+                   HorizontalAlignment="Center"/>
+        <Grid x:Name="CustomCounters" HorizontalAlignment="Center" Margin="{ui:Space 0,s3,0,0}" Background="Transparent"
+              MouseWheel="CustomCounters_MouseWheel"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="{ui:Space 0,s5,0,0}">
+          <Button x:Name="CustomStartButton" Style="{StaticResource SoftButton}" Width="{x:Static t:Sizes.TimerStart}" Content="{ui:L calendar.demarrer}" Click="CustomStart_Click"/>
+          <Button Style="{StaticResource IconButton}" Width="{x:Static t:Sizes.SoftButton}" Height="{x:Static t:Sizes.SoftButton}" FontSize="{x:Static t:TypeRamp.Body}"
+                  Margin="{ui:Space s4,0,0,0}" Content="{x:Static t:Icons.Close}" Click="CustomClose_Click"/>
+        </StackPanel>
       </StackPanel>
-    </StackPanel>
+    </Grid>
   </Grid>
 </UserControl>

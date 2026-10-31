@@ -122,6 +122,7 @@ public static class GamingMode
             if (name == null) return false;
             LastFullscreenProcess = name;
             if (SystemProcesses.Contains(name) || SettingsStore.Current.Gaming.Exceptions.Contains(name)) return false;
+            if (AppRuleService.AlwaysShown(name)) return false; // règle « toujours visible » (point 13) : jamais traitée comme un jeu
             _game = foreground;
             Game = name;
             return true;
@@ -134,7 +135,7 @@ public static class GamingMode
         return false;
     }
 
-    private static string? ProcessName(IntPtr window)
+    internal static string? ProcessName(IntPtr window)
     {
         DockNative.GetWindowThreadProcessId(window, out uint processId);
         if (ProcessNames.TryGetValue(processId, out var cached)) return cached;

@@ -27,7 +27,7 @@ public static class WallpaperPalette
         Poll.Tick += (_, _) => Refresh();
         SystemEvents.UserPreferenceChanged += (_, e) =>
         {
-            if (e.Category == UserPreferenceCategory.Desktop) Refresh();
+            if (e.Category == UserPreferenceCategory.Desktop) Guarded.OnUi(Refresh, "Couleurs du fond d'écran");
         };
         SettingsStore.Changed += OnSettingsChanged;
         OnSettingsChanged();

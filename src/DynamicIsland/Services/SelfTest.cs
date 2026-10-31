@@ -41,6 +41,12 @@ internal static partial class SelfTest
             Run(lines, "Amis en ligne", () => Friends(lines));
             Run(lines, "Santé du PC (lecture seule)", () => Health(lines));
             Run(lines, "Thèmes saisonniers", () => Seasons(lines));
+            Run(lines, "Bêta : versions, canal, avis, nouveautés", () => Beta(lines));
+            Run(lines, "Automatisations", () => Automations(lines));
+            Run(lines, "Correctifs urgents", () => Urgent(lines));
+            Run(lines, "Priorité 2 : île et paramètres", () => Island2(lines));
+            Run(lines, "Priorité 2 : réseau, météo, minuteur", () => Comfort(lines));
+            Run(lines, "Priorité 2 : dock (alignement, petites tailles) et icônes du bureau (lecture seule)", () => Dock2(lines));
         });
         Run(lines, "Curseur de souris", () => Cursor(lines)); // dessin WPF : sur le thread de l'interface
         lines.Add("");
@@ -451,7 +457,7 @@ internal static partial class SelfTest
             new() { Id = Dock.StatusItem.Trash, Visible = false }, new() { Id = "inconnu" }, new() { Id = Dock.StatusItem.Trash }, new() { Id = Dock.StatusItem.Keyboard },
         };
         var fixedList = Dock.StatusItem.NormalizeList(messy);
-        Check(lines, string.Join(",", fixedList.Select(i => i.Id)) == "trash,keyboard,updates,downloads" && !fixedList[0].Visible,
+        Check(lines, string.Join(",", fixedList.Select(i => i.Id)) == "trash,keyboard,updates,downloads,desktop" && !fixedList[0].Visible,
             "réglages : ordre gardé, doublon et inconnu retirés, éléments manquants ajoutés à la fin");
 
         var layouts = KeyboardLayoutService.Installed();

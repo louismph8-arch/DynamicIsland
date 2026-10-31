@@ -26,12 +26,23 @@ public partial class SettingsWindow
         RemoteToggle.IsChecked = remote.Enabled;
         _loading = loading;
         RemoteToggle.IsEnabled = !SettingsStore.IsReadOnly;
-        RemoteStatusCard.Visibility = RemoteDevicesCard.Visibility = WakeCard.Visibility = remote.Enabled ? Visibility.Visible : Visibility.Collapsed;
+        RemoteStatusCard.Visibility = RemoteDevicesCard.Visibility = WakeCard.Visibility = FileTransferCard.Visibility
+            = remote.Enabled ? Visibility.Visible : Visibility.Collapsed;
+        FileTransferToggle.IsChecked = remote.FileTransfer;
+        FileTransferToggle.IsEnabled = !SettingsStore.IsReadOnly;
         if (remote.Enabled) _ = ShowWakeAsync();
         RemoteFirewallCard.Visibility = !remote.Enabled && remote.FirewallRule ? Visibility.Visible : Visibility.Collapsed;
         if (remote.Enabled) ShowRemoteStatus();
         else StopPairingTimer();
         ShowRemoteDevices(remote.Devices);
+    }
+
+    /// <summary>Transfert de fichiers (7E) : coupé = le téléphone ne peut plus rien envoyer, et plus rien ne lui est proposé.</summary>
+    private void FileTransfer_Click(object sender, RoutedEventArgs e)
+    {
+        bool on = FileTransferToggle.IsChecked == true;
+        SettingsStore.Update(s => s.Remote.FileTransfer = on);
+        if (!on) RemoteOutbox.Clear();
     }
 
     private void ShowRemoteStatus()

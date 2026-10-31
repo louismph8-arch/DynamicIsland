@@ -26,10 +26,10 @@ public static class AutoThemeService
         Timer.Tick += (_, _) => Check();
         SettingsStore.Changed += Check;
         GamingMode.Changed += Check;
-        SystemEvents.TimeChanged += (_, _) => Check();
+        SystemEvents.TimeChanged += (_, _) => Guarded.OnUi(Check, "Thème automatique");
         SystemEvents.PowerModeChanged += (_, e) =>
         {
-            if (e.Mode == PowerModes.Resume) Check(); // sortie de veille : le soleil a pu se lever entre-temps
+            if (e.Mode == PowerModes.Resume) Guarded.OnUi(Check, "Thème automatique"); // sortie de veille : le soleil a pu se lever entre-temps
         };
         Check();
     }

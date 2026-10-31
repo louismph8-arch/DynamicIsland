@@ -135,6 +135,66 @@
   </Style>
 
   <!-- Champ de saisie (codes couleur, ville, ID…) -->
+  <!-- Boutons de NOTRE barre de titre (correctif 10) : réduire / fermer, cliquables dans la zone de déplacement -->
+  <Style x:Key="CaptionButton" TargetType="Button">
+    <Setter Property="Width" Value="{x:Static t:Sizes.CaptionButton}"/>
+    <Setter Property="Height" Value="{x:Static t:Sizes.CaptionButtonHeight}"/>
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <ui:SquircleBorder x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="{x:Static t:Corners.M}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                              TextElement.FontFamily="{x:Static t:FontStack.Icons}" TextElement.FontSize="{x:Static t:IconSize.M}"/>
+          </ui:SquircleBorder>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Back" Property="Background" Value="{x:Static t:Paint.HoverSubtle}"/>
+              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="IsMouseOver" Value="True"/>
+                <Condition Property="Tag" Value="close"/>
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Back" Property="Background" Value="{x:Static t:Paint.Danger}"/>
+              <Setter Property="Foreground" Value="{x:Static t:Paint.White}"/>
+            </MultiTrigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Résultat de la recherche dans les paramètres (correctif 11) -->
+  <Style x:Key="SearchResult" TargetType="Button">
+    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <ui:SquircleBorder x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="{x:Static t:Corners.M}" Padding="{ui:Space s5,s3}">
+            <ContentPresenter/>
+          </ui:SquircleBorder>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Back" Property="Background" Value="{x:Static t:Paint.HoverSubtle}"/>
+            </Trigger>
+            <Trigger Property="IsDefault" Value="True">
+              <Setter TargetName="Back" Property="Background" Value="{x:Static t:Paint.Selected}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <Style x:Key="HexBox" TargetType="TextBox">
     <Setter Property="Width" Value="92"/>
     <Setter Property="Height" Value="{x:Static t:Sizes.Button}"/>
@@ -150,6 +210,29 @@
         <ControlTemplate TargetType="TextBox">
           <ui:SquircleBorder x:Name="Bd" Background="{x:Static t:Paint.Control}" BorderBrush="{x:Static t:Paint.Selected}"
                              BorderThickness="{x:Static t:Borders.Hairline}" CornerRadius="{x:Static t:Corners.S}" Padding="{ui:Space s4,0}">
+            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+          </ui:SquircleBorder>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Recherche dans les paramètres (correctif 11) : comme HexBox, place pour la loupe à gauche -->
+  <Style x:Key="SearchField" TargetType="TextBox" BasedOn="{StaticResource HexBox}">
+    <Setter Property="Width" Value="Auto"/>
+    <Setter Property="MaxLength" Value="60"/>
+    <Setter Property="FontFamily" Value="{x:Static t:FontStack.Ui}"/>
+    <Setter Property="Height" Value="{x:Static t:SettingsShape.SearchBox}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TextBox">
+          <ui:SquircleBorder x:Name="Bd" Background="{x:Static t:Paint.Control}" BorderBrush="{x:Static t:Paint.Selected}"
+                             BorderThickness="{x:Static t:Borders.Hairline}" CornerRadius="{x:Static t:Corners.M}" Padding="{ui:Space s13,0,s4,0}">
             <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
           </ui:SquircleBorder>
           <ControlTemplate.Triggers>
@@ -247,6 +330,24 @@
               </Track.Thumb>
             </Track>
           </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Menu sombre qui défile s'il est long (sons du minuteur, correctif 19) -->
+  <Style x:Key="ScrollingMenu" TargetType="ContextMenu" BasedOn="{StaticResource {x:Type ContextMenu}}">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ContextMenu">
+          <ui:SquircleBorder Background="{x:Static t:Paint.PopupBackground}" BorderBrush="{x:Static t:Paint.PopupBorder}"
+                             BorderThickness="{x:Static t:Borders.Hairline}" CornerRadius="{x:Static t:Corners.M}"
+                             Padding="{ui:Space s2}" Margin="{ui:Space 0,0,s5,s5}" MinWidth="{x:Static t:Sizes.MenuMinWidth}" ClipContent="False"
+                             Effect="{x:Static t:Effects.Menu}">
+            <ScrollViewer MaxHeight="{x:Static t:Sizes.MenuMaxHeight}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+            </ScrollViewer>
+          </ui:SquircleBorder>
         </ControlTemplate>
       </Setter.Value>
     </Setter>

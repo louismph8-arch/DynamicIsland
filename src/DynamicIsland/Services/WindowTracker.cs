@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using DynamicIsland.Interop;
 using static DynamicIsland.Interop.DockNative;
@@ -126,7 +127,20 @@ public sealed class WindowTracker : IDisposable
         if (hook != IntPtr.Zero) _hooks.Add(hook);
     }
 
+    /// <summary>Rappel de Windows : une exception ici tuerait l'app (elle ne traverse pas Windows) → toujours attrapée.</summary>
     private void OnWinEvent(IntPtr hook, uint eventType, IntPtr hWnd, int idObject, int idChild, uint thread, uint time)
+    {
+        try
+        {
+            HandleWinEvent(eventType, hWnd, idObject, idChild);
+        }
+        catch (Exception ex)
+        {
+            Guarded.Report(ex, "Fenêtres : événement de Windows");
+        }
+    }
+
+    private void HandleWinEvent(uint eventType, IntPtr hWnd, int idObject, int idChild)
     {
         if (idObject != 0 || idChild != 0 || hWnd == IntPtr.Zero) return; // seulement les fenêtres elles-mêmes
 
@@ -137,6 +151,7 @@ public sealed class WindowTracker : IDisposable
         }
         else if (eventType == EVENT_SYSTEM_MINIMIZESTART && Windows.Any(w => w.Handle == hWnd))
         {
+            WindowActions.Remember(hWnd); // agrandie ou non, place exacte : rendue telle quelle au clic sur le dock
             MinimizeStarted?.Invoke(hWnd);
         }
         else if (eventType == EVENT_OBJECT_NAMECHANGE && !Windows.Any(w => w.Handle == hWnd))
@@ -160,14 +175,78 @@ public sealed class WindowTracker : IDisposable
 /// <summary>Actions sur les fenêtres des autres applis.</summary>
 public static class WindowActions
 {
+    /// <summary>État d'une fenêtre au moment de sa réduction : agrandie ou non, et sa place « normale » (zone de travail).</summary>
+    internal readonly record struct Placement(bool Maximized, RECT Normal, DateTime At);
+
+    private static readonly Dictionary<IntPtr, Placement> Remembered = [];
+
+    /// <summary>
+    /// Correctif urgent 3 : note l'état d'une fenêtre juste avant que le dock la réduise, ou dès que Windows signale une réduction
+    /// (bouton de l'appli, Win+D, Win+↓…). Le clic sur le dock la rend EXACTEMENT ainsi (agrandie, taille, place, écran).
+    /// </summary>
+    public static void Remember(IntPtr hWnd)
+    {
+        var placement = new WINDOWPLACEMENT { length = Marshal.SizeOf<WINDOWPLACEMENT>() };
+        if (!GetWindowPlacement(hWnd, ref placement)) return;
+        bool maximized = IsIconic(hWnd) ? (placement.flags & WPF_RESTORETOMAXIMIZED) != 0 : IsZoomed(hWnd);
+        var now = DateTime.UtcNow;
+        foreach (var gone in Remembered.Where(p => now - p.Value.At > TimeSpan.FromDays(1) || !IsWindow(p.Key)).Select(p => p.Key).ToList())
+            Remembered.Remove(gone);
+        Remembered[hWnd] = new Placement(maximized, placement.rcNormalPosition, now);
+    }
+
+    /// <summary>La fenêtre de cette liste réduite le plus récemment (null si on n'en a noté aucune).</summary>
+    public static AppWindow? LastMinimized(IEnumerable<AppWindow> windows) =>
+        windows.Where(w => w.IsMinimized && Remembered.ContainsKey(w.Handle)).MaxBy(w => Remembered[w.Handle].At);
+
+    /// <summary>
+    /// Décision seule (vérifiée par l'auto-test) : faut-il remettre la place notée avant SW_RESTORE ? Oui si Windows (ou l'appli)
+    /// a oublié qu'elle était agrandie, ou a changé sa place normale. Rien de noté = Windows sait faire.
+    /// </summary>
+    internal static bool NeedsPutBack(Placement? remembered, bool restoreToMaximized, RECT currentNormal) =>
+        remembered is { } saved && (saved.Maximized != restoreToMaximized || saved.Normal.Left != currentNormal.Left
+            || saved.Normal.Top != currentNormal.Top || saved.Normal.Right != currentNormal.Right || saved.Normal.Bottom != currentNormal.Bottom);
+
     public static void Activate(IntPtr hWnd)
     {
-        if (IsIconic(hWnd)) ShowWindowAsync(hWnd, SW_RESTORE);
+        if (IsIconic(hWnd)) Restore(hWnd);
         // Le clic sur le dock nous donne le droit de changer le premier plan ; sinon, plan B.
         if (!SetForegroundWindow(hWnd) || GetForegroundWindow() != hWnd) SwitchToThisWindow(hWnd, true);
     }
 
-    public static void Minimize(IntPtr hWnd) => ShowWindowAsync(hWnd, SW_MINIMIZE);
+    private static void Restore(IntPtr hWnd)
+    {
+        var placement = new WINDOWPLACEMENT { length = Marshal.SizeOf<WINDOWPLACEMENT>() };
+        if (!GetWindowPlacement(hWnd, ref placement))
+        {
+            ShowWindowAsync(hWnd, SW_RESTORE);
+            return;
+        }
+        Placement? saved = Remembered.TryGetValue(hWnd, out var p) ? p : null;
+        if (NeedsPutBack(saved, (placement.flags & WPF_RESTORETOMAXIMIZED) != 0, placement.rcNormalPosition) && saved is { } before)
+        {
+            // Windows (ou l'appli) a oublié la place d'avant : on la remet, réduite, puis on la montre comme avant.
+            placement.rcNormalPosition = before.Normal;
+            placement.flags = before.Maximized ? placement.flags | WPF_RESTORETOMAXIMIZED : placement.flags & ~WPF_RESTORETOMAXIMIZED;
+            placement.showCmd = SW_SHOWMINNOACTIVE;
+            SetWindowPlacement(hWnd, ref placement);
+        }
+        ShowWindowAsync(hWnd, SW_RESTORE); // une fenêtre « agrandie avant » revient agrandie, sur son écran
+        if (saved is { Maximized: true }) _ = CheckMaximizedAsync(hWnd);
+    }
+
+    /// <summary>Certaines applis (cadre maison) se rouvrent « normales » malgré tout : on vérifie un instant après.</summary>
+    private static async Task CheckMaximizedAsync(IntPtr hWnd)
+    {
+        await Task.Delay(350);
+        if (IsWindow(hWnd) && !IsIconic(hWnd) && !IsZoomed(hWnd)) ShowWindowAsync(hWnd, SW_SHOWMAXIMIZED);
+    }
+
+    public static void Minimize(IntPtr hWnd)
+    {
+        Remember(hWnd); // avant : agrandie ou non, telle qu'elle est à l'écran
+        ShowWindowAsync(hWnd, SW_MINIMIZE);
+    }
 
     public static void Close(IntPtr hWnd) => PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
 }

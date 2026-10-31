@@ -23,6 +23,20 @@ et à quoi tu joues. Un seul serveur suffit pour tout ton groupe d'amis.
 5. Copie l'adresse du Worker (`https://….workers.dev`), colle-la dans Opaline (Paramètres → Connecté → Amis en ligne) et
    **Enregistrer**. Donne la même adresse à tes amis (« Copier l'invitation » envoie l'adresse et ton code).
 
+### Recevoir les avis et les bugs dans Discord (facultatif)
+
+« Donner mon avis » dans Opaline envoie le message (+ capture et rapport de bug si la personne les coche) à ce serveur, qui le
+poste dans un salon de **ton** serveur Discord. L'adresse du salon reste secrète sur Cloudflare.
+
+1. Discord : **Paramètres du serveur → Intégrations → Webhooks → Nouveau webhook**, choisis le salon (ex. `#opaline-avis`),
+   puis **Copier l'URL du webhook**.
+2. Cloudflare, dans le Worker : **Settings → Variables and Secrets → Add** : type **Secret**, nom `FEEDBACK_WEBHOOK`, valeur =
+   l'URL copiée → **Deploy**.
+3. Mets à jour le code du Worker (version 2 ou plus : **Edit code**, colle le nouveau `worker.js` → **Deploy**).
+
+Seuls les PC inscrits sur ton serveur peuvent envoyer (5 avis par heure chacun), et les mentions (`@everyone`…) sont
+désactivées. Sans le secret, le bouton explique que les avis ne sont pas encore activés.
+
 Le serveur crée ses tables tout seul. Les offres gratuites de Cloudflare (Workers : 100 000 requêtes par jour ; D1 :
 100 000 écritures par jour) suffisent pour plusieurs dizaines d'amis (chaque PC fait environ 1 200 requêtes par jour).
 

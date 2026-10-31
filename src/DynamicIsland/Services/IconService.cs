@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using DynamicIsland.Interop;
@@ -28,9 +29,24 @@ public static class IconService
     public static ImageSource? GetThumbnail(string path)
     {
         if (Thumbnails.TryGetValue(path, out var cached)) return cached;
-        var image = Load(path, SIIGBF_BIGGERSIZEOK);
+        // Fichier OneDrive « en ligne seulement » : une miniature le ferait télécharger (île figée) → son icône seulement.
+        var image = Load(path, IsOnlineOnly(path) ? SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK : SIIGBF_BIGGERSIZEOK);
         Thumbnails[path] = image;
         return image;
+    }
+
+    private static bool IsOnlineOnly(string path)
+    {
+        try
+        {
+            const FileAttributes RecallOnDataAccess = (FileAttributes)0x400000;
+            var attributes = File.GetAttributes(path);
+            return (attributes & (FileAttributes.Offline | RecallOnDataAccess)) != 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private static ImageSource? Load(string parsingName, int flags)

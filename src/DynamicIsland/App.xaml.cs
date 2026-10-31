@@ -27,6 +27,18 @@ public partial class App : Application
     /// <summary>--snapshot --demo (7B) : contenu inventé (musique) pour les images publiées, rien du PC de l'utilisateur.</summary>
     public static bool SnapshotDemo { get; private set; }
 
+    /// <summary>Relancée par le gardien après un plantage (correctif urgent 1).</summary>
+    private static bool _afterCrash;
+
+    /// <summary>Après un plantage : petite annonce ; après trop de plantages (mode sans échec) : message clair.</summary>
+    private void AnnounceRestart()
+    {
+        if (SafeMode)
+            MessageBox.Show(Loc.F("crash.safe.message", CrashWatch.RecentCrashes(DateTime.UtcNow), (int)CrashWatch.Window.TotalMinutes),
+                            AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Warning);
+        else NotifyWhenPossible(Icons.Alert, Loc.T("crash.restarted"), () => SettingsWindow.Open(SettingsPage.About));
+    }
+
     /// <summary>Mode sans échec (Maj maintenue au lancement, 6A) : réglages par défaut, sans modules optionnels, rien d'écrit.</summary>
     public static bool SafeMode { get; private set; }
 
@@ -89,6 +101,8 @@ public partial class App : Application
         // --settings <fichier> : réglages de test pour le mode --snapshot (le vrai settings.json n'est pas touché).
         int testSettingsArg = Array.IndexOf(e.Args, "--settings");
         bool snapshotMode = Array.IndexOf(e.Args, "--snapshot") >= 0;
+        _afterCrash = e.Args.Contains(CrashWatch.AfterCrashArgument);
+        if (_afterCrash) CrashWatch.AfterCrash(DateTime.UtcNow);
         if (snapshotMode) Log.UseDeveloperFile();
         SnapshotDemo = snapshotMode && e.Args.Contains("--demo");
         SafeMode = !snapshotMode && (e.Args.Contains("--safe-mode") || ShiftHeld());
@@ -169,9 +183,11 @@ public partial class App : Application
         }
 
         StartupTimer.Begin();
+        CrashWatch.SessionStarted(); // une fin sans « clean » = plantage : le gardien relancera l'app
+        RunModule("Gardien", ShellGuard.Start); // tout de suite : même si l'île ou le dock échouent, il relance l'app
         // Filet de sécurité : si la session précédente a été tuée, on remet la barre des tâches d'abord.
         RunModule("Réparation de la barre des tâches", ShellGuard.RecoverAll);
-        Log.Info($"Démarrage {AppInfo.Name} {typeof(App).Assembly.GetName().Version?.ToString(3)}{(SafeMode ? " (mode sans échec)" : "")}, langue {Loc.Language}");
+        Log.Info($"Démarrage {AppInfo.Name} {UpdateService.CurrentText}{(SafeMode ? " (mode sans échec)" : "")}, langue {Loc.Language}");
         if (!SafeMode) RunModule("Sauvegarde des réglages", SettingsBackup.AtStartup);
         RunModule("Étagère", ShelfService.Load);
 
@@ -187,10 +203,19 @@ public partial class App : Application
         // Si Windows ferme l'île ou le dock (fin de tâche, WM_CLOSE…), toute l'app s'arrête proprement.
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         long created = Stopwatch.GetTimestamp();
-        _island = new IslandWindow();
-        _island.Closed += (_, _) => QuitAll();
-        _island.ContentRendered += (_, _) => StartupTimer.IslandShown();
-        MainWindow = _island;
+        try
+        {
+            _island = new IslandWindow();
+            _island.Closed += (_, _) => QuitAll();
+            _island.ContentRendered += (_, _) => StartupTimer.IslandShown();
+            MainWindow = _island;
+        }
+        catch (Exception ex)
+        {
+            // Sans île : l'icône de notification, le dock et les paramètres restent là (rapport de bug possible).
+            Log.Error("Île : création impossible", ex);
+            _island = null;
+        }
         StartupTimer.Record("Île (création)", created);
 
         RunModule("Icône de notification", () =>
@@ -207,20 +232,25 @@ public partial class App : Application
         // une fois la première image faite), puis les autres modules. La barre des tâches, déjà là, est cachée un instant plus tard.
         RunModule("Île", () =>
         {
-            if (SettingsStore.Current.Island.Enabled) _island.Show();
+            if (SettingsStore.Current.Island.Enabled) _island?.Show();
         });
         Dispatcher.BeginInvoke(() =>
         {
             long dockCreated = Stopwatch.GetTimestamp();
-            _dock = new DockWindow();
-            _dock.Closed += (_, _) => QuitAll();
+            RunModule("Dock", () =>
+            {
+                _dock = new DockWindow();
+                _dock.Closed += (_, _) => QuitAll();
+            }, ModuleGuard.Dock); // un dock qui échoue n'empêche plus les autres modules de démarrer
             StartupTimer.Record("Dock (création)", dockCreated);
-            ApplyModules();
+            RunModule("Modules", ApplyModules);
             SettingsStore.Changed += ApplyModules;
             if (SafeMode)
             {
                 // Sans modules optionnels : l'île, l'icône de notification et les paramètres seulement.
                 NotifyWhenPossible(Icons.Alert, Loc.T("safe.notice"), () => SettingsWindow.Open(SettingsPage.About));
+                RunModule("Gardien", ShellGuard.Start);
+                if (_afterCrash) Dispatcher.BeginInvoke(AnnounceRestart, DispatcherPriority.ApplicationIdle);
                 StartupTimer.Finish();
                 return;
             }
@@ -246,11 +276,13 @@ public partial class App : Application
         {
             DynamicWallpaperService.Start();
             AnimatedWallpaper.Start();
+            WallpaperGuard.Start(); // le fond d'Opaline reste affiché
         }, ModuleGuard.Wallpapers);
         RunModule("Palette de commandes", () =>
         {
             GlobalHotkey.Pressed += () => RunModule("Palette de commandes", () => Palette.PaletteWindow.Toggle(_island), ModuleGuard.Palette);
             GlobalHotkey.RevealPressed += () => RunModule("Dock", () => _dock?.ToggleReveal(), ModuleGuard.Dock);
+            GlobalHotkey.IslandPressed += () => RunModule("Île", () => _island?.ToggleByUser());
             GlobalHotkey.Start();
         }, ModuleGuard.Palette);
         RunModule("Zone d'état du dock", () =>
@@ -265,6 +297,7 @@ public partial class App : Application
             WindowsUpdateService.Start();
             RecycleBinService.Start();
             DownloadsService.Start();
+            DesktopIconsService.Start(); // icônes du bureau cachées seulement si l'option est active (correctif 16)
         }, ModuleGuard.Status);
         RunModule("Annonces de l'île", () =>
         {
@@ -280,6 +313,13 @@ public partial class App : Application
                     TimeSpan.FromSeconds(30)));
             Services.Remote.RemoteControl.Start(new Services.Remote.AppRemoteBackend(() => _island, Notify));
             // PC réveillé par le téléphone (Wake on LAN) : l'île le dit, pour savoir que ça a marché.
+            // Photo ou fichier reçu du téléphone (7E) : rangé dans l'étagère de l'île, avec une annonce qu'on peut faire glisser.
+            Services.Remote.RemoteUploads.Received += path => Dispatcher.BeginInvoke(() => RunModule("Télécommande", () =>
+            {
+                ShelfService.Add([path]);
+                ShowSoon(() => _island?.ShowNotice(Icons.Smartphone, Path.GetFileName(path), () => DownloadsService.Open(path), TimeSpan.FromSeconds(8),
+                                                   Loc.T("transfer.received"), [path]) ?? true, TimeSpan.FromSeconds(30));
+            }, ModuleGuard.Remote));
             Services.Remote.WakeOnLan.WokenByNetwork += () => Dispatcher.BeginInvoke(() =>
                 Notify(Icons.Smartphone, Loc.T("wake.notice"), Loc.T("wake.notice.detail")));
             Services.Remote.WakeOnLan.Watch();
@@ -323,7 +363,12 @@ public partial class App : Application
             };
             welcome.Start();
         }
+        RunModule("Ne pas déranger", FocusService.Start);
+        RunModule("Automatisations", () => Services.Automations.AutomationService.Start(() => _island), ModuleGuard.Automations);
         MemoryWatch.Start();
+        RunModule("Gardien", ShellGuard.Start); // même sans dock : il relance l'app après un plantage
+        if (_afterCrash) Dispatcher.BeginInvoke(AnnounceRestart, DispatcherPriority.ApplicationIdle);
+        RunModule("Nouveautés", Feedback.WhatsNewWindow.ShowAfterUpdate);
         StartupTimer.Finish();
     }
 
@@ -418,6 +463,11 @@ public partial class App : Application
         {
             if (!api.PairingOpen) api.OpenPairing("000000"); // la démo reste appairable
         };
+        // « Envoyer au téléphone » (7E) : un fichier d'exemple attend dans la liste « Reçu du PC ».
+        var sample = Path.Combine(Path.GetTempPath(), "opaline-remote-demo", "Exemple — note du PC.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(sample)!);
+        File.WriteAllText(sample, "Fichier d'exemple envoyé par la démo d'Opaline.");
+        Services.Remote.RemoteOutbox.Add([sample]);
         _demoServer = new Services.Remote.RemoteServer(request => Dispatcher.InvokeAsync(() => api.HandleAsync(request)).Task.Unwrap());
         _demoServer.Start([System.Net.IPAddress.Loopback], port);
         Log.Info($"Démo de la télécommande sur http://127.0.0.1:{port}/ (code 000000)");
@@ -465,12 +515,14 @@ public partial class App : Application
         ModuleGuard.Register(ModuleGuard.Dock, () =>
         {
             _dock?.ReleaseShell(); // la barre des tâches revient
+            DesktopIconsService.Apply(); // … et les icônes du bureau (leur flèche était dans le dock)
             _dock?.DetachTray();
             _tray.Dispose();
             _dock?.Hide();
         });
         ModuleGuard.Register(ModuleGuard.Status, () =>
         {
+            DesktopIconsService.Stop(); // d'abord : les icônes du bureau reviennent
             KeyboardLayoutService.Stop();
             WindowsUpdateService.Stop();
             RecycleBinService.Stop();
@@ -488,13 +540,18 @@ public partial class App : Application
             _menuBar = null;
         });
         ModuleGuard.Register(ModuleGuard.Widgets, DesktopWidgets.DesktopWidgetsService.Stop);
-        ModuleGuard.Register(ModuleGuard.Wallpapers, AnimatedWallpaper.Stop); // le fond dynamique s'arrête de lui-même
+        ModuleGuard.Register(ModuleGuard.Wallpapers, () =>
+        {
+            AnimatedWallpaper.Stop(); // le fond dynamique s'arrête de lui-même
+            WallpaperGuard.Stop();
+        });
         ModuleGuard.Register(ModuleGuard.Discord, DiscordVoice.Reconnect); // la boucle se réveille et voit le module arrêté
         ModuleGuard.Register(ModuleGuard.Claude, ClaudeService.Stop);
         ModuleGuard.Register(ModuleGuard.Palette, GlobalHotkey.Refresh);
         ModuleGuard.Register(ModuleGuard.Rgb, Services.Rgb.RgbService.Stop); // G HUB reprend l'éclairage
         ModuleGuard.Register(ModuleGuard.Friends, Services.Friends.FriendsService.Stop); // présence effacée du serveur
         ModuleGuard.Register(ModuleGuard.Health, Services.Health.HealthService.Stop);
+        ModuleGuard.Register(ModuleGuard.Automations, Services.Automations.AutomationService.Stop); // plus aucune règle ne tourne
         ModuleGuard.Register(ModuleGuard.Remote, () =>
         {
             Services.Remote.RemoteControl.Stop(); // plus rien n'écoute sur le réseau
@@ -612,6 +669,9 @@ public partial class App : Application
             await media.InitializeAsync();
             await DesktopWidgets.DesktopWidgetsService.RenderSnapshotsAsync(folder, media);
             await Welcome.WelcomeWindow.RenderSnapshotsAsync(folder);
+            await Feedback.FeedbackWindow.RenderSnapshotAsync(folder);
+            await Feedback.WhatsNewWindow.RenderSnapshotAsync(folder);
+            await Automations.RuleEditorWindow.RenderSnapshotAsync(folder);
         }
         catch (Exception ex)
         {
@@ -865,6 +925,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_singleInstance != null) CrashWatch.SessionEnded(); // fermeture voulue : le gardien ne relance rien
         SettingsStore.Flush();
         RestoreShell();
         RunQuietly("Icônes d'arrière-plan", _tray.Dispose); // rend les icônes à Explorer
@@ -877,7 +938,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    /// <summary>Remet la barre des tâches et libère l'espace réservé au dock (peut être appelé plusieurs fois).</summary>
+    /// <summary>Remet la barre des tâches, libère l'espace réservé au dock et remet les icônes du bureau (peut être appelé plusieurs fois).</summary>
     private void RestoreShell()
     {
         try
@@ -889,6 +950,14 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Error("Restauration du bureau", ex);
+        }
+        try
+        {
+            DesktopIconsService.Restore(); // seulement ce que CE processus a caché (un rendu --snapshot n'y touche pas)
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Restauration des icônes du bureau", ex);
         }
     }
 }

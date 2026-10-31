@@ -24,12 +24,22 @@ public partial class ShelfView : UserControl
 
     private Point _pressPoint;
     private string[]? _pressPaths;
+    private readonly HashSet<string> _shown = new(StringComparer.OrdinalIgnoreCase); // tuiles déjà vues (les nouvelles arrivent en rebondissant)
+    private bool _flash;
 
     public ShelfView()
     {
         InitializeComponent();
         ShelfService.Changed += Rebuild;
+        Settings.SettingsStore.Changed += ShowPhone;
+        Services.Remote.RemoteOutbox.Changed += () => Dispatcher.BeginInvoke(ShowPhone);
+        DraggingOut += dragging =>
+        {
+            // Pendant qu'on glisse une tuile : la zone du téléphone s'allume pour inviter à y déposer.
+            if (PhoneDrop.Visibility == Visibility.Visible) Highlight(dragging);
+        };
         Rebuild();
+        ShowPhone();
     }
 
     /// <summary>Vrai pendant qu'on glisse des fichiers de l'étagère vers l'extérieur (l'île reste ouverte).</summary>
@@ -42,7 +52,14 @@ public partial class ShelfView : UserControl
     private void Rebuild()
     {
         Tiles.Children.Clear();
-        foreach (var path in ShelfService.Items) Tiles.Children.Add(CreateTile(path));
+        bool first = _shown.Count == 0 && !IsLoaded;
+        foreach (var path in ShelfService.Items)
+        {
+            var tile = CreateTile(path);
+            Tiles.Children.Add(tile);
+            if (_shown.Add(path) && !first) PopIn(tile); // vient d'arriver (fichier déposé, reçu du téléphone…)
+        }
+        _shown.IntersectWith(ShelfService.Items);
 
         int count = ShelfService.Items.Count;
         EmptyPanel.Visibility = count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -181,10 +198,92 @@ public partial class ShelfView : UserControl
     {
         var menu = new ContextMenu();
         menu.Items.Add(Entry(Loc.T("menu.open"), () => Open(path)));
+        if (Services.Remote.RemoteOutbox.Available && File.Exists(path))
+            menu.Items.Add(Entry(Loc.T("shelf.phone.send"), () => SendToPhone([path])));
         menu.Items.Add(Entry(Loc.T("shelf.show_in_explorer"), () => Start("explorer.exe", $"/select,\"{path}\"")));
         menu.Items.Add(new Separator());
         menu.Items.Add(Entry(Loc.T("shelf.remove"), () => ShelfService.Remove(path)));
         menu.IsOpen = true;
+    }
+
+    // ------------------------------------------------------------------ téléphone (7E)
+
+    /// <summary>Tuile qui arrive : petite échelle + fondu, avec un léger rebond.</summary>
+    private static void PopIn(FrameworkElement tile)
+    {
+        var scale = new ScaleTransform(0.6, 0.6);
+        tile.RenderTransformOrigin = new Point(0.5, 0.5);
+        tile.RenderTransform = scale;
+        var grow = new DoubleAnimation(0.6, 1, Motion.Slow) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 } };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+        tile.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Motion.Base));
+    }
+
+    private void ShowPhone()
+    {
+        PhoneDrop.Visibility = Services.Remote.RemoteOutbox.Available ? Visibility.Visible : Visibility.Collapsed;
+        if (_flash) return;
+        int count = Services.Remote.RemoteOutbox.Current.Count;
+        PhoneDropText.Text = count == 0 ? Loc.T("shelf.phone") : Loc.F("shelf.phone.count", count);
+    }
+
+    private void Highlight(bool on)
+    {
+        if (on) PhoneDrop.SetResourceReference(Border.BorderBrushProperty, AppearanceService.AccentBrushKey);
+        else PhoneDrop.BorderBrush = Brushes.Transparent;
+    }
+
+    private static string[]? DroppedFiles(DragEventArgs e) =>
+        e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] paths && paths.Any(File.Exists) ? paths : null;
+
+    private void PhoneDrop_DragEnter(object sender, DragEventArgs e)
+    {
+        e.Effects = DroppedFiles(e) != null ? DragDropEffects.Copy : DragDropEffects.None;
+        Highlight(true);
+        e.Handled = true;
+    }
+
+    private void PhoneDrop_DragLeave(object sender, DragEventArgs e)
+    {
+        Highlight(false);
+        e.Handled = true;
+    }
+
+    private void PhoneDrop_Drop(object sender, DragEventArgs e)
+    {
+        Highlight(false);
+        if (DroppedFiles(e) is { } paths) SendToPhone(paths);
+        e.Handled = true; // pas aussi « déposé sur l'île » (étagère)
+    }
+
+    private async void SendToPhone(string[] paths)
+    {
+        int added = Services.Remote.RemoteOutbox.Add(paths.Where(File.Exists));
+        if (added == 0) return;
+        _flash = true;
+        PhoneDropText.Text = Loc.T("shelf.phone.sent");
+        PhoneDrop.BeginAnimation(OpacityProperty, new DoubleAnimation(0.4, 1, Motion.Slow));
+        await Task.Delay(1600);
+        _flash = false;
+        ShowPhone();
+    }
+
+    /// <summary>Clic : ce qui attend sur le téléphone, avec « Retirer ».</summary>
+    private void PhoneDrop_Click(object sender, MouseButtonEventArgs e)
+    {
+        var items = Services.Remote.RemoteOutbox.Current;
+        var menu = new ContextMenu();
+        if (items.Count == 0) menu.Items.Add(new MenuItem { Header = Loc.T("shelf.phone.empty"), IsEnabled = false });
+        foreach (var item in items)
+            menu.Items.Add(Entry(Loc.F("shelf.phone.remove", item.Name), () => Services.Remote.RemoteOutbox.Remove(item.Id)));
+        if (items.Count > 1)
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(Entry(Loc.T("shelf.phone.clear"), Services.Remote.RemoteOutbox.Clear));
+        }
+        menu.IsOpen = true;
+        e.Handled = true;
     }
 
     private static MenuItem Entry(string header, Action action)
