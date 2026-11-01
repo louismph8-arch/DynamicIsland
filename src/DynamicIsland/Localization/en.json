@@ -1966,5 +1966,16 @@
   "opal.theme.windows.description": "Follows the Windows light / dark app mode",
   "settings.fixed_color.active": "Fixed color: the one of the “{0}” profile, picked by hand. It no longer changes when the wallpaper changes.",
   "welcome.style.theme": "Theme",
-  "welcome.style.theme.description": "dark, white opal, or following the sun"
+  "welcome.style.theme.description": "dark, white opal, or following the sun",
+  "settings.claude.path.choose": "Choose the file…",
+  "settings.claude.path.auto": "Automatic search",
+  "settings.claude.path.found": "Found here: {0}",
+  "settings.claude.path.manual": "Chosen file: {0}",
+  "settings.claude.path.missing": "The chosen file no longer exists: choose it again or go back to automatic search.",
+  "settings.claude.path.help": "Not found? Click \"Choose the file…\" and pick claude.exe, claude.cmd (often in %AppData%\\npm) or cli.js.",
+  "settings.claude.path.dialog": "Where is Claude Code?",
+  "settings.claude.path.filter": "Claude Code (claude.exe, claude.cmd, cli.js)",
+  "settings.claude.path.all": "All files",
+  "settings.claude.path.invalid": "This file isn't Claude Code. Choose claude.exe, claude.cmd (with its node_modules folder next to it) or cli.js.",
+  "claude.view.locate": "Choose Claude Code…"
 }

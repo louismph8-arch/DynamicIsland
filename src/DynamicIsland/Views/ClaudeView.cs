@@ -261,6 +261,7 @@ public sealed partial class ClaudeView : UserControl
                 {
                     ClaudeFix.Login => TextButton(Loc.T("settings.connecter"), Icons.LogIn),
                     ClaudeFix.ApiKey => TextButton(Loc.T("claude.view.api_key"), Icons.Settings),
+                    ClaudeFix.Locate => TextButton(Loc.T("claude.view.locate"), Icons.Settings),
                     ClaudeFix.CodexLogin => TextButton(Loc.T("settings.connecter"), Icons.LogIn),
                     ClaudeFix.CodexUpdate => TextButton(Loc.T("codex.view.update"), Icons.Download),
                     ClaudeFix.CodexInstall => TextButton(Loc.T("codex.view.install"), Icons.Download),
@@ -274,6 +275,7 @@ public sealed partial class ClaudeView : UserControl
                     {
                         case ClaudeFix.Login: ClaudeService.OpenLogin(); break;
                         case ClaudeFix.ApiKey: Settings.SettingsWindow.Open(Settings.SettingsPage.Island); break;
+                        case ClaudeFix.Locate: Settings.SettingsWindow.Open(Settings.SettingsPage.Island); break;
                         case ClaudeFix.CodexLogin: ClaudeService.OpenCodexLogin(); break;
                         case ClaudeFix.CodexUpdate: ClaudeService.OpenCodexUpdate(); break;
                         case ClaudeFix.CodexInstall: ClaudeService.OpenCodexInstall(); break;

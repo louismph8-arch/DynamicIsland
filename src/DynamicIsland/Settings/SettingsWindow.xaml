@@ -992,6 +992,7 @@
           <StackPanel x:Name="ClaudeEngineList"/>
           <ui:SquircleBorder x:Name="ClaudeCodeCard" Style="{StaticResource SettingCard}">
             <Grid>
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <StackPanel>
                 <TextBlock Style="{StaticResource CardTitle}" Text="Claude Code"/>
@@ -1003,6 +1004,11 @@
                       Content="{ui:L settings.mettre_jour}" ToolTip="{ui:L settings.lance_claude_update_fenetre}" Click="ClaudeUpdate_Click"/>
               <Button Grid.Column="3" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s4,0,0,0}"
                       Content="{ui:L settings.verifier}" Click="ClaudeCheck_Click"/>
+              <StackPanel Grid.Row="1" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="{ui:Space 0,s4,0,0}">
+                <Button Style="{StaticResource SettingsButton}" Content="{ui:L settings.claude.path.choose}" Click="ClaudePathChoose_Click"/>
+                <Button x:Name="ClaudePathResetButton" Style="{StaticResource SettingsButton}" Margin="{ui:Space s4,0,0,0}"
+                        Content="{ui:L settings.claude.path.auto}" Click="ClaudePathReset_Click"/>
+              </StackPanel>
             </Grid>
           </ui:SquircleBorder>
           <StackPanel x:Name="ClaudeModelList"/>

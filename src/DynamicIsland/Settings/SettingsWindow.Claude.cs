@@ -168,7 +168,40 @@ public partial class SettingsWindow
         ClaudeStatusText.Text = status.Installed && !status.LoggedIn
             ? status.Description + " " + Loc.T("claude.login.help")
             : status.Description;
+        // Où il a été trouvé (ou comment le désigner soi-même s'il est introuvable).
+        var manual = SettingsStore.Current.Claude.CodePath;
+        if (ClaudeService.FoundPath() is { } found)
+            ClaudeStatusText.Text += "\n" + Loc.F(manual.Length > 0 ? "settings.claude.path.manual" : "settings.claude.path.found", found);
+        else
+            ClaudeStatusText.Text += "\n" + Loc.T(manual.Length > 0 ? "settings.claude.path.missing" : "settings.claude.path.help");
+        ClaudePathResetButton.Visibility = manual.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ClaudeLoginButton.Visibility = status.Installed && !status.LoggedIn ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>« Choisir le fichier… » : l'utilisateur désigne lui-même Claude Code quand la recherche automatique échoue.</summary>
+    private void ClaudePathChoose_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = Loc.T("settings.claude.path.dialog"),
+            Filter = Loc.T("settings.claude.path.filter") + "|claude.exe;claude.cmd;claude;cli.js;cli.mjs|" + Loc.T("settings.claude.path.all") + "|*.*",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        if (ClaudeService.FromChosenFile(dialog.FileName) == null)
+        {
+            MessageBox.Show(this, Loc.T("settings.claude.path.invalid"), AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var path = dialog.FileName;
+        SettingsStore.Update(s => s.Claude.CodePath = path);
+        _ = CheckClaudeAsync();
+    }
+
+    private void ClaudePathReset_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsStore.Update(s => s.Claude.CodePath = "");
+        _ = CheckClaudeAsync();
     }
 
     private void ClaudeLogin_Click(object sender, RoutedEventArgs e) => ClaudeService.OpenLogin();

@@ -35,6 +35,8 @@ public enum ClaudeFix
     CodexUpdate,
     /// <summary>Moteur Codex : pas installé → page officielle d'installation.</summary>
     CodexInstall,
+    /// <summary>Claude Code introuvable → Paramètres → Île → Assistant IA, où l'on peut choisir le fichier soi-même.</summary>
+    Locate,
 }
 
 /// <summary>Claude Code sur ce PC : trouvé ou non, connecté ou non (vérifié sans rien consommer du forfait).</summary>
@@ -181,7 +183,7 @@ public static partial class ClaudeService
             "-p", "--model", SettingsStore.Current.Claude.Model, "--effort", "low",
             "--output-format", "stream-json", "--verbose", "--include-partial-messages",
             "--tools", "", "--no-session-persistence", "--system-prompt", SystemPrompt(),
-        ]) ?? throw new ClaudeException(Loc.T("claude.error.not_installed_command"));
+        ]) ?? throw new ClaudeException(Loc.T("claude.error.not_installed_command"), ClaudeFix.Locate);
         start.RedirectStandardInput = true;
         start.RedirectStandardOutput = true;
         start.RedirectStandardError = true;
@@ -386,8 +388,9 @@ public static partial class ClaudeService
     private static ProcessStartInfo? Command(IEnumerable<string> arguments)
     {
         ProcessStartInfo? start = null;
-        if (FindExe() is { } exe) start = new ProcessStartInfo(exe);
-        else if (FindNpmScript() is { } script && FindNode(Path.GetDirectoryName(script)) is { } node)
+        var (exe, script) = Locate();
+        if (exe != null) start = new ProcessStartInfo(exe);
+        else if (script != null && FindNode(Path.GetDirectoryName(script)) is { } node)
         {
             start = new ProcessStartInfo(node);
             start.ArgumentList.Add(script);
@@ -425,27 +428,92 @@ public static partial class ClaudeService
         }
     }
 
-    private static IEnumerable<string> PathFolders() =>
-        (Environment.GetEnvironmentVariable("PATH") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-    /// <summary>Installation native (« claude install ») : ~\.local\bin\claude.exe, ou claude.exe dans le PATH.</summary>
-    private static string? FindExe()
+    /// <summary>
+    /// PATH du processus + PATH de l'utilisateur et de la machine lus dans le registre (l'app lancée avant une installation de
+    /// Claude Code garde l'ancien PATH : la détection ratait alors une installation toute fraîche).
+    /// </summary>
+    private static IEnumerable<string> PathFolders()
     {
-        var native = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", "claude.exe");
-        if (File.Exists(native)) return native;
-        return PathFolders().Select(folder => Path.Combine(folder, "claude.exe")).FirstOrDefault(File.Exists);
+        var paths = new List<string?>
+        {
+            Environment.GetEnvironmentVariable("PATH"),
+            Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User),
+            Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine),
+        };
+        return paths.SelectMany(p => (p ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Select(Environment.ExpandEnvironmentVariables)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>Installation npm (« npm i -g @anthropic-ai/claude-code ») : le cli.js à côté du raccourci claude.cmd.</summary>
-    private static string? FindNpmScript()
+    /// <summary>Où est Claude Code (pour l'afficher dans les paramètres) ; null = introuvable.</summary>
+    public static string? FoundPath() => Locate() is var (exe, script) ? exe ?? script : null;
+
+    /// <summary>
+    /// Claude Code : d'abord le fichier choisi à la main (Paramètres → Île → Assistant IA → « Choisir le fichier… »), puis
+    /// l'exe natif, puis l'installation npm (npm, nvm, Volta, installation « locale » de Claude Code).
+    /// </summary>
+    internal static (string? Exe, string? Script) Locate()
     {
-        var folders = PathFolders().Prepend(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm"));
-        foreach (var folder in folders)
+        var manual = SettingsStore.Current.Claude.CodePath;
+        if (manual.Length > 0 && FromChosenFile(manual) is { } chosen) return chosen;
+        if (FindExe() is { } exe) return (exe, null);
+        return (null, FindNpmScript());
+    }
+
+    /// <summary>Fichier choisi par l'utilisateur : claude.exe (natif), cli.js, ou claude.cmd (le cli.js est à côté).</summary>
+    internal static (string? Exe, string? Script)? FromChosenFile(string path)
+    {
+        if (!File.Exists(path)) return null;
+        var name = Path.GetFileName(path);
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return (path, null);
+        if (name.EndsWith(".js", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".mjs", StringComparison.OrdinalIgnoreCase)) return (null, path);
+        if (name.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase) || !name.Contains('.'))
         {
-            var script = Path.Combine(folder, "node_modules", "@anthropic-ai", "claude-code", "cli.js");
-            if (File.Exists(Path.Combine(folder, "claude.cmd")) && File.Exists(script)) return script;
+            var script = Path.Combine(Path.GetDirectoryName(path) ?? "", "node_modules", "@anthropic-ai", "claude-code", "cli.js");
+            if (File.Exists(script)) return (null, script);
         }
         return null;
+    }
+
+    /// <summary>Installation native (« claude install ») : ~\.local\bin\claude.exe, ~\.claude\local, ou claude.exe dans le PATH.</summary>
+    private static string? FindExe()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string[] known =
+        [
+            Path.Combine(home, ".local", "bin", "claude.exe"),
+            Path.Combine(home, ".claude", "local", "claude.exe"),
+            Path.Combine(local, "Programs", "claude", "claude.exe"),
+            Path.Combine(local, "Programs", "Claude Code", "claude.exe"),
+        ];
+        return known.FirstOrDefault(File.Exists) ?? PathFolders().Select(folder => Path.Combine(folder, "claude.exe")).FirstOrDefault(File.Exists);
+    }
+
+    /// <summary>Installation npm (« npm i -g @anthropic-ai/claude-code ») : son cli.js (npm, nvm, Volta, installation locale).</summary>
+    private static string? FindNpmScript()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var folders = new List<string> { Path.Combine(appData, "npm"), Path.Combine(home, ".claude", "local") };
+        folders.AddRange(PathFolders());
+        try
+        {
+            var nvm = Path.Combine(appData, "nvm");
+            if (Directory.Exists(nvm)) folders.AddRange(Directory.GetDirectories(nvm)); // une version de Node par dossier
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Dossier illisible : on cherche ailleurs.
+        }
+        foreach (var folder in folders.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var script = Path.Combine(folder, "node_modules", "@anthropic-ai", "claude-code", "cli.js");
+            if (File.Exists(script)) return script;
+        }
+        var volta = Path.Combine(local, "Volta", "tools", "image", "packages", "@anthropic-ai", "claude-code", "lib", "node_modules", "@anthropic-ai", "claude-code", "cli.js");
+        return File.Exists(volta) ? volta : null;
     }
 
     /// <summary>node.exe : celui à côté du raccourci npm s'il y en a un, sinon celui du PATH.</summary>

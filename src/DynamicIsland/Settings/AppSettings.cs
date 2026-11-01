@@ -281,6 +281,8 @@ public sealed class ClaudeSettings
     public string OpenAiModel { get; set; } = Services.ClaudeService.OpenAiDefaultModel;
     /// <summary>Modèle demandé à Codex ; vide = le modèle par défaut de la version de Codex installée.</summary>
     public string CodexModel { get; set; } = "";
+    /// <summary>Claude Code choisi à la main (claude.exe, claude.cmd ou cli.js) quand la recherche automatique ne le trouve pas ; vide = automatique.</summary>
+    public string CodePath { get; set; } = "";
 
     public void Normalize()
     {
@@ -290,6 +292,7 @@ public sealed class ClaudeSettings
         if (!Enum.IsDefined(Engine)) Engine = ClaudeEngine.ClaudeCode;
         // Liste des modèles de Codex variable (selon le compte et la version) : on garde le nom tel quel, sans espaces.
         CodexModel = (CodexModel ?? "").Trim();
+        CodePath = (CodePath ?? "").Trim();
         if (CodexModel.Length > 80 || CodexModel.Any(char.IsWhiteSpace)) CodexModel = "";
     }
 }

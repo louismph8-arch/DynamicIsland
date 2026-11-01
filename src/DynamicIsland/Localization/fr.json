@@ -1966,5 +1966,16 @@
   "opal.theme.windows.description": "Suit le mode clair / sombre des applis de Windows",
   "settings.fixed_color.active": "Couleur fixe : celle du profil « {0} », choisie à la main. Elle ne bouge plus quand le fond d'écran change.",
   "welcome.style.theme": "Thème",
-  "welcome.style.theme.description": "sombre, opale blanche, ou selon le soleil"
+  "welcome.style.theme.description": "sombre, opale blanche, ou selon le soleil",
+  "settings.claude.path.choose": "Choisir le fichier…",
+  "settings.claude.path.auto": "Recherche automatique",
+  "settings.claude.path.found": "Trouvé ici : {0}",
+  "settings.claude.path.manual": "Fichier choisi : {0}",
+  "settings.claude.path.missing": "Le fichier choisi n'existe plus : choisis-le de nouveau ou reviens à la recherche automatique.",
+  "settings.claude.path.help": "Introuvable ? Clique sur « Choisir le fichier… » et désigne claude.exe, claude.cmd (souvent dans %AppData%\\npm) ou cli.js.",
+  "settings.claude.path.dialog": "Où est Claude Code ?",
+  "settings.claude.path.filter": "Claude Code (claude.exe, claude.cmd, cli.js)",
+  "settings.claude.path.all": "Tous les fichiers",
+  "settings.claude.path.invalid": "Ce fichier n'est pas Claude Code. Choisis claude.exe, claude.cmd (avec son dossier node_modules à côté) ou cli.js.",
+  "claude.view.locate": "Choisir Claude Code…"
 }
