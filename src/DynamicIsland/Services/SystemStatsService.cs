@@ -80,6 +80,9 @@ public sealed class SystemStatsService : IDisposable
     {
         _lastCpu = null;
         _lastNet = null;
+        // Fuite mesurée chez l'utilisateur : la requête PDH « GPU Engine(*) » gardée ouverte grossit à chaque processus qui
+        // apparaît ou disparaît. On la referme à chaque reprise ; GpuMeter.Sample la rouvre toute seule.
+        _gpu.Dispose();
     }
 
     public void Dispose()

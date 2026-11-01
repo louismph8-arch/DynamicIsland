@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using DynamicIsland.Interop;
@@ -13,25 +13,26 @@ namespace DynamicIsland.Services;
 public static class IconService
 {
     private const int IconSize = 128;
-    private static readonly Dictionary<string, ImageSource?> Cache = new(StringComparer.OrdinalIgnoreCase);
-
-    private static readonly Dictionary<string, ImageSource?> Thumbnails = new(StringComparer.OrdinalIgnoreCase);
+    // Caches bornés (fuite mesurée chez l'utilisateur : chaque appli vue dans la palette, la recherche, le mélangeur… et chaque
+    // fichier de l'étagère restait en mémoire pour toujours, souvent en 256 px). Les icônes du dock sont tenues par le dock lui-même.
+    private static readonly BoundedCache Cache = new(256);
+    private static readonly BoundedCache Thumbnails = new(64);
 
     public static ImageSource? Get(string parsingName)
     {
-        if (Cache.TryGetValue(parsingName, out var cached)) return cached;
+        if (Cache.TryGet(parsingName, out var cached)) return cached;
         var icon = Load(parsingName, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK);
-        Cache[parsingName] = icon;
+        Cache.Set(parsingName, icon);
         return icon;
     }
 
     /// <summary>Aperçu d'un fichier (miniature d'une image, d'un PDF…, sinon son icône), pour l'étagère.</summary>
     public static ImageSource? GetThumbnail(string path)
     {
-        if (Thumbnails.TryGetValue(path, out var cached)) return cached;
+        if (Thumbnails.TryGet(path, out var cached)) return cached;
         // Fichier OneDrive « en ligne seulement » : une miniature le ferait télécharger (île figée) → son icône seulement.
         var image = Load(path, IsOnlineOnly(path) ? SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK : SIIGBF_BIGGERSIZEOK);
-        Thumbnails[path] = image;
+        Thumbnails.Set(path, image);
         return image;
     }
 
@@ -52,10 +53,11 @@ public static class IconService
     private static ImageSource? Load(string parsingName, int flags)
     {
         IntPtr bitmap = IntPtr.Zero;
+        IShellItemImageFactory? factory = null;
         try
         {
             var iid = typeof(IShellItemImageFactory).GUID;
-            SHCreateItemFromParsingName(parsingName, IntPtr.Zero, ref iid, out var factory);
+            SHCreateItemFromParsingName(parsingName, IntPtr.Zero, ref iid, out factory);
             var size = new DockNative.SIZE { cx = IconSize, cy = IconSize };
             if (factory.GetImage(size, flags, out bitmap) != 0) return null;
             return ToBitmapSource(bitmap);
@@ -68,6 +70,8 @@ public static class IconService
         finally
         {
             if (bitmap != IntPtr.Zero) DeleteObject(bitmap);
+            // Rendue tout de suite : sinon l'élément du Shell (et le fournisseur de miniatures) restent jusqu'au ramasse-miettes.
+            if (factory != null) System.Runtime.InteropServices.Marshal.ReleaseComObject(factory);
         }
     }
 
@@ -103,7 +107,56 @@ public static class IconService
             for (int i = 3; i < pixels.Length; i += 4) pixels[i] = 255;
 
         var source = BitmapSource.Create(width, height, 96, 96, PixelFormats.Pbgra32, null, pixels, stride);
+        if (Math.Max(width, height) > IconSize)
+        {
+            // Windows rend souvent du 256 px (ou plus pour une photo) : on ne garde que 128 px (4 fois moins de mémoire).
+            double scale = (double)IconSize / Math.Max(width, height);
+            var reduced = new WriteableBitmap(new TransformedBitmap(source, new ScaleTransform(scale, scale)));
+            reduced.Freeze();
+            return reduced;
+        }
         source.Freeze();
         return source;
+    }
+
+    /// <summary>Cache borné : au-delà de sa taille, l'élément le moins récemment utilisé est oublié.</summary>
+    private sealed class BoundedCache(int capacity)
+    {
+        private readonly Dictionary<string, LinkedListNode<(string Key, ImageSource? Value)>> _map = new(StringComparer.OrdinalIgnoreCase);
+        private readonly LinkedList<(string Key, ImageSource? Value)> _order = new();
+
+        public bool TryGet(string key, out ImageSource? value)
+        {
+            lock (_order) return TryGetLocked(key, out value);
+        }
+
+        public void Set(string key, ImageSource? value)
+        {
+            lock (_order) SetLocked(key, value);
+        }
+
+        private bool TryGetLocked(string key, out ImageSource? value)
+        {
+            if (_map.TryGetValue(key, out var node))
+            {
+                _order.Remove(node);
+                _order.AddFirst(node);
+                value = node.Value.Value;
+                return true;
+            }
+            value = null;
+            return false;
+        }
+
+        private void SetLocked(string key, ImageSource? value)
+        {
+            if (_map.TryGetValue(key, out var old)) _order.Remove(old);
+            _map[key] = _order.AddFirst((key, value));
+            while (_map.Count > capacity && _order.Last is { } last)
+            {
+                _order.RemoveLast();
+                _map.Remove(last.Value.Key);
+            }
+        }
     }
 }

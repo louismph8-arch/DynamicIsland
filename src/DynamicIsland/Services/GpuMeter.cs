@@ -11,6 +11,7 @@ public sealed class GpuMeter : IDisposable
     private readonly string _instances;
     private readonly string _logContext;
     private IntPtr _query;
+    private int _samples;
     private IntPtr _counter;
     private bool _unavailable;
 
@@ -27,6 +28,8 @@ public sealed class GpuMeter : IDisposable
         if (_unavailable) return null;
         try
         {
+            // Mesure continue (widget Stats du bureau) : la requête est refaite toutes les ~600 mesures (voir SystemStatsService.Reset).
+            if (_query != IntPtr.Zero && ++_samples % 600 == 0) Dispose();
             if (_query == IntPtr.Zero)
             {
                 if (PdhOpenQuery(null, IntPtr.Zero, out _query) != 0 ||
