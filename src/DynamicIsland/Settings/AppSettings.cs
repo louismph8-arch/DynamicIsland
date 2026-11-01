@@ -102,6 +102,9 @@ public sealed class AppSettings
 /// <summary>Intensité du « verre opalin » (refonte O1) : discret, équilibré, intense.</summary>
 public enum OpalStyle { Discreet, Balanced, Intense }
 
+/// <summary>Thème d'Opaline (refonte O2) : verre sombre, « opale blanche » claire, selon le soleil, ou comme les applis de Windows.</summary>
+public enum OpalThemeMode { Dark, Light, Auto, Windows }
+
 public sealed class AppearanceSettings
 {
     /// <summary>Accent en dégradé (deux couleurs identiques = couleur unie). Par défaut : bleu → violet.</summary>
@@ -111,6 +114,8 @@ public sealed class AppearanceSettings
     public bool Seasons { get; set; } = true;
     /// <summary>Intensité du « verre opalin » choisie dans la démo (refonte O1) ; pas encore utilisée par le reste de l'app.</summary>
     public OpalStyle OpalStyle { get; set; } = OpalStyle.Balanced;
+    /// <summary>Thème d'Opaline elle-même (île, dock, palette, paramètres…) ; ne change jamais le thème de Windows (≠ AutoTheme).</summary>
+    public OpalThemeMode OpalTheme { get; set; } = OpalThemeMode.Dark;
     /// <summary>Halo néon autour de l'île et du dock, de 0 à 1.</summary>
     public double GlowIntensity { get; set; } = 0.4;
     /// <summary>Opacité du fond de l'île (et du dock flottant), de 0,5 à 1.</summary>

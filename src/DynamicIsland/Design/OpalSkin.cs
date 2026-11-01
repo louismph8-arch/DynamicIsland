@@ -37,6 +37,7 @@ public sealed class OpalSkin
     private readonly Grid _layers = new() { IsHitTestVisible = false };
     private readonly Canvas _backdropHost = new();
     private readonly Image _backdrop = new() { Stretch = Stretch.Fill, Visibility = Visibility.Collapsed };
+    private readonly Image _backdropOld = new() { Stretch = Stretch.Fill, Visibility = Visibility.Collapsed }; // ancien fond qui s'efface (O2)
     private readonly Rectangle _smoke = new();
     private readonly Rectangle _tint = new();
     private readonly Rectangle _milk = new();
@@ -70,7 +71,9 @@ public sealed class OpalSkin
         _paint = new OpalPaint(OpalTheme.Look, OpalTheme.Grain);
 
         RenderOptions.SetBitmapScalingMode(_backdrop, BitmapScalingMode.Linear);
+        RenderOptions.SetBitmapScalingMode(_backdropOld, BitmapScalingMode.Linear);
         _backdropHost.Children.Add(_backdrop);
+        _backdropHost.Children.Add(_backdropOld);
         foreach (var layer in new UIElement[] { _backdropHost, _smoke, _tint, _milk, _grain, _topLine }) _layers.Children.Add(layer);
         _sweep.RenderTransform = new TransformGroup { Children = { new RotateTransform(Opal.SweepAngle), _sweepMove } };
         _sweepHost.Children.Add(_sweep);
@@ -212,17 +215,32 @@ public sealed class OpalSkin
         if (!ReferenceEquals(_smoke.Fill, smoke)) _smoke.Fill = smoke;
     }
 
-    private (double Alpha, Color Base, Brush Brush)? _smokeCache;
+    private (double Alpha, Color Base, Color Text, Color Worst, Brush Brush)? _smokeCache;
     private (double Min, double Opacity, bool Covered, Color Base, Brush? Brush)? _veilCache;
 
-    /// <summary>Voile sur la copie floutée : celui de l'intensité, plus sombre sur un fond d'écran clair (gardé tant qu'il ne change pas).</summary>
+    /// <summary>Opacité du dernier voile posé sur la copie floutée (--self-test, rendus).</summary>
+    public double LastSmoke { get; private set; }
+
+    /// <summary>
+    /// Voile sur la copie floutée : celui de l'intensité (plus présent sur un fond d'écran clair), puis renforcé juste ce qu'il
+    /// faut pour que le texte secondaire garde un contraste WCAG ≥ 4,5 sur la surface réelle (voile + teinte + lait posés sur le
+    /// quart le plus clair du fond flouté en sombre, le plus sombre en opale blanche). Gardé tant que rien ne change.
+    /// </summary>
     private Brush BackdropSmoke()
     {
-        double alpha = OpalBackdrop.SmokeFor(_paint.Look);
+        var look = _paint.Look;
+        double alpha = OpalBackdrop.SmokeFor(look);
         var color = AppearanceService.SurfaceBase;
-        if (_smokeCache is { } cache && cache.Alpha == alpha && cache.Base == color) return cache.Brush;
-        var brush = Paint.Frozen(OpalPalette.WithOpacity(color, alpha));
-        _smokeCache = (alpha, color, brush);
+        var text = OpalShade.Ink(InkRole.TextSecondary);
+        var worst = OpalShade.Light >= 0.5 ? OpalBackdrop.Darkest : OpalBackdrop.Brightest;
+        if (_smokeCache is { } cache && cache.Base == color && cache.Text == text && cache.Worst == worst && cache.Alpha == alpha) return cache.Brush;
+        var accent = OpalShade.Shown.AccentStart;
+        double milk = (look.MilkTop + look.MilkBottom) / 2;
+        Color Above(Color c) => OpalTheme.Over(OpalPalette.WithOpacity(Swatch.White, milk), OpalTheme.Over(OpalPalette.WithOpacity(accent, look.Tint), c));
+        double veil = OpalColor.VeilFor(text, color, worst, alpha, OpalColor.TextContrast, Above);
+        var brush = Paint.Frozen(OpalPalette.WithOpacity(color, veil));
+        _smokeCache = (alpha, color, text, worst, brush);
+        LastSmoke = veil;
         return brush;
     }
 
@@ -275,7 +293,11 @@ public sealed class OpalSkin
             }
         }
         if (screen.Width < 1 || screen.Height < 1) return false;
-        if (!ReferenceEquals(_backdrop.Source, image)) _backdrop.Source = image;
+        if (!ReferenceEquals(_backdrop.Source, image))
+        {
+            FadeOutOld();
+            _backdrop.Source = image;
+        }
         // Comme le fond de Windows en « Remplir » : l'image couvre l'écran, centrée.
         double scale = Math.Max(screen.Width / image.PixelWidth, screen.Height / image.PixelHeight);
         double iw = image.PixelWidth * scale, ih = image.PixelHeight * scale;
@@ -285,6 +307,36 @@ public sealed class OpalSkin
         Canvas.SetTop(_backdrop, screen.Y + (screen.Height - ih) / 2);
         return true;
     }
+
+    /// <summary>
+    /// Nouveau fond d'écran : l'ancienne copie floutée reste par-dessus et s'efface (~1,2 s, une seule animation, puis plus rien
+    /// ne tourne) au lieu de sauter d'une image à l'autre.
+    /// </summary>
+    private void FadeOutOld()
+    {
+        if (_backdrop.Source == null || _backdrop.Visibility != Visibility.Visible || OpalBackdrop.SnapshotMode || !_body.IsVisible) return;
+        _backdropOld.BeginAnimation(OpacityProperty, null);
+        _backdropOld.Source = _backdrop.Source;
+        _backdropOld.Width = _backdrop.Width;
+        _backdropOld.Height = _backdrop.Height;
+        Canvas.SetLeft(_backdropOld, Canvas.GetLeft(_backdrop));
+        Canvas.SetTop(_backdropOld, Canvas.GetTop(_backdrop));
+        _backdropOld.Opacity = 1;
+        _backdropOld.Visibility = Visibility.Visible;
+        var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(Opal.BackdropFade.TotalMilliseconds / Math.Clamp(AppearanceService.Speed, 0.5, 2)))
+        {
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        };
+        fade.Completed += (_, _) =>
+        {
+            _backdropOld.BeginAnimation(OpacityProperty, null);
+            _backdropOld.Visibility = Visibility.Collapsed;
+            _backdropOld.Source = null;
+        };
+        _backdropOld.BeginAnimation(OpacityProperty, fade);
+    }
+
+    private static readonly DependencyProperty OpacityProperty = UIElement.OpacityProperty;
 
     private Rect? MonitorUnder()
     {

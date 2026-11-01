@@ -7,11 +7,11 @@
         Width="640" SizeToContent="Height"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False"
-        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource TextPrimary}">
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource Paint.TextPrimary}">
 
   <!-- Recherche façon Spotlight : fenêtre normale (activable) pour pouvoir taper au clavier. -->
   <ui:SquircleBorder Margin="{ui:Space s10}" CornerRadius="{x:Static t:Corners.Window}" Background="{DynamicResource IslandBrush}"
-          BorderBrush="{x:Static t:Paint.Selected}" BorderThickness="{x:Static t:Borders.Hairline}"
+          BorderBrush="{DynamicResource Paint.Selected}" BorderThickness="{x:Static t:Borders.Hairline}"
           ClipContent="False" Effect="{x:Static t:Effects.Window}">
     <StackPanel>
       <Grid Height="58" Margin="{ui:Space s9,0}">
@@ -20,16 +20,16 @@
           <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <TextBlock Text="{x:Static t:Icons.Search}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}"
-                   Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"/>
+                   Foreground="{DynamicResource Paint.TextSecondary}" VerticalAlignment="Center"/>
         <TextBlock x:Name="Placeholder" Grid.Column="1" Margin="{ui:Space s7,0,0,0}" VerticalAlignment="Center" FontSize="{x:Static t:TypeRamp.Title2}"
-                   Foreground="{StaticResource TextTertiary}" IsHitTestVisible="False"
+                   Foreground="{DynamicResource Paint.TextTertiary}" IsHitTestVisible="False"
                    Text="{ui:L search.rechercher_apps_fichiers_web}"/>
         <TextBox x:Name="QueryBox" Grid.Column="1" Margin="{ui:Space s5,0,0,0}" VerticalAlignment="Center" FontSize="{x:Static t:TypeRamp.Title2}"
-                 Background="Transparent" BorderThickness="{x:Static t:Borders.None}" Foreground="{StaticResource TextPrimary}"
-                 CaretBrush="{x:Static t:Paint.White}" SelectionBrush="{x:Static t:Paint.TextSelection}"
+                 Background="Transparent" BorderThickness="{x:Static t:Borders.None}" Foreground="{DynamicResource Paint.TextPrimary}"
+                 CaretBrush="{DynamicResource Paint.TextPrimary}" SelectionBrush="{x:Static t:Paint.TextSelection}"
                  TextChanged="QueryBox_TextChanged" PreviewKeyDown="QueryBox_PreviewKeyDown"/>
       </Grid>
-      <Border x:Name="Divider" Height="1" Background="{StaticResource DividerBrush}" Visibility="Collapsed"/>
+      <Border x:Name="Divider" Height="1" Background="{DynamicResource Paint.Divider}" Visibility="Collapsed"/>
       <StackPanel x:Name="Results" Margin="{ui:Space s4,s3,s4,s4}" Visibility="Collapsed"/>
     </StackPanel>
   </ui:SquircleBorder>

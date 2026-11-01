@@ -7,7 +7,7 @@
         Width="920" Height="620" MinWidth="780" MinHeight="620"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/app.ico"
-        Background="{x:Static t:Paint.Window}" Foreground="{StaticResource TextPrimary}" FontFamily="{StaticResource UiFont}">
+        Background="{DynamicResource Paint.Window}" Foreground="{DynamicResource Paint.TextPrimary}" FontFamily="{StaticResource UiFont}">
   <Window.Resources>
     <ResourceDictionary Source="SettingsStyles.xaml"/>
   </Window.Resources>
@@ -28,13 +28,13 @@
     </Grid.RowDefinitions>
 
     <!-- ===== Navigation ===== -->
-    <Border x:Name="NavPanel" Grid.RowSpan="2" Background="{x:Static t:Paint.Sidebar}" BorderBrush="{x:Static t:Paint.Card}" BorderThickness="{x:Static t:Borders.RightHairline}">
+    <Border x:Name="NavPanel" Grid.RowSpan="2" Background="{DynamicResource Paint.Sidebar}" BorderBrush="{DynamicResource Paint.Card}" BorderThickness="{x:Static t:Borders.RightHairline}">
       <DockPanel Margin="{ui:Space s7,s7,s7,s7}">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="{ui:Space s5,0,0,s5}">
           <Image x:Name="HeaderLogo" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality"/>
           <StackPanel Margin="{ui:Space s6,0,0,0}" VerticalAlignment="Center">
             <TextBlock Text="Opaline" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold"/>
-            <TextBlock Text="{ui:L settings.parametres}" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{StaticResource TextSecondary}"/>
+            <TextBlock Text="{ui:L settings.parametres}" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{DynamicResource Paint.TextSecondary}"/>
           </StackPanel>
         </StackPanel>
         <!-- Recherche (correctif 11) : n'importe quel réglage, Ctrl+F -->
@@ -42,12 +42,12 @@
           <TextBox x:Name="SearchBox" Style="{StaticResource SearchField}"
                    TextChanged="SearchBox_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"/>
           <TextBlock Text="{x:Static t:Icons.Search}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}" IsHitTestVisible="False"
-                     Foreground="{x:Static t:Paint.TextTertiary}" VerticalAlignment="Center" Margin="{ui:Space s5,0,0,0}"/>
+                     Foreground="{DynamicResource Paint.TextTertiary}" VerticalAlignment="Center" Margin="{ui:Space s5,0,0,0}"/>
           <TextBlock x:Name="SearchHint" Text="{ui:L settings.search.hint}" IsHitTestVisible="False" FontSize="{x:Static t:TypeRamp.Body}"
-                     Foreground="{x:Static t:Paint.TextTertiary}" VerticalAlignment="Center" Margin="{ui:Space s14,0,0,0}"/>
+                     Foreground="{DynamicResource Paint.TextTertiary}" VerticalAlignment="Center" Margin="{ui:Space s14,0,0,0}"/>
           <Popup x:Name="SearchPopup" PlacementTarget="{Binding ElementName=SearchBox}" Placement="Bottom" AllowsTransparency="True"
                  StaysOpen="False" Width="{x:Static t:SettingsShape.SearchPopup}" PopupAnimation="Fade">
-            <ui:SquircleBorder Background="{x:Static t:Paint.PopupBackground}" BorderBrush="{x:Static t:Paint.PopupBorder}" BorderThickness="{x:Static t:Borders.Hairline}"
+            <ui:SquircleBorder Background="{DynamicResource Paint.PopupBackground}" BorderBrush="{DynamicResource Paint.PopupBorder}" BorderThickness="{x:Static t:Borders.Hairline}"
                                CornerRadius="{x:Static t:Corners.L}" Padding="{ui:Space s3}" Margin="{ui:Space 0,s2,0,0}">
               <StackPanel x:Name="SearchResults"/>
             </ui:SquircleBorder>
@@ -268,7 +268,7 @@
                   <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L settings.code_couleur_rrggbb_deux}"/>
                 </StackPanel>
                 <TextBox x:Name="AccentStartBox" Grid.Column="1" Style="{StaticResource HexBox}" KeyDown="AccentBox_KeyDown" LostFocus="AccentBox_LostFocus"/>
-                <TextBlock Grid.Column="2" Text="→" Margin="{ui:Space s4,0}" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}"/>
+                <TextBlock Grid.Column="2" Text="→" Margin="{ui:Space s4,0}" VerticalAlignment="Center" Foreground="{DynamicResource Paint.TextSecondary}"/>
                 <TextBox x:Name="AccentEndBox" Grid.Column="3" Style="{StaticResource HexBox}" KeyDown="AccentBox_KeyDown" LostFocus="AccentBox_LostFocus"/>
               </Grid>
             </StackPanel>
@@ -285,6 +285,18 @@
                       Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.1" ValueChanged="Setting_Changed"/>
             </Grid>
           </ui:SquircleBorder>
+          <!-- Refonte O2 : thème d'Opaline (verre sombre / opale blanche / selon le soleil / comme Windows), bascule en douceur -->
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.opal_theme.group}"/>
+          <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L settings.opal_theme.description}" TextWrapping="Wrap" Margin="{ui:Space 0,0,0,s2}"/>
+          <RadioButton x:Name="OpalThemeDark" Style="{StaticResource OptionCard}" GroupName="OpalThemeMode" Checked="OpalTheme_Checked"
+                       Content="{ui:L opal.theme.dark}" Tag="{ui:L opal.theme.dark.description}"/>
+          <RadioButton x:Name="OpalThemeLight" Style="{StaticResource OptionCard}" GroupName="OpalThemeMode" Checked="OpalTheme_Checked"
+                       Content="{ui:L opal.theme.light}" Tag="{ui:L opal.theme.light.description}"/>
+          <RadioButton x:Name="OpalThemeAuto" Style="{StaticResource OptionCard}" GroupName="OpalThemeMode" Checked="OpalTheme_Checked"
+                       Content="{ui:L opal.theme.auto}" Tag="{ui:L opal.theme.auto.description}"/>
+          <RadioButton x:Name="OpalThemeWindows" Style="{StaticResource OptionCard}" GroupName="OpalThemeMode" Checked="OpalTheme_Checked"
+                       Content="{ui:L opal.theme.windows}" Tag="{ui:L opal.theme.windows.description}"/>
+
           <!-- Refonte O1 : intensité du « verre opalin » (appliquée tout de suite à toute l'app) + la démo pour comparer -->
           <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.opal.group}"/>
           <RadioButton x:Name="OpalDiscreet" Style="{StaticResource OptionCard}" GroupName="OpalStyle" Checked="OpalStyle_Checked"
@@ -321,8 +333,14 @@
                 <Ellipse x:Name="WallpaperStartDot" Width="{x:Static t:Sizes.ChoiceDot}" Height="{x:Static t:Sizes.ChoiceDot}"/>
                 <Ellipse x:Name="WallpaperEndDot" Width="{x:Static t:Sizes.ChoiceDot}" Height="{x:Static t:Sizes.ChoiceDot}" Margin="{ui:Space s3,0,0,0}"/>
                 <ui:SquircleBorder x:Name="WallpaperSurfaceDot" Width="{x:Static t:Sizes.ChoiceDot}" Height="{x:Static t:Sizes.ChoiceDot}" Margin="{ui:Space s3,0,0,0}"
-                                   CornerRadius="{x:Static t:Corners.S}" BorderBrush="{x:Static t:Paint.PopupBorder}" BorderThickness="{x:Static t:Borders.Hairline}"/>
+                                   CornerRadius="{x:Static t:Corners.S}" BorderBrush="{DynamicResource Paint.PopupBorder}" BorderThickness="{x:Static t:Borders.Hairline}"/>
                 <TextBlock x:Name="WallpaperColorsText" Style="{StaticResource CardDescription}" VerticalAlignment="Center" Margin="{ui:Space s5,0,0,0}"/>
+              </StackPanel>
+              <!-- Option coupée = « Couleur fixe » (O2) : la couleur du profil, choisie à la main, ne bouge plus avec le fond -->
+              <StackPanel x:Name="FixedColorRow" Orientation="Horizontal" Margin="{ui:Space 0,s5,0,0}">
+                <Ellipse x:Name="FixedStartDot" Width="{x:Static t:Sizes.ChoiceDot}" Height="{x:Static t:Sizes.ChoiceDot}"/>
+                <Ellipse x:Name="FixedEndDot" Width="{x:Static t:Sizes.ChoiceDot}" Height="{x:Static t:Sizes.ChoiceDot}" Margin="{ui:Space s3,0,0,0}"/>
+                <TextBlock x:Name="FixedColorText" Style="{StaticResource CardDescription}" VerticalAlignment="Center" Margin="{ui:Space s5,0,0,0}" TextWrapping="Wrap"/>
               </StackPanel>
             </StackPanel>
           </ui:SquircleBorder>
@@ -857,7 +875,7 @@
               <Button x:Name="TimerSoundButton" Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Click="TimerSound_Click">
                 <StackPanel Orientation="Horizontal">
                   <TextBlock x:Name="TimerSoundText" TextTrimming="CharacterEllipsis" MaxWidth="{x:Static t:CardShape.PickerMaxWidth}"/>
-                  <TextBlock Text="  ▾" Foreground="{x:Static t:Paint.TextSecondary}"/>
+                  <TextBlock Text="  ▾" Foreground="{DynamicResource Paint.TextSecondary}"/>
                 </StackPanel>
               </Button>
               <Button Grid.Column="2" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s4,0,0,0}"
@@ -1685,9 +1703,9 @@
                 </StackPanel>
                 <Button Grid.Column="1" Style="{StaticResource SettingsButton}" Content="{ui:L settings.exporter}" Click="ExportTheme_Click"/>
               </Grid>
-              <CheckBox x:Name="ExportAllProfiles" Margin="{ui:Space 0,s6,0,0}" IsChecked="True" Foreground="{StaticResource TextSecondary}"
+              <CheckBox x:Name="ExportAllProfiles" Margin="{ui:Space 0,s6,0,0}" IsChecked="True" Foreground="{DynamicResource Paint.TextSecondary}"
                         Content="{ui:L settings.tous_mes_profils_sinon}"/>
-              <CheckBox x:Name="ExportWallpapers" Margin="{ui:Space 0,s3,0,0}" IsChecked="True" Foreground="{StaticResource TextSecondary}"
+              <CheckBox x:Name="ExportWallpapers" Margin="{ui:Space 0,s3,0,0}" IsChecked="True" Foreground="{DynamicResource Paint.TextSecondary}"
                         Content="{ui:L settings.avec_fonds_ecran_profils}"/>
               <TextBlock x:Name="ExportResultText" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s4,0,0}"/>
             </StackPanel>
@@ -1703,7 +1721,7 @@
                 </StackPanel>
                 <Button Grid.Column="1" Style="{StaticResource SettingsButton}" Content="{ui:L settings.importer}" Click="ImportTheme_Click"/>
               </Grid>
-              <ui:SquircleBorder x:Name="ImportPreview" Visibility="Collapsed" Margin="{ui:Space 0,s6,0,0}" Padding="{ui:Space s7,s6}" CornerRadius="{x:Static t:Corners.M}" Background="{x:Static t:Paint.Card}">
+              <ui:SquircleBorder x:Name="ImportPreview" Visibility="Collapsed" Margin="{ui:Space 0,s6,0,0}" Padding="{ui:Space s7,s6}" CornerRadius="{x:Static t:Corners.M}" Background="{DynamicResource Paint.Card}">
                 <StackPanel>
                   <TextBlock x:Name="ImportPreviewText" FontSize="{x:Static t:TypeRamp.Body}" TextWrapping="Wrap"/>
                   <StackPanel Orientation="Horizontal" Margin="{ui:Space 0,s5,0,0}">
@@ -1888,9 +1906,9 @@
               <TextBlock x:Name="RgbCorsairText" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s2,0,0}"/>
               <TextBlock x:Name="RgbSteelSeriesText" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s2,0,0}"/>
               <TextBlock x:Name="RgbOpenRgbText" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s2,0,0}"/>
-              <CheckBox x:Name="RgbMusicToggle" Margin="{ui:Space 0,s6,0,0}" Foreground="{StaticResource TextSecondary}"
+              <CheckBox x:Name="RgbMusicToggle" Margin="{ui:Space 0,s6,0,0}" Foreground="{DynamicResource Paint.TextSecondary}"
                         Content="{ui:L settings.rgb.music}" Click="Rgb_Click"/>
-              <CheckBox x:Name="RgbGamesToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{StaticResource TextSecondary}"
+              <CheckBox x:Name="RgbGamesToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{DynamicResource Paint.TextSecondary}"
                         Content="{ui:L settings.rgb.games}" Click="Rgb_Click"/>
               <Button Style="{StaticResource SettingsButton}" HorizontalAlignment="Left" Margin="{ui:Space 0,s5,0,0}" Content="{ui:L settings.rgb.retry}" Click="RgbRetry_Click"/>
             </StackPanel>
@@ -1952,13 +1970,13 @@
                   <TextBox x:Name="FriendsNameBox" Grid.Column="1" Style="{StaticResource HexBox}" Width="220" HorizontalAlignment="Left" MaxLength="32"
                            FontFamily="{StaticResource UiFont}" KeyDown="FriendsNameBox_KeyDown" LostFocus="FriendsNameBox_LostFocus"/>
                 </Grid>
-                <CheckBox x:Name="FriendsInvisibleToggle" Margin="{ui:Space 0,s5,0,0}" Foreground="{StaticResource TextSecondary}"
+                <CheckBox x:Name="FriendsInvisibleToggle" Margin="{ui:Space 0,s5,0,0}" Foreground="{DynamicResource Paint.TextSecondary}"
                           Content="{ui:L settings.friends.invisible}" Click="FriendsOption_Click"/>
-                <CheckBox x:Name="FriendsShareGameToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{StaticResource TextSecondary}"
+                <CheckBox x:Name="FriendsShareGameToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{DynamicResource Paint.TextSecondary}"
                           Content="{ui:L settings.friends.share_game}" Click="FriendsOption_Click"/>
-                <CheckBox x:Name="FriendsNotifyToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{StaticResource TextSecondary}"
+                <CheckBox x:Name="FriendsNotifyToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{DynamicResource Paint.TextSecondary}"
                           Content="{ui:L settings.friends.notify}" Click="FriendsOption_Click"/>
-                <CheckBox x:Name="FriendsMessagesToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{StaticResource TextSecondary}"
+                <CheckBox x:Name="FriendsMessagesToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{DynamicResource Paint.TextSecondary}"
                           Content="{ui:L settings.friends.messages}" Click="FriendsOption_Click"/>
               </StackPanel>
             </ui:SquircleBorder>

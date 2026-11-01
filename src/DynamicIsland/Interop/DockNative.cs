@@ -254,7 +254,8 @@ internal static class DockNative
     /// <summary>Coins arrondis + bordure sombre de Windows 11 pour une fenêtre non transparente.</summary>
     public static void ApplyDarkRoundedFrame(IntPtr hWnd)
     {
-        int round = DWMWCP_ROUND, dark = 1, border = 0x00302C2C; // COLORREF = 0x00BBGGRR
+        bool light = Design.OpalShade.IsLight; // opale blanche (refonte O2) : cadre clair
+        int round = DWMWCP_ROUND, dark = light ? 0 : 1, border = light ? 0x00DCD8D8 : 0x00302C2C; // COLORREF = 0x00BBGGRR
         DwmSetWindowAttribute(hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
         DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
         DwmSetWindowAttribute(hWnd, DWMWA_BORDER_COLOR, ref border, sizeof(int));

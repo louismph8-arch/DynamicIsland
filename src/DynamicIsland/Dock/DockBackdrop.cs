@@ -42,6 +42,18 @@ public sealed class DockBackdrop
             Height = 10,
         };
         _window.SourceInitialized += (_, _) => Setup();
+        Design.OpalShade.ThemeChanged += ApplyTheme; // opale blanche : acrylique clair (refonte O2)
+        _window.Closed += (_, _) => Design.OpalShade.ThemeChanged -= ApplyTheme;
+    }
+
+    /// <summary>Acrylique sombre ou clair selon le thème d'Opaline.</summary>
+    private void ApplyTheme()
+    {
+        var hwnd = new WindowInteropHelper(_window).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        int dark = Design.OpalShade.IsLight ? 0 : 1;
+        DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+        SendMessage(hwnd, WM_NCACTIVATE, new IntPtr(1), IntPtr.Zero);
     }
 
     /// <summary>Windows 11 22H2+ avec les effets de transparence activés.</summary>
@@ -79,7 +91,7 @@ public sealed class DockBackdrop
 
         var margins = new MARGINS { Left = -1, Right = -1, Top = -1, Bottom = -1 };
         DwmExtendFrameIntoClientArea(hwnd, ref margins);
-        int dark = 1, backdrop = DWMSBT_TRANSIENTWINDOW, corners = DWMWCP_DONOTROUND, noBorder = unchecked((int)0xFFFFFFFE);
+        int dark = Design.OpalShade.IsLight ? 0 : 1, backdrop = DWMSBT_TRANSIENTWINDOW, corners = DWMWCP_DONOTROUND, noBorder = unchecked((int)0xFFFFFFFE);
         DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
         DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corners, sizeof(int));
         DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref noBorder, sizeof(int)); // pas de liseré DWM

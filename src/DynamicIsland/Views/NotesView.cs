@@ -34,7 +34,7 @@ public sealed class NotesView : UserControl
         _count = new TextBlock { FontSize = TypeRamp.Footnote, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         header.Children.Add(_count);
         var create = new Button { Style = (Style)FindResource("ChipButton"), VerticalAlignment = VerticalAlignment.Center, ToolTip = Loc.T("notes.new.tooltip") };
-        var label = new TextBlock { FontSize = TypeRamp.Caption, FontWeight = FontWeights.SemiBold, Foreground = Paint.White };
+        var label = new TextBlock { FontSize = TypeRamp.Caption, FontWeight = FontWeights.SemiBold, Foreground = Paint.TextPrimary };
         label.Inlines.Add(new Run(Icons.Plus + "  ") { FontFamily = FontStack.Icons });
         label.Inlines.Add(new Run(Loc.T("notes.new")));
         create.Content = label;

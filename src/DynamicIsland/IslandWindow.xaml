@@ -8,7 +8,7 @@
         Width="600" Height="340" Left="0" Top="0"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False" ShowActivated="False"
-        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource TextPrimary}"
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource Paint.TextPrimary}"
         UseLayoutRounding="True">
 
   <!-- La fenêtre est fixe et transparente (les clics passent à travers) ;
@@ -59,7 +59,7 @@
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
               <!-- « Ne pas déranger » actif (7F) : petite lune discrète devant l'heure -->
               <TextBlock x:Name="FocusMoon" Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}"
-                         Foreground="{x:Static t:Paint.TextSecondary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
+                         Foreground="{DynamicResource Paint.TextSecondary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
               <TextBlock x:Name="CompactClock" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" VerticalAlignment="Center"/>
               <!-- Confidentialité : vert = webcam utilisée, orange = micro -->
               <Ellipse x:Name="CameraDot" Width="6" Height="6" Margin="{ui:Space s3,0,0,0}" VerticalAlignment="Center"
@@ -91,7 +91,7 @@
               <StackPanel x:Name="CompactTimer" Orientation="Horizontal" Opacity="0">
                 <!-- Anneau de progression du minuteur / Pomodoro -->
                 <Grid Width="16" Height="16" VerticalAlignment="Center" Margin="{ui:Space 0,0,s3,0}">
-                  <Ellipse Stroke="{x:Static t:Paint.Track}" StrokeThickness="{x:Static t:Stroke.Focus}"/>
+                  <Ellipse Stroke="{DynamicResource Paint.Track}" StrokeThickness="{x:Static t:Stroke.Focus}"/>
                   <Path x:Name="TimerRing" StrokeThickness="{x:Static t:Stroke.Focus}" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                         Stroke="{StaticResource TimerBrush}"/>
                 </Grid>
@@ -109,8 +109,8 @@
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="HudIcon" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}" VerticalAlignment="Center"/>
-            <ui:SquircleBorder Grid.Column="1" Height="5" CornerRadius="{x:Static t:Corners.Pill}" Background="{x:Static t:Paint.Track}" Margin="{ui:Space s5,0}" VerticalAlignment="Center">
-              <ui:SquircleBorder CornerRadius="{x:Static t:Corners.Pill}" Background="{x:Static t:Paint.White}" RenderTransformOrigin="0,0.5">
+            <ui:SquircleBorder Grid.Column="1" Height="5" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource Paint.Track}" Margin="{ui:Space s5,0}" VerticalAlignment="Center">
+              <ui:SquircleBorder CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource Paint.TextPrimary}" RenderTransformOrigin="0,0.5">
                 <Border.RenderTransform><ScaleTransform x:Name="HudScale" ScaleX="0.5"/></Border.RenderTransform>
               </ui:SquircleBorder>
             </ui:SquircleBorder>
@@ -129,7 +129,7 @@
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="{ui:Space s5,0,0,0}">
               <TextBlock x:Name="NoticeText" FontSize="{x:Static t:TypeRamp.Callout}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
               <!-- 2e ligne facultative (appareil connecté : batterie…) -->
-              <TextBlock x:Name="NoticeDetail" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{StaticResource TextSecondary}"
+              <TextBlock x:Name="NoticeDetail" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{DynamicResource Paint.TextSecondary}"
                          TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
             </StackPanel>
           </Grid>
@@ -199,7 +199,7 @@
                 <Ellipse x:Name="ExpandedMicDot" Width="6" Height="6" Margin="{ui:Space 0,0,s4,0}" VerticalAlignment="Center"
                          Fill="{StaticResource MicrophoneBrush}" Visibility="Collapsed"/>
                 <TextBlock x:Name="ExpandedFocusMoon" Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}"
-                           Foreground="{x:Static t:Paint.TextSecondary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
+                           Foreground="{DynamicResource Paint.TextSecondary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
                 <TextBlock x:Name="ExpandedClock" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" VerticalAlignment="Center"/>
               </StackPanel>
               </Grid>

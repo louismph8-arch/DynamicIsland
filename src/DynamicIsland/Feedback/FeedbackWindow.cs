@@ -133,7 +133,7 @@ public sealed class FeedbackWindow : CardWindow
         _text.Background = Brushes.Transparent;
         _text.BorderThickness = new Thickness(0);
         _text.Foreground = Paint.TextPrimary;
-        _text.CaretBrush = Paint.White;
+        _text.CaretBrush = Paint.TextPrimary;
         _text.FontSize = TypeRamp.Body;
         _text.TextChanged += (_, _) => UpdateCounter();
         var placeholder = new TextBlock { Text = Loc.T("feedback.placeholder"), FontSize = TypeRamp.Body, Foreground = Paint.TextTertiary,

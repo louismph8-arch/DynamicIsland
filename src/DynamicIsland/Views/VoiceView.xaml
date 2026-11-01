@@ -16,7 +16,7 @@
                  Foreground="{DynamicResource AccentGradientBrush}"/>
       <TextBlock x:Name="ChannelText" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold" Margin="{ui:Space s4,0,0,0}" VerticalAlignment="Center"
                  MaxWidth="260" TextTrimming="CharacterEllipsis"/>
-      <TextBlock x:Name="CountText" FontSize="{x:Static t:TypeRamp.Footnote}" Foreground="{StaticResource TextSecondary}" Margin="{ui:Space s4,0,0,0}" VerticalAlignment="Center"/>
+      <TextBlock x:Name="CountText" FontSize="{x:Static t:TypeRamp.Footnote}" Foreground="{DynamicResource Paint.TextSecondary}" Margin="{ui:Space s4,0,0,0}" VerticalAlignment="Center"/>
     </StackPanel>
 
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
@@ -24,10 +24,10 @@
     </ScrollViewer>
 
     <StackPanel x:Name="EmptyPanel" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-      <TextBlock Text="{x:Static t:Icons.Voice}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XXL}" Foreground="{StaticResource TextTertiary}"
+      <TextBlock Text="{x:Static t:Icons.Voice}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XXL}" Foreground="{DynamicResource Paint.TextTertiary}"
                  HorizontalAlignment="Center"/>
       <TextBlock x:Name="EmptyTitle" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="{ui:Space 0,s4,0,0}"/>
-      <TextBlock x:Name="EmptyText" FontSize="{x:Static t:TypeRamp.Footnote}" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center"
+      <TextBlock x:Name="EmptyText" FontSize="{x:Static t:TypeRamp.Footnote}" Foreground="{DynamicResource Paint.TextSecondary}" HorizontalAlignment="Center"
                  TextAlignment="Center" TextWrapping="Wrap" MaxWidth="360" Margin="{ui:Space 0,s1,0,0}"/>
     </StackPanel>
   </Grid>

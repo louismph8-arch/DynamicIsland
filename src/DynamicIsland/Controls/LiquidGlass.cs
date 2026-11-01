@@ -51,6 +51,7 @@ public sealed class LiquidGlass
         surface.SizeChanged += (_, _) => Refresh();
         SettingsStore.Changed += Apply;
         GamingMode.Changed += Apply;
+        Design.OpalShade.ThemeChanged += Refresh; // opale blanche : liseré et lumière adoucis
         Apply();
     }
 
@@ -65,6 +66,7 @@ public sealed class LiquidGlass
     {
         SettingsStore.Changed -= Apply;
         GamingMode.Changed -= Apply;
+        Design.OpalShade.ThemeChanged -= Refresh;
         SetEnabled(false);
     }
 
@@ -165,14 +167,17 @@ public sealed class LiquidGlass
             size.Width + overflow.Left + overflow.Right, size.Height + overflow.Top + overflow.Bottom);
 
         double strength = SettingsStore.Current.Appearance.GlassIntensity;
+        // Opale blanche (O2) : le shader ajoute du blanc (liseré, reflet, lumière du haut), délavé sur un verre clair.
+        bool pearl = Design.OpalShade.IsLight;
+        double rim = pearl ? Opal.LightGlassRim : 1, sheen = pearl ? Opal.LightGlassSheen : 1, top = pearl ? Opal.LightGlassTopLight : 1;
         var look = new GlassLook(
             Band: Glass.Band,
             Refraction: Glass.Refraction * strength,
             Aberration: Glass.Aberration,
-            Rim: Glass.Rim * strength * (Glass.RimAtRest + (1 - Glass.RimAtRest) * _proximity),
-            Sheen: Glass.Sheen * strength * _proximity,
+            Rim: rim * Glass.Rim * strength * (Glass.RimAtRest + (1 - Glass.RimAtRest) * _proximity),
+            Sheen: sheen * Glass.Sheen * strength * _proximity,
             SheenRadius: Glass.SheenRadius,
-            TopLight: Glass.TopLight * strength);
+            TopLight: top * Glass.TopLight * strength);
         _effect.Update(size, shape, _radius(), light, look);
         LightMoved?.Invoke(light, size);
     }

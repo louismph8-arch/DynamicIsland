@@ -55,8 +55,8 @@ internal sealed class FolderWindow : Window
             TextAlignment = TextAlignment.Center,
             Background = Brushes.Transparent,
             BorderThickness = Borders.None,
-            Foreground = Paint.White,
-            CaretBrush = Paint.White,
+            Foreground = Paint.TextPrimary,
+            CaretBrush = Paint.TextPrimary,
             MaxLength = 40,
             ToolTip = Loc.T("folder.rename.tooltip"),
         };

@@ -97,6 +97,7 @@ internal static partial class SelfTest
                      && !StageLayout.TakesCenter(false, H(1), H(2), false) && !StageLayout.TakesCenter(true, H(1), H(2), true)
                      && StageLayout.TakesCenter(true, H(1), IntPtr.Zero, false),
             "fenêtre au premier plan : prend le centre (pas déjà au centre, gérée, pas pendant un jeu sur cet écran)");
+        StageShapeTests(lines);
         var withBorders = StageLayout.WithBorders(R(100, 100, 900, 700), R(-7, 0, 807, 607), R(0, 0, 800, 600));
         Check(lines, withBorders.Left == 93 && withBorders.Top == 100 && withBorders.Right == 907 && withBorders.Bottom == 707,
             "bords invisibles de Windows 11 ajoutés autour de la partie visible");
@@ -252,5 +253,163 @@ internal static partial class SelfTest
                      && StageState.Plan(moved, true, 99, true, R(302, 38, 1401, 903)) == StageRestore.Nothing
                      && StageState.Plan(moved with { Placed = null }, true, 99, false, R(0, 0, 1, 1)) == StageRestore.Nothing,
             "fenêtre déplacée au centre : remise à sa place si elle n'a pas bougé depuis (4 px près) ; déplacée ou réduite par l'utilisateur = rien");
+        StageSwapTest(lines);
+    }
+
+    /// <summary>Échange animé (calculs purs) : courbe, rectangles, place finale, opacités, ordre des étapes.</summary>
+    private static void StageSwapTest(List<string> lines)
+    {
+        // Courbe : 0 → 1 exactement, toujours croissante, jamais au-delà (pas de rebond), départ vif et arrivée douce.
+        bool monotonic = true, bounded = true;
+        double previous = 0;
+        for (int i = 1; i <= 200; i++)
+        {
+            double p = StageSwapMotion.Progress(i / 200.0);
+            monotonic &= p >= previous - 1e-12;
+            bounded &= p <= 1 + 1e-12;
+            previous = p;
+        }
+        double lastStep = StageSwapMotion.Progress(1) - StageSwapMotion.Progress(0.95), firstHalf = StageSwapMotion.Progress(0.5);
+        Check(lines, StageSwapMotion.Progress(0) == 0 && Math.Abs(StageSwapMotion.Progress(1) - 1) < 1e-12 && monotonic && bounded
+                     && firstHalf > 0.8 && lastStep < 0.01 && StageSwapMotion.Progress(-1) == 0 && StageSwapMotion.Progress(2) == 1,
+            "échange : ressort amorti de 0 à 1, croissant, sans rebond, arrivée douce (moins de 1 % sur les derniers 5 %)");
+
+        // Trajectoire : départ = miniature de la colonne, arrivée = place finale EXACTE, rectangles intermédiaires entre les deux.
+        var slot = StageSwapMotion.Fit(R(24, 400, 192, 500), 16.0 / 9);
+        var final = R(220, 60, 1900, 1010);
+        var start = StageSwapMotion.Frame(slot, final, 0);
+        var end = StageSwapMotion.Frame(slot, final, 1);
+        var mid = StageSwapMotion.Frame(slot, final, 0.5);
+        bool between = mid.Left > slot.Left && mid.Left < final.Left && mid.Right > slot.Right && mid.Right < final.Right
+                       && mid.Bottom > slot.Bottom && mid.Bottom < final.Bottom;
+        Check(lines, Same(start, slot) && Same(end, final) && between && slot.Right - slot.Left == 168 && Math.Abs(slot.Bottom - slot.Top - 95) <= 1
+                     && slot.Top >= 400 && slot.Bottom <= 500,
+            "échange : l'image part de la miniature (au format de la fenêtre), finit à la place finale exacte, passe entre les deux");
+
+        // Place finale = place réelle visée : agrandie = zone de travail + bord invisible ; normale = partie visible centrée comme
+        // Place la vérifie (donc aucune correction après), et l'aller-retour repère de la zone de travail ↔ écran est exact.
+        var work = R(0, 0, 1920, 1032);
+        var max = StageSwapMotion.Maximized(work, 8);
+        var stage = StageLayout.StageArea(work, 1, true);
+        var borders = new Insets(7, 0, 7, 7);
+        var place = StageSwapMotion.NormalPlace(stage, 1214, 807, borders, true, false);
+        var visible = R(place.Left + 7, place.Top, place.Right - 7, place.Bottom - 7);
+        var expected = StageLayout.CenterPlace(stage, 1200, 800, true, false);
+        var offset = StageSwapMotion.DefaultWorkspaceOffset(R(0, 28, 1920, 1032), R(0, 0, 1920, 1080));
+        var filled = StageSwapMotion.NormalPlace(stage, 900, 600, borders, true, true);
+        Check(lines, Same(max, R(-8, -8, 1928, 1040)) && Same(visible, expected)
+                     && Same(StageSwapMotion.FromWorkspace(StageSwapMotion.ToWorkspace(place, offset), offset), place) && offset.X == 0 && offset.Y == 28
+                     && Same(R(filled.Left + 7, filled.Top, filled.Right - 7, filled.Bottom - 7), stage)
+                     && Insets.Between(R(10, 10, 110, 90), R(17, 10, 103, 83)) == new Insets(7, 0, 7, 7),
+            "échange : place finale = place visée (agrandie, centrée, remplie), aller-retour du repère de la zone de travail exact");
+
+        // Fenêtre qui part : en retrait (72 %) si la colonne reste, effacée si elle se cache ; fondu final jusqu'à 0.
+        byte keep = StageSwapMotion.LeavingOpacity(1, true), gone = StageSwapMotion.LeavingOpacity(1, false);
+        Check(lines, StageSwapMotion.LeavingOpacity(0, true) == 255 && keep == (byte)Math.Round(255 * StageShape.SwapLeavingOpacity) && gone == 0
+                     && StageSwapMotion.LeavingOpacity(0.5, true) > keep && StageSwapMotion.FadeOut(200, 0) == 200 && StageSwapMotion.FadeOut(200, 1) == 0
+                     && StageSwapMotion.FadeOut(200, 0.5) == 100
+                     && StageSwapMotion.Parking(R(24, 400, 192, 500), work).Right == 0,
+            "échange : fenêtre qui part en retrait (colonne visible) ou effacée vers le bord (colonne cachée), fondu final");
+
+        // Ordre des étapes : animation de Windows coupée d'abord, place réglée encore réduite, image posée AVANT de réduire l'ancienne,
+        // fenêtre rendue après l'animation et avant le fondu, animation de Windows remise en dernier.
+        var steps = StageSwapMotion.Steps(true, true).ToList();
+        int Index(StageSwapStep s) => steps.IndexOf(s);
+        var instant = StageSwapMotion.Steps(false, true);
+        var alone = StageSwapMotion.Steps(true, false);
+        Check(lines, Index(StageSwapStep.HoldSystemAnimation) == 0 && Index(StageSwapStep.PlaceChosen) < Index(StageSwapStep.ShowOverlay)
+                     && Index(StageSwapStep.ShowOverlay) < Index(StageSwapStep.MinimizeLeaving) && Index(StageSwapStep.MinimizeLeaving) < Index(StageSwapStep.Animate)
+                     && Index(StageSwapStep.Animate) < Index(StageSwapStep.RestoreChosen) && Index(StageSwapStep.RestoreChosen) < Index(StageSwapStep.UpdateColumn)
+                     && Index(StageSwapStep.UpdateColumn) < Index(StageSwapStep.FadeOverlay) && steps[^1] == StageSwapStep.ReleaseSystemAnimation
+                     && steps.Count(s => s == StageSwapStep.RestoreChosen) == 1
+                     && !instant.Contains(StageSwapStep.ShowOverlay) && !instant.Contains(StageSwapStep.Animate) && !instant.Contains(StageSwapStep.FadeOverlay)
+                     && instant[0] == StageSwapStep.HoldSystemAnimation && instant[^1] == StageSwapStep.ReleaseSystemAnimation
+                     && !alone.Contains(StageSwapStep.MinimizeLeaving),
+            "échange : ordre des étapes (animation de Windows coupée, place réglée réduite, image, réduction, animation, rendue une fois, colonne, fondu, remise)");
+        Check(lines, StageSwapMotion.Animated(true, false) && !StageSwapMotion.Animated(false, false) && !StageSwapMotion.Animated(true, true),
+            "échange : sans animation si Windows a coupé ses effets d'animation ou pendant un jeu sur cet écran");
+    }
+
+    private static bool Same(RECT a, RECT b) => a.Left == b.Left && a.Top == b.Top && a.Right == b.Right && a.Bottom == b.Bottom;
+
+    /// <summary>
+    /// Correctifs du 2026-11-01 (bugs signalés par l'utilisateur), avec des fenêtres SIMULÉES : vraies fenêtres d'appli ou non, attente
+    /// anti-clignotement de 300 ms, nos propres mouvements ignorés, agrandissement natif ou SetWindowPos, et Stage Manager jamais
+    /// démarré par un mode développeur. Aucune vraie fenêtre n'est lue, réduite ni déplacée.
+    /// </summary>
+    private static void StageShapeTests(List<string> lines)
+    {
+        const int WS_OVERLAPPEDWINDOW = 0x00CF0000; // barre de titre, bord redimensionnable, Réduire / Agrandir
+        const int WS_POPUP = unchecked((int)0x80000000);
+        const int WS_THICKFRAME = 0x00040000, WS_MINIMIZEBOX = 0x00020000, WS_MAXIMIZEBOX = 0x00010000, WS_SYSMENU = 0x00080000;
+        const int WS_CAPTION = 0x00C00000;
+        var app = new StageWindowShape("notepad", false, "Notepad", WS_OVERLAPPEDWINDOW, 0, false, false, R(100, 100, 1100, 800), true, false, 1.0);
+        bool real = StageLayout.Shape(app) == StageExclusion.None
+                    && StageLayout.Shape(app with { Scale = 2.0 }) == StageExclusion.None
+                    && StageLayout.Shape(app with { Minimized = true, OnScreen = false }) == StageExclusion.None // réduite : place normale
+                    // Discord / Spotify (Electron, CEF) : popup SANS barre de titre mais redimensionnable = vraie fenêtre.
+                    && StageLayout.Shape(app with { Process = "Discord", ClassName = "Chrome_WidgetWin_1",
+                        Style = WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU }) == StageExclusion.None;
+        Check(lines, real, "Stage Manager : vraie fenêtre d'appli gérée (normale, 200 %, réduite, Electron sans barre de titre)");
+
+        bool own = StageLayout.Shape(app with { Process = "DynamicIsland" }) == StageExclusion.Own
+                   && StageLayout.Shape(app with { Process = "dynamicisland" }) == StageExclusion.Own
+                   && StageLayout.Shape(app with { OwnProcess = true }) == StageExclusion.Own
+                   && StageLayout.IsOpaline("DynamicIsland", false) && !StageLayout.IsOpaline("DynamicIslandX", false);
+        Check(lines, own, "Stage Manager : TOUT processus « DynamicIsland » ignoré (rendus --snapshot / --self-test d'un dossier de compilation)");
+
+        bool invisible = StageLayout.Shape(app with { OnScreen = false }) == StageExclusion.Invisible           // rendu hors écran
+                         && StageLayout.Shape(app with { Cloaked = true }) == StageExclusion.Invisible
+                         && StageLayout.Shape(app with { ExStyle = 0x20 }) == StageExclusion.Invisible           // WS_EX_TRANSPARENT
+                         && StageLayout.Shape(app with { Bounds = R(0, 0, 180, 600) }) == StageExclusion.Invisible
+                         && StageLayout.Shape(app with { Bounds = R(0, 0, 600, 140) }) == StageExclusion.Invisible
+                         && StageLayout.Shape(app with { Bounds = R(0, 0, 300, 250), Scale = 2.0 }) == StageExclusion.Invisible; // < 200 × 150 DIP
+        Check(lines, invisible, "Stage Manager : fenêtres hors de tout écran, cloaked, transparentes ou plus petites que 200 × 150 ignorées");
+
+        bool popups = StageLayout.Shape(app with { ClassName = "#32770" }) == StageExclusion.Popup                   // boîte de dialogue
+                      && StageLayout.Shape(app with { OwnedByVisible = true }) == StageExclusion.Popup               // possédée
+                      && StageLayout.Shape(app with { ExStyle = 0x1 }) == StageExclusion.Popup                       // WS_EX_DLGMODALFRAME
+                      && StageLayout.Shape(app with { Style = WS_POPUP | WS_MINIMIZEBOX, Bounds = R(0, 0, 900, 600) }) == StageExclusion.Popup // menu / splash
+                      && StageLayout.Shape(app with { Style = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, Bounds = R(0, 0, 400, 300) }) == StageExclusion.Popup // petite fixe
+                      && StageLayout.Shape(app with { Style = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, Bounds = R(0, 0, 900, 600) }) == StageExclusion.None; // grande fixe : gérée (centrée)
+        var flags = new StageFlags(false, false, true, false, false, false, false, false);
+        bool excluded = StageLayout.Exclusion(flags with { Popup = true }) == StageExclusion.Popup
+                        && StageLayout.Exclusion(flags with { Invisible = true }) == StageExclusion.Invisible
+                        && StageLayout.Exclusion(flags with { Own = true, Popup = true }) == StageExclusion.Own;
+        Check(lines, popups && excluded, "Stage Manager : dialogue #32770, fenêtre possédée, cadre modal, popup sans barre de titre, petite fenêtre fixe = jamais au centre");
+
+        // Anti-clignotement : 300 ms au premier plan, dialogue possédé = rien, nos mouvements ignorés.
+        var t0 = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc);
+        IntPtr W(int v) => new(v);
+        StageForegroundDecision D(int ms, IntPtr fg, IntPtr root, bool listed = true, bool iconic = false, bool busy = false) =>
+            StageLayout.Foreground(new StageForegroundInput(W(5), t0, fg, root, listed, iconic, busy, t0.AddMilliseconds(ms)));
+        bool settle = D(0, W(5), W(5)) == StageForegroundDecision.Wait && D(290, W(5), W(5)) == StageForegroundDecision.Wait
+                      && D(300, W(5), W(5)) == StageForegroundDecision.Take
+                      && D(150, W(6), W(6)) == StageForegroundDecision.Restart // passage éclair (Alt+Tab) : on recompte pour la nouvelle
+                      && D(400, W(9), W(5)) == StageForegroundDecision.Ignore  // dialogue / menu possédé par la fenêtre : rien ne change
+                      && D(400, IntPtr.Zero, IntPtr.Zero) == StageForegroundDecision.Ignore
+                      && D(400, W(5), W(5), busy: true) == StageForegroundDecision.Wait   // pendant notre réorganisation
+                      && D(500, W(5), W(5), listed: false) == StageForegroundDecision.Wait && D(2100, W(5), W(5), listed: false) == StageForegroundDecision.Ignore
+                      && D(500, W(5), W(5), iconic: true) == StageForegroundDecision.Wait && D(2100, W(5), W(5), iconic: true) == StageForegroundDecision.Ignore;
+        bool busyRule = StageLayout.IsBusy(t0, t0.AddMilliseconds(450), false) && !StageLayout.IsBusy(t0.AddMilliseconds(450), t0.AddMilliseconds(450), false)
+                        && StageLayout.IsBusy(t0, default, true);
+        Check(lines, settle && busyRule,
+            "Stage Manager : une fenêtre prend le centre après 300 ms au premier plan seulement ; Alt+Tab = on recompte ; dialogue possédé = rien ; nos propres mouvements et l'échange ignorés");
+
+        // Agrandissement natif ou SetWindowPos.
+        bool modes = StageLayout.PlaceMode(true, true, true, true, false, true) == StagePlaceMode.Maximize
+                     && StageLayout.PlaceMode(true, true, true, true, true, false) == StagePlaceMode.Maximize   // déjà agrandie
+                     && StageLayout.PlaceMode(true, true, true, true, false, false) == StagePlaceMode.Fill      // pas au premier plan : pas d'activation
+                     && StageLayout.PlaceMode(true, true, true, false, false, true) == StagePlaceMode.Fill      // sans bouton Agrandir
+                     && StageLayout.PlaceMode(true, false, true, true, false, true) == StagePlaceMode.Fill      // colonne toujours visible
+                     && StageLayout.PlaceMode(false, true, true, true, false, true) == StagePlaceMode.Center
+                     && StageLayout.PlaceMode(true, true, false, true, false, true) == StagePlaceMode.Center    // non redimensionnable
+                     && StageLayout.NeedsResize(R(0, 0, 1000, 800), R(10, 10, 1010, 810)) == false
+                     && StageLayout.NeedsResize(R(0, 0, 1000, 800), R(0, 0, 900, 800));
+        Check(lines, modes, "Stage Manager : plein écran = agrandissement natif (colonne auto-masquée), SetWindowPos vers la scène sinon (une correction si l'appli change sa taille), non redimensionnable = centrée");
+
+        // Les modes développeur ne démarrent jamais Stage Manager (il réduirait les vraies fenêtres de l'utilisateur).
+        StageManager.Start(() => null);
+        Check(lines, App.DeveloperMode && !StageManager.IsOn, "Stage Manager : jamais démarré par --snapshot / --self-test (mode développeur)");
     }
 }

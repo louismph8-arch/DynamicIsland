@@ -5,7 +5,7 @@
 
   <!-- Bouton de navigation (colonne de gauche) : icône (Tag) + libellé -->
   <Style x:Key="NavButton" TargetType="RadioButton">
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     <Setter Property="Height" Value="{x:Static t:Sizes.NavItem}"/>
     <Setter Property="Margin" Value="{ui:Space 0,0,0,s1}"/>
     <Setter Property="Cursor" Value="Hand"/>
@@ -31,13 +31,13 @@
           </ui:SquircleBorder>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.HoverSubtle}"/>
-              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.HoverSubtle}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.Raised}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.Raised}"/>
               <Setter TargetName="Marker" Property="Opacity" Value="1"/>
-              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -54,21 +54,21 @@
   </Style>
   <Style x:Key="PageSubtitle" TargetType="TextBlock">
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     <Setter Property="TextWrapping" Value="Wrap"/>
     <Setter Property="Margin" Value="{ui:Space 0,0,0,s10}"/>
   </Style>
   <Style x:Key="GroupTitle" TargetType="TextBlock">
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     <Setter Property="Margin" Value="{ui:Space s2,s9,0,s4}"/>
   </Style>
 
   <!-- Carte d'un réglage : titre + description à gauche, contrôle à droite (à poser sur un ui:SquircleBorder) -->
   <Style x:Key="SettingCard" TargetType="Border">
-    <Setter Property="Background" Value="{x:Static t:Paint.Card}"/>
-    <Setter Property="BorderBrush" Value="{x:Static t:Paint.CardBorder}"/>
+    <Setter Property="Background" Value="{DynamicResource Paint.Card}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Paint.CardBorder}"/>
     <Setter Property="BorderThickness" Value="{x:Static t:Borders.Hairline}"/>
     <Setter Property="CornerRadius" Value="{x:Static t:Corners.L}"/>
     <Setter Property="Padding" Value="{ui:Space s9,s7}"/>
@@ -80,13 +80,13 @@
   </Style>
   <Style x:Key="CardDescription" TargetType="TextBlock">
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Footnote}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     <Setter Property="TextWrapping" Value="Wrap"/>
     <Setter Property="Margin" Value="{ui:Space 0,s1,0,0}"/>
   </Style>
   <Style x:Key="ValueText" TargetType="TextBlock">
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     <Setter Property="MinWidth" Value="62"/>
     <Setter Property="TextAlignment" Value="Right"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
@@ -95,7 +95,7 @@
 
   <!-- Bouton secondaire -->
   <Style x:Key="SettingsButton" TargetType="Button" BasedOn="{StaticResource RoundButton}">
-    <Setter Property="Background" Value="{x:Static t:Paint.Control}"/>
+    <Setter Property="Background" Value="{DynamicResource Paint.Control}"/>
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
     <Setter Property="Height" Value="{x:Static t:Sizes.Button}"/>
     <Setter Property="Padding" Value="{ui:Space s8,0}"/>
@@ -139,7 +139,7 @@
   <Style x:Key="CaptionButton" TargetType="Button">
     <Setter Property="Width" Value="{x:Static t:Sizes.CaptionButton}"/>
     <Setter Property="Height" Value="{x:Static t:Sizes.CaptionButtonHeight}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
     <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
@@ -152,8 +152,8 @@
           </ui:SquircleBorder>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Back" Property="Background" Value="{x:Static t:Paint.HoverSubtle}"/>
-              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+              <Setter TargetName="Back" Property="Background" Value="{DynamicResource Paint.HoverSubtle}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
             <MultiTrigger>
               <MultiTrigger.Conditions>
@@ -171,7 +171,7 @@
 
   <!-- Résultat de la recherche dans les paramètres (correctif 11) -->
   <Style x:Key="SearchResult" TargetType="Button">
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
     <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -184,10 +184,10 @@
           </ui:SquircleBorder>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Back" Property="Background" Value="{x:Static t:Paint.HoverSubtle}"/>
+              <Setter TargetName="Back" Property="Background" Value="{DynamicResource Paint.HoverSubtle}"/>
             </Trigger>
             <Trigger Property="IsDefault" Value="True">
-              <Setter TargetName="Back" Property="Background" Value="{x:Static t:Paint.Selected}"/>
+              <Setter TargetName="Back" Property="Background" Value="{DynamicResource Paint.Selected}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -200,15 +200,15 @@
     <Setter Property="Height" Value="{x:Static t:Sizes.Button}"/>
     <Setter Property="FontFamily" Value="{x:Static t:FontStack.Mono}"/>
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
-    <Setter Property="CaretBrush" Value="{x:Static t:Paint.White}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
+    <Setter Property="CaretBrush" Value="{DynamicResource Paint.TextPrimary}"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/>
     <Setter Property="MaxLength" Value="7"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="TextBox">
-          <ui:SquircleBorder x:Name="Bd" Background="{x:Static t:Paint.Control}" BorderBrush="{x:Static t:Paint.Selected}"
+          <ui:SquircleBorder x:Name="Bd" Background="{DynamicResource Paint.Control}" BorderBrush="{DynamicResource Paint.Selected}"
                              BorderThickness="{x:Static t:Borders.Hairline}" CornerRadius="{x:Static t:Corners.S}" Padding="{ui:Space s4,0}">
             <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
           </ui:SquircleBorder>
@@ -231,7 +231,7 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="TextBox">
-          <ui:SquircleBorder x:Name="Bd" Background="{x:Static t:Paint.Control}" BorderBrush="{x:Static t:Paint.Selected}"
+          <ui:SquircleBorder x:Name="Bd" Background="{DynamicResource Paint.Control}" BorderBrush="{DynamicResource Paint.Selected}"
                              BorderThickness="{x:Static t:Borders.Hairline}" CornerRadius="{x:Static t:Corners.M}" Padding="{ui:Space s13,0,s4,0}">
             <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
           </ui:SquircleBorder>
@@ -250,13 +250,13 @@
     <Setter Property="Height" Value="{x:Static t:Sizes.Button}"/>
     <Setter Property="FontFamily" Value="{x:Static t:FontStack.Mono}"/>
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
-    <Setter Property="CaretBrush" Value="{x:Static t:Paint.White}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
+    <Setter Property="CaretBrush" Value="{DynamicResource Paint.TextPrimary}"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="PasswordBox">
-          <ui:SquircleBorder x:Name="Bd" Background="{x:Static t:Paint.Control}" BorderBrush="{x:Static t:Paint.Selected}"
+          <ui:SquircleBorder x:Name="Bd" Background="{DynamicResource Paint.Control}" BorderBrush="{DynamicResource Paint.Selected}"
                              BorderThickness="{x:Static t:Borders.Hairline}" CornerRadius="{x:Static t:Corners.S}" Padding="{ui:Space s4,0}">
             <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
           </ui:SquircleBorder>
@@ -290,10 +290,10 @@
                   <Thumb.Template>
                     <ControlTemplate TargetType="Thumb">
                       <ui:SquircleBorder x:Name="Bar" Width="{x:Static t:Sizes.ScrollThumb}" CornerRadius="{x:Static t:Corners.Pill}"
-                                         Margin="{ui:Space 0,s2}" Background="{x:Static t:Paint.ScrollThumb}"/>
+                                         Margin="{ui:Space 0,s2}" Background="{DynamicResource Paint.ScrollThumb}"/>
                       <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                          <Setter TargetName="Bar" Property="Background" Value="{x:Static t:Paint.ScrollThumbHover}"/>
+                          <Setter TargetName="Bar" Property="Background" Value="{DynamicResource Paint.ScrollThumbHover}"/>
                         </Trigger>
                       </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -316,7 +316,7 @@
       <Setter.Value>
         <ControlTemplate TargetType="Slider">
           <Grid Height="{x:Static t:Sizes.SwitchHeight}" Background="Transparent">
-            <ui:SquircleBorder Height="{x:Static t:Sizes.Bar}" CornerRadius="{x:Static t:Corners.Pill}" Background="{x:Static t:Paint.Track}"
+            <ui:SquircleBorder Height="{x:Static t:Sizes.Bar}" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource Paint.Track}"
                                VerticalAlignment="Center"/>
             <Track x:Name="PART_Track" VerticalAlignment="Center">
               <Track.DecreaseRepeatButton>

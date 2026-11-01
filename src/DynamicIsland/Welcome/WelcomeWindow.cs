@@ -358,6 +358,7 @@ public sealed class WelcomeWindow : Window
         _preview.Child = content;
         // Refonte O1 : l'aperçu est maintenant donné par les trois cartes « verre opalin » (une petite île vivante chacune).
         page.Children.Add(OpalChoices());
+        page.Children.Add(ThemeChoices()); // refonte O2 : verre sombre / opale blanche / selon le soleil / comme Windows
 
         _swatches.HorizontalAlignment = HorizontalAlignment.Center;
         foreach (var (name, start, end) in Swatch.AccentPresets)
@@ -722,6 +723,7 @@ public sealed class WelcomeWindow : Window
             swatch.Background = selected ? Paint.SurfaceHover : Brushes.Transparent;
         }
         _wallpaperColorsToggle.IsChecked = look.AccentFromWallpaper;
+        ShowThemeChoice();
         _glassToggle.IsChecked = look.LiquidGlass && LiquidGlassEffect.IsAvailable;
         _preview.BorderBrush = new SolidColorBrush(AppearanceService.RimColor());
         AppearanceService.ApplyGlow(_previewGlow, Shadows.Island);
@@ -824,6 +826,57 @@ public sealed class WelcomeWindow : Window
             OpalStyle.Intense => (Loc.T("opal.style.intense"), Loc.T("opal.style.intense.description")),
             _ => (Loc.T("opal.style.balanced"), Loc.T("opal.style.balanced.description")),
         };
+    }
+
+    // ------------------------------------------------------------------ thème (O2)
+
+    private readonly List<(OpalThemeMode Mode, Button Chip)> _themeChoices = [];
+
+    /// <summary>Quatre pastilles : Sombre, Clair, Auto (soleil), Comme Windows — appliquées tout de suite, en douceur.</summary>
+    private FrameworkElement ThemeChoices()
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, Space.S5) };
+        var title = new TextBlock { Text = Loc.T("welcome.style.theme"), Style = (Style)FindResource("CardTitle"), TextWrapping = TextWrapping.Wrap };
+        title.Inlines.Add(new System.Windows.Documents.Run("  ·  " + Loc.T("welcome.style.theme.description")) { Foreground = Paint.TextSecondary, FontWeight = FontWeights.Normal });
+        panel.Children.Add(title);
+        var row = new WrapPanel { Margin = new Thickness(0, Space.S3, 0, 0) };
+        foreach (var (mode, glyph, key) in new[]
+        {
+            (OpalThemeMode.Dark, Icons.DarkMode, "opal.theme.dark"), (OpalThemeMode.Light, Icons.Brightness, "opal.theme.light"),
+            (OpalThemeMode.Auto, Icons.NightLight, "opal.theme.auto"), (OpalThemeMode.Windows, Icons.Monitor, "opal.theme.windows"),
+        })
+        {
+            var label = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+            label.Inlines.Add(new System.Windows.Documents.Run(glyph + "  ") { FontFamily = FontStack.Icons });
+            label.Inlines.Add(new System.Windows.Documents.Run(Loc.T(key)));
+            var chip = new Button
+            {
+                Style = (Style)FindResource("ChipButton"), Content = label, ToolTip = Loc.T(key + ".description"),
+                Margin = new Thickness(0, 0, Space.S3, Space.S2), Padding = new Thickness(Space.S6, 0, Space.S6, 0),
+            };
+            chip.Click += (_, _) =>
+            {
+                if (_snapshot || SettingsStore.Current.Appearance.OpalTheme == mode) return;
+                SettingsStore.Update(s => s.Appearance.OpalTheme = mode);
+            };
+            _themeChoices.Add((mode, chip));
+            row.Children.Add(chip);
+        }
+        panel.Children.Add(row);
+        ShowThemeChoice();
+        return panel;
+    }
+
+    /// <summary>Pastille du thème choisi en « inversé » (fond plein), les autres en voile discret.</summary>
+    private void ShowThemeChoice()
+    {
+        var mode = SettingsStore.Current.Appearance.OpalTheme;
+        foreach (var (choice, chip) in _themeChoices)
+        {
+            bool selected = choice == mode;
+            chip.Background = selected ? Paint.Inverse : Paint.Surface;
+            chip.Foreground = selected ? Paint.OnInverse : Paint.TextPrimary;
+        }
     }
 
     // ------------------------------------------------------------------ petits éléments

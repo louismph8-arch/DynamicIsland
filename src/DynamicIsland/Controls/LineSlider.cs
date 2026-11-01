@@ -18,7 +18,7 @@ public sealed class LineSlider : Grid
         Height = Sizes.Bar,
         Width = 0,
         CornerRadius = Corners.Pill,
-        Background = Paint.White,
+        Background = Paint.TextPrimary,
         HorizontalAlignment = HorizontalAlignment.Left,
         VerticalAlignment = VerticalAlignment.Center,
     };

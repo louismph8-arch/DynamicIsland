@@ -69,12 +69,14 @@ public partial class SettingsWindow : Window
         Services.Rgb.RgbService.Changed += ShowRgb;
         Services.Friends.FriendsService.Changed += OnFriendsChanged;
         Services.NightLight.NightLightService.Changed += ShowFocus;
+        Design.OpalShade.ThemeChanged += OnOpalThemeChanged; // opale blanche ↔ verre sombre : Mica et cadre suivent
         FocusService.Changed += ShowFocus;
         DynamicIsland.Plugins.PluginStore.Changed += ShowPlugins; // widget des potes installé ou retiré
         Closed += (_, _) =>
         {
             DynamicIsland.Plugins.PluginStore.Changed -= ShowPlugins;
             Services.NightLight.NightLightService.Changed -= ShowFocus;
+            Design.OpalShade.ThemeChanged -= OnOpalThemeChanged;
             FocusService.Changed -= ShowFocus;
             RemoteControl.Changed -= OnRemoteChanged;
             Services.Rgb.RgbService.Changed -= ShowRgb;
@@ -418,13 +420,22 @@ public partial class SettingsWindow : Window
             AppearanceColors.TryParse(look.WallpaperAccentEnd, out var end);
             WallpaperStartDot.Fill = Paint.Frozen(start);
             WallpaperEndDot.Fill = Paint.Frozen(end);
-            WallpaperSurfaceDot.Background = Paint.Frozen(AppearanceService.SurfaceBase);
+            WallpaperSurfaceDot.Background = Paint.Frozen(AppearanceService.SurfaceFor(Design.OpalShade.IsLight));
             WallpaperColorsText.Text = Loc.F("settings.wallpaper_colors.found", look.WallpaperAccentStart, look.WallpaperAccentEnd);
         }
         else if (on)
         {
             WallpaperColorsText.Text = Loc.T("settings.wallpaper_colors.reading");
         }
+        // Option coupée = couleur fixe : celle du profil actif, qui ne bouge plus quand le fond d'écran change.
+        FixedColorRow.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        if (!on)
+        {
+            FixedStartDot.Fill = Paint.Frozen(AppearanceService.AccentStart);
+            FixedEndDot.Fill = Paint.Frozen(AppearanceService.AccentEnd);
+            FixedColorText.Text = Loc.F("settings.fixed_color.active", ProfileService.Active?.Name ?? "");
+        }
+        ShowOpalTheme();
         AutoThemeDescription.Text = AutoThemeService.Describe() + " " + Loc.T("settings.auto_theme.restore");
         ShowCursorPreview();
         MarkSelectedSwatch(); // pas les champs : l'utilisateur est peut-être en train d'y taper
@@ -544,6 +555,15 @@ public partial class SettingsWindow : Window
     // ------------------------------------------------------------------ Mica
 
     /// <summary>Windows 11 22H2+ avec les effets de transparence activés.</summary>
+    /// <summary>Thème d'Opaline changé (refonte O2) : cadre DWM et Mica clairs ou sombres.</summary>
+    private void OnOpalThemeChanged()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        ApplyDarkRoundedFrame(hwnd);
+        ApplyBackdrop();
+    }
+
     private static bool BackdropSupported =>
         Environment.OSVersion.Version.Build >= 22621 &&
         Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "EnableTransparency", 1) is not 0;
@@ -556,7 +576,7 @@ public partial class SettingsWindow : Window
         bool mica = BackdropSupported && SettingsStore.Current.Appearance.SystemBackdrop;
 
         if (HwndSource.FromHwnd(hwnd)?.CompositionTarget is { } target)
-            target.BackgroundColor = mica ? Colors.Transparent : Swatch.Window;
+            target.BackgroundColor = mica ? Colors.Transparent : Design.OpalShade.Ink(InkRole.Window);
         Background = mica ? Brushes.Transparent : Paint.Window;
         NavPanel.Background = mica ? Paint.SidebarOverMica : Paint.Sidebar;
 

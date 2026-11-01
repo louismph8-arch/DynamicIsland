@@ -27,6 +27,12 @@ public partial class App : Application
     /// <summary>--snapshot --demo (7B) : contenu inventé (musique) pour les images publiées, rien du PC de l'utilisateur.</summary>
     public static bool SnapshotDemo { get; private set; }
 
+    /// <summary>
+    /// Modes développeur (--snapshot, --self-test, mesures, --design-demo) : rien qui touche aux fenêtres de l'utilisateur
+    /// (Stage Manager ne démarre jamais).
+    /// </summary>
+    public static bool DeveloperMode { get; private set; }
+
     /// <summary>Relancée par le gardien après un plantage (correctif urgent 1).</summary>
     private static bool _afterCrash;
 
@@ -112,6 +118,7 @@ public partial class App : Application
         if (_afterCrash) CrashWatch.AfterCrash(DateTime.UtcNow);
         // --design-demo (sans --snapshot) : la démo du verre opalin seule, pour les essais (réglages lus sans être réécrits).
         bool designDemo = !snapshotMode && e.Args.Contains("--design-demo");
+        DeveloperMode = snapshotMode || designDemo;
         if (snapshotMode || designDemo) Log.UseDeveloperFile();
         SnapshotDemo = snapshotMode && e.Args.Contains("--demo");
         Design.OpalBackdrop.SnapshotMode = snapshotMode; // rendus et mesures : le flou vient d'un fond du pack, jamais du vrai fond
@@ -757,6 +764,7 @@ public partial class App : Application
             await Notes.NoteEditorWindow.RenderSnapshotAsync(folder);
             await Stage.StageColumnWindow.RenderSnapshotAsync(Path.Combine(folder, "15-stage-colonne.png"));
             await Stage.StageHandleWindow.RenderSnapshotAsync(Path.Combine(folder, "15-stage-poignee.png"));
+            await Stage.StageSwapEffect.RenderSnapshotAsync(Path.Combine(folder, "15-stage-echange.png")); // image du milieu de l'échange
             await Design.OpalDemoWindow.RenderSnapshotAsync(folder);
         }
         catch (Exception ex)

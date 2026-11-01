@@ -16,14 +16,17 @@ public static class OpalPalette
     /// Trois teintes pâles autour de l'accent : teinte − décalage, accent, teinte + décalage (degrés, roue fermée), saturation
     /// réduite et luminosité remontée, puis mêlées de blanc (<paramref name="pale"/> de 0 à 1).
     /// </summary>
-    public static Color[] Iridescent(Color accent, double shift, double pale)
+    /// <param name="light">Opale blanche (0 → 1) : teintes un peu plus soutenues et moins claires, sinon elles disparaissent sur du blanc.</param>
+    public static Color[] Iridescent(Color accent, double shift, double pale, double light = 0)
     {
         var (h, s, v) = ColorTools.ToHsv(accent);
         var colors = new Color[3];
+        light = Math.Clamp(light, 0, 1);
         for (int i = 0; i < 3; i++)
         {
             double hue = ColorTools.Wrap(h + (i - 1) * shift);
-            var c = ColorTools.FromHsv(hue, Math.Min(s, 0.85) * (1 - pale * 0.5), Math.Max(v, 0.9));
+            double saturation = Math.Min(1, Math.Min(s, 0.85) * (1 - pale * 0.5) + 0.12 * light);
+            var c = ColorTools.FromHsv(hue, saturation, Math.Max(v, 0.9) - 0.16 * light);
             colors[i] = Mix(c, Colors.White, pale);
         }
         return colors;

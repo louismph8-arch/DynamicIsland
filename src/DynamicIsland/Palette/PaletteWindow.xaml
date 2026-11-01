@@ -7,7 +7,7 @@
         Width="720" Height="620"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False"
-        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource TextPrimary}">
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource Paint.TextPrimary}">
 
   <!-- La carte part de la taille de l'île (même place, même arrondi) et s'agrandit : la palette « sort » de l'île. -->
   <!-- L'ombre est sur ce conteneur : l'effet de la carte elle-même est le verre liquide. -->
@@ -28,20 +28,20 @@
           <TextBlock Text="{x:Static t:Icons.Search}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}"
                      Foreground="{DynamicResource AccentGradientBrush}" VerticalAlignment="Center"/>
           <TextBlock x:Name="Placeholder" Grid.Column="1" Margin="{ui:Space s7,0,0,0}" VerticalAlignment="Center" FontSize="{x:Static t:TypeRamp.Title2}"
-                     Foreground="{StaticResource TextTertiary}" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"
+                     Foreground="{DynamicResource Paint.TextTertiary}" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"
                      Text="{ui:L palette.apps_dossiers_15_80}"/>
           <TextBox x:Name="QueryBox" Grid.Column="1" Margin="{ui:Space s5,0,0,0}" VerticalAlignment="Center" FontSize="{x:Static t:TypeRamp.Title2}"
-                   Background="Transparent" BorderThickness="{x:Static t:Borders.None}" Foreground="{StaticResource TextPrimary}"
-                   CaretBrush="{x:Static t:Paint.White}" SelectionBrush="{DynamicResource AccentBrush}"
+                   Background="Transparent" BorderThickness="{x:Static t:Borders.None}" Foreground="{DynamicResource Paint.TextPrimary}"
+                   CaretBrush="{DynamicResource Paint.TextPrimary}" SelectionBrush="{DynamicResource AccentBrush}"
                    TextChanged="QueryBox_TextChanged"/>
         </Grid>
-        <Border Height="1" Background="{StaticResource DividerBrush}"/>
+        <Border Height="1" Background="{DynamicResource Paint.Divider}"/>
         <ScrollViewer x:Name="Scroller" MaxHeight="392" Margin="{ui:Space s4,s3,s4,0}"
                       VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
           <StackPanel x:Name="Results"/>
         </ScrollViewer>
         <TextBlock x:Name="Footer" Text="{ui:L palette.choisir_entree_valider_echap}" FontSize="{x:Static t:TypeRamp.Caption}"
-                   Foreground="{StaticResource TextTertiary}" HorizontalAlignment="Center" Margin="{ui:Space 0,s3,0,s5}"/>
+                   Foreground="{DynamicResource Paint.TextTertiary}" HorizontalAlignment="Center" Margin="{ui:Space 0,s3,0,s5}"/>
       </StackPanel>
     </Grid>
   </ui:SquircleBorder>

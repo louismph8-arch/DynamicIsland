@@ -46,6 +46,7 @@ internal static partial class SelfTest
             Run(lines, "Notes et texte ajouté au presse-papiers (en mémoire / dossier temporaire)", () => NotesAndClipText(lines));
             Run(lines, "Thèmes saisonniers", () => Seasons(lines));
             Run(lines, "Verre opalin (refonte O1) : réglage, reflets irisés, grain", () => OpalGlass(lines));
+            Run(lines, "Couleurs (refonte O2) : transitions, contraste, opale blanche", () => OpalColors(lines));
             Run(lines, "Bêta : versions, canal, avis, nouveautés", () => Beta(lines));
             Run(lines, "Automatisations", () => Automations(lines));
             Run(lines, "Ma semaine : statistiques locales", () => Stats(lines));

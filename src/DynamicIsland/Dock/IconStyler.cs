@@ -56,7 +56,7 @@ public static class IconStyler
                 var shape = SquircleGeometry.Create(tile, new CornerRadius(tile.Width * DockIconArt.TileRadius), Radius.Smoothing);
                 var fill = new LinearGradientBrush(DockIconArt.TileTop, DockIconArt.TileBottom, 90);
                 fill.Freeze();
-                dc.DrawGeometry(fill, new Pen(Paint.PopupBorder, Stroke.Selected), shape);
+                dc.DrawGeometry(fill, new Pen(Design.OpalShade.Frozen(InkRole.PopupBorder), Stroke.Selected), shape);
                 double inset = Size * (1 - DockIconArt.GlyphScale) / 2;
                 dc.DrawImage(glyph, new Rect(inset, inset, Size - 2 * inset, Size - 2 * inset));
             }

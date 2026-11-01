@@ -25,7 +25,11 @@ internal sealed record StageColumnGroup(string Key, string Name, ImageSource? Ic
 internal sealed class StageColumnWindow : Window
 {
     private readonly StackPanel _groups = new();
-    private readonly List<(IntPtr Thumbnail, FrameworkElement Area)> _thumbnails = [];
+    private readonly List<(IntPtr Thumbnail, FrameworkElement Area, IntPtr Window)> _thumbnails = [];
+    // Échange (7G) : miniature de la fenêtre qui s'envole cachée ; nouvelle miniature qui apparaît en fondu (fenêtre → début).
+    private IntPtr _hiddenWindow;
+    private readonly Dictionary<IntPtr, DateTime> _fades = [];
+    private System.Windows.Threading.DispatcherTimer? _fadeTimer;
     private readonly IntPtr _hwnd;
     private RECT _work;
     private double _scale = 1;
@@ -232,6 +236,9 @@ internal sealed class StageColumnWindow : Window
         }
     }
 
+    /// <summary>La colonne reste à l'écran (pas auto-masquée, ou montrée par la souris).</summary>
+    public bool StaysVisible => IsVisible && (!_autoHide || _revealed);
+
     /// <summary>Montre ces groupes sur l'écran dont voici la zone de travail ; aucun groupe = colonne cachée.</summary>
     public void ShowGroups(IReadOnlyList<StageColumnGroup> groups, RECT work, RECT bounds, double scale)
     {
@@ -408,7 +415,7 @@ internal sealed class StageColumnWindow : Window
             Child = icon == null ? null : new Image { Source = icon, Width = iconSize, Height = iconSize, Opacity = Interaction.DimmedOpacity },
         };
         if (!_snapshot && window.Handle != IntPtr.Zero && DwmRegisterThumbnail(_hwnd, window.Handle, out var thumbnail) == 0)
-            _thumbnails.Add((thumbnail, area));
+            _thumbnails.Add((thumbnail, area, window.Handle));
         return area;
     }
 
@@ -432,7 +439,8 @@ internal sealed class StageColumnWindow : Window
     {
         if (!IsVisible) return;
         double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        foreach (var (thumbnail, area) in _thumbnails)
+        var now = DateTime.UtcNow;
+        foreach (var (thumbnail, area, sourceWindow) in _thumbnails)
         {
             if (PresentationSource.FromVisual(area) == null) continue;
             var box = area.TransformToAncestor(this).TransformBounds(new Rect(area.RenderSize));
@@ -455,12 +463,50 @@ internal sealed class StageColumnWindow : Window
                     Right = (int)Math.Round(dest.Right * scale),
                     Bottom = (int)Math.Round(dest.Bottom * scale),
                 },
-                opacity = 255,
-                fVisible = 1,
+                opacity = ThumbOpacity(sourceWindow, now),
+                fVisible = sourceWindow == _hiddenWindow ? 0 : 1,
                 fSourceClientAreaOnly = 0,
             };
             DwmUpdateThumbnailProperties(thumbnail, ref properties);
         }
+    }
+
+    private byte ThumbOpacity(IntPtr window, DateTime now)
+    {
+        if (!_fades.TryGetValue(window, out var since)) return 255;
+        double f = (now - since).TotalSeconds * Math.Max(0.1, AppearanceService.Speed) / Motion.StageColumnFade.TotalSeconds;
+        return (byte)Math.Round(255 * Math.Clamp(f, 0, 1));
+    }
+
+    /// <summary>Échange : la miniature de cette fenêtre (celle qui s'envole vers le centre) n'est plus dessinée ici (pas de double).</summary>
+    public void HideThumbnailOf(IntPtr window)
+    {
+        _hiddenWindow = window;
+        UpdateThumbnails();
+    }
+
+    /// <summary>
+    /// Fin d'un échange, AVANT la mise à jour de la colonne : la miniature de cette fenêtre (celle qui vient du centre) apparaîtra
+    /// en fondu au lieu d'un coup ; la miniature cachée redevient normale.
+    /// </summary>
+    public void FadeInThumbnailOf(IntPtr window)
+    {
+        _hiddenWindow = IntPtr.Zero;
+        if (window == IntPtr.Zero) return;
+        _fades[window] = DateTime.UtcNow;
+        if (_fadeTimer == null)
+        {
+            _fadeTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _fadeTimer.Tick += (_, _) =>
+            {
+                var now = DateTime.UtcNow;
+                foreach (var done in _fades.Where(p => (now - p.Value) > Motion.StageColumnFade + Motion.StageColumnFade).Select(p => p.Key).ToList())
+                    _fades.Remove(done);
+                UpdateThumbnails();
+                if (_fades.Count == 0) _fadeTimer?.Stop();
+            };
+        }
+        _fadeTimer.Start();
     }
 
     /// <summary>
@@ -496,7 +542,7 @@ internal sealed class StageColumnWindow : Window
 
     private void ClearThumbnails()
     {
-        foreach (var (thumbnail, _) in _thumbnails) DwmUnregisterThumbnail(thumbnail);
+        foreach (var (thumbnail, _, _) in _thumbnails) DwmUnregisterThumbnail(thumbnail);
         _thumbnails.Clear();
     }
 

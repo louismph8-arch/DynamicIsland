@@ -13,13 +13,8 @@
   <x:Static x:Key="MonoFont" Member="t:FontStack.Mono"/>
 
   <!-- Brosses (noms historiques conservés) -->
-  <x:Static x:Key="TextPrimary" Member="t:Paint.TextPrimary"/>
-  <x:Static x:Key="TextSecondary" Member="t:Paint.TextSecondary"/>
-  <x:Static x:Key="TextTertiary" Member="t:Paint.TextTertiary"/>
-  <x:Static x:Key="TextFaint" Member="t:Paint.TextFaint"/>
-  <x:Static x:Key="SurfaceBrush" Member="t:Paint.Surface"/>
-  <x:Static x:Key="SurfaceHoverBrush" Member="t:Paint.SurfaceHover"/>
-  <x:Static x:Key="DividerBrush" Member="t:Paint.Divider"/>
+  <!-- Couleurs qui suivent le thème (refonte O2) : ressources « Paint.Nom » écrites par Design/OpalShade (DynamicResource).
+       Ne JAMAIS ranger ici une brosse modifiable de Paint (x:Static) : les ressources de l'app sont figées par WPF. -->
   <x:Static x:Key="TimerBrush" Member="t:Paint.Timer"/>
   <x:Static x:Key="TimerSoftBrush" Member="t:Paint.TimerSoft"/>
   <x:Static x:Key="TodayBrush" Member="t:Paint.Today"/>
@@ -38,7 +33,7 @@
 
   <!-- Bouton « pilule » de base : un voile de la couleur du texte apparaît au survol. -->
   <Style x:Key="RoundButton" TargetType="Button">
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="Padding" Value="0"/>
     <Setter Property="Cursor" Value="Hand"/>
@@ -95,7 +90,7 @@
   </Style>
 
   <Style x:Key="ChipButton" TargetType="Button" BasedOn="{StaticResource RoundButton}">
-    <Setter Property="Background" Value="{x:Static t:Paint.Surface}"/>
+    <Setter Property="Background" Value="{DynamicResource Paint.Surface}"/>
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Caption}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="Height" Value="{x:Static t:Sizes.Chip}"/>
@@ -104,7 +99,7 @@
 
   <Style x:Key="SoftButton" TargetType="Button" BasedOn="{StaticResource RoundButton}">
     <Setter Property="Background" Value="{x:Static t:Paint.TimerSoft}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.Timer}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TimerText}"/>
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="Height" Value="{x:Static t:Sizes.SoftButton}"/>
@@ -114,7 +109,7 @@
   <!-- Onglets de l'île : icône + libellé (seul l'onglet actif affiche son nom) -->
   <!-- Onglet en colonne (priorité 2, point 12) : l'icône seule, le nom dans l'infobulle et en titre au-dessus du contenu -->
   <Style x:Key="TabButtonIcon" TargetType="RadioButton">
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     <Setter Property="Width" Value="{x:Static t:Sizes.TabIcon}"/>
     <Setter Property="Height" Value="{x:Static t:Sizes.TabIcon}"/>
     <Setter Property="Margin" Value="{ui:Space 0,0,0,s1}"/>
@@ -129,12 +124,12 @@
           </ui:SquircleBorder>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.HoverSubtle}"/>
-              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.HoverSubtle}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.Selected}"/>
-              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.Selected}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -144,7 +139,7 @@
 
   <!-- Barre de défilement fine (onglets de l'île trop nombreux) : seulement le curseur, arrondi -->
   <ControlTemplate x:Key="ThinThumb" TargetType="Thumb">
-    <ui:SquircleBorder Background="{x:Static t:Paint.ScrollThumb}" CornerRadius="{x:Static t:Corners.Pill}"/>
+    <ui:SquircleBorder Background="{DynamicResource Paint.ScrollThumb}" CornerRadius="{x:Static t:Corners.Pill}"/>
   </ControlTemplate>
   <Style x:Key="ThinScrollBar" TargetType="ScrollBar">
     <Setter Property="Background" Value="Transparent"/>
@@ -179,7 +174,7 @@
   </Style>
 
   <Style x:Key="TabButton" TargetType="RadioButton">
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     <Setter Property="Height" Value="{x:Static t:Sizes.Tab}"/>
     <Setter Property="Margin" Value="{ui:Space 0,0,s2,0}"/>
     <Setter Property="Cursor" Value="Hand"/>
@@ -202,12 +197,12 @@
               <Setter TargetName="Icon" Property="Margin" Value="0"/>
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.HoverSubtle}"/>
-              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.HoverSubtle}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.Selected}"/>
-              <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.Selected}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -221,7 +216,7 @@
     <Setter Property="HasDropShadow" Value="False"/>
     <Setter Property="FontFamily" Value="{x:Static t:FontStack.Ui}"/>
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Body}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ContextMenu">
@@ -238,7 +233,7 @@
   </Style>
 
   <Style TargetType="MenuItem">
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
     <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="Template">
       <Setter.Value>
@@ -256,7 +251,7 @@
           </ui:SquircleBorder>
           <ControlTemplate.Triggers>
             <Trigger Property="IsHighlighted" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.Selected}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.Selected}"/>
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
               <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
@@ -274,7 +269,7 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Separator">
-          <Border Height="{x:Static t:Stroke.Hairline}" Margin="{ui:Space s4,s2}" Background="{x:Static t:Paint.Control}"/>
+          <Border Height="{x:Static t:Stroke.Hairline}" Margin="{ui:Space s4,s2}" Background="{DynamicResource Paint.Control}"/>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
@@ -282,28 +277,28 @@
 
   <!-- Carte de choix (fenêtre d'options) : titre = Content, description = Tag -->
   <Style x:Key="OptionCard" TargetType="RadioButton">
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
     <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
     <Setter Property="Margin" Value="{ui:Space 0,s4,0,0}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="RadioButton">
-          <ui:SquircleBorder x:Name="Bd" Background="{x:Static t:Paint.Surface}" BorderBrush="Transparent"
+          <ui:SquircleBorder x:Name="Bd" Background="{DynamicResource Paint.Surface}" BorderBrush="Transparent"
                              BorderThickness="{x:Static t:Borders.Selected}" CornerRadius="{x:Static t:Corners.L}" Padding="{ui:Space s7,s5}">
             <StackPanel>
               <ContentPresenter TextElement.FontSize="{x:Static t:TypeRamp.Headline}" TextElement.FontWeight="SemiBold"/>
               <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" FontSize="{x:Static t:TypeRamp.Footnote}"
-                         Foreground="{x:Static t:Paint.TextSecondary}" TextWrapping="Wrap" Margin="{ui:Space 0,s1,0,0}"/>
+                         Foreground="{DynamicResource Paint.TextSecondary}" TextWrapping="Wrap" Margin="{ui:Space 0,s1,0,0}"/>
             </StackPanel>
           </ui:SquircleBorder>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.SurfaceHover}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.SurfaceHover}"/>
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
               <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-              <Setter TargetName="Bd" Property="Background" Value="{x:Static t:Paint.SurfaceHover}"/>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.SurfaceHover}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -313,7 +308,7 @@
 
   <!-- Interrupteur façon iOS -->
   <Style x:Key="SwitchToggle" TargetType="CheckBox">
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
     <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
     <Setter Property="Template">
@@ -326,7 +321,7 @@
             </Grid.ColumnDefinitions>
             <ContentPresenter VerticalAlignment="Center" Margin="{ui:Space 0,0,s8,0}" TextElement.FontSize="{x:Static t:TypeRamp.Body}"/>
             <ui:SquircleBorder x:Name="Track" Grid.Column="1" Width="{x:Static t:Sizes.SwitchWidth}" Height="{x:Static t:Sizes.SwitchHeight}"
-                               CornerRadius="{x:Static t:Corners.Pill}" Background="{x:Static t:Paint.ToggleOff}">
+                               CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource Paint.ToggleOff}">
               <Ellipse x:Name="Knob" Width="{x:Static t:Sizes.SwitchKnob}" Height="{x:Static t:Sizes.SwitchKnob}"
                        Fill="{x:Static t:Paint.White}" HorizontalAlignment="Left" Margin="{ui:Space s1,0}"/>
             </ui:SquircleBorder>
@@ -344,7 +339,7 @@
 
   <!-- Tuile du centre de contrôle (blanche quand elle est active) -->
   <Style x:Key="TileToggle" TargetType="ToggleButton">
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextPrimary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
     <!-- Verre opalin (O1) : tuile laiteuse teintée d'accent, bordure irisée, lueur au survol -->
     <Setter Property="Background" Value="{DynamicResource OpalTileBrush}"/>
     <Setter Property="o:OpalTile.Glow" Value="True"/>
@@ -365,8 +360,8 @@
           </Grid>
           <ControlTemplate.Triggers>
             <Trigger Property="IsChecked" Value="True">
-              <Setter Property="Background" Value="{x:Static t:Paint.Inverse}"/>
-              <Setter Property="Foreground" Value="{x:Static t:Paint.Ink}"/>
+              <Setter Property="Background" Value="{DynamicResource Paint.Inverse}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Paint.OnInverse}"/>
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Overlay" Property="Opacity" Value="{x:Static t:Interaction.SubtleHoverOverlay}"/>
@@ -399,16 +394,16 @@
   </Style>
   <Style x:Key="Text.Secondary" TargetType="TextBlock">
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Footnote}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextSecondary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
   </Style>
   <Style x:Key="Text.Caption" TargetType="TextBlock">
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Caption}"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextTertiary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextTertiary}"/>
   </Style>
   <Style x:Key="Text.Overline" TargetType="TextBlock">
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Caption2}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
-    <Setter Property="Foreground" Value="{x:Static t:Paint.TextTertiary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Paint.TextTertiary}"/>
   </Style>
   <Style x:Key="Icon" TargetType="TextBlock">
     <Setter Property="FontFamily" Value="{x:Static t:FontStack.Icons}"/>

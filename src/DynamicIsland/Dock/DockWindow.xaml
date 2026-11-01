@@ -7,7 +7,7 @@
         Width="1920" Height="170" Left="0" Top="0"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False" ShowActivated="False"
-        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource TextPrimary}">
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource Paint.TextPrimary}">
 
   <!-- Fenêtre transparente sur toute la largeur de son écran : seul le dock capte la souris. Les alignements « Bottom »
        passent à « Top » quand le dock est en haut de l'écran (ApplyAppearance). -->
@@ -26,7 +26,7 @@
           <DropShadowEffect x:Name="DockShadow" Direction="{x:Static t:Shadows.Direction}" RenderingBias="Performance"/>
         </Grid.Effect>
         <ui:SquircleBorder x:Name="DockBackground" Height="68" VerticalAlignment="Bottom" CornerRadius="{x:Static t:Corners.Window}"
-                Background="{DynamicResource IslandBrush}" BorderBrush="{x:Static t:Paint.Control}" BorderThickness="{x:Static t:Borders.Hairline}"/>
+                Background="{DynamicResource IslandBrush}" BorderBrush="{DynamicResource Paint.Control}" BorderThickness="{x:Static t:Borders.Hairline}"/>
       </Grid>
 
       <StackPanel x:Name="ItemsPanel" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="{ui:Space s5,0}"/>
@@ -38,8 +38,8 @@
 
     <!-- Nom de l'appli au survol -->
     <Canvas IsHitTestVisible="False">
-      <ui:SquircleBorder x:Name="NameLabel" Opacity="0" Background="{x:Static t:Paint.LabelBackground}" CornerRadius="{x:Static t:Corners.S}" Padding="{ui:Space s5,s2}"
-              BorderBrush="{x:Static t:Paint.Control}" BorderThickness="{x:Static t:Borders.Hairline}">
+      <ui:SquircleBorder x:Name="NameLabel" Opacity="0" Background="{DynamicResource Paint.LabelBackground}" CornerRadius="{x:Static t:Corners.S}" Padding="{ui:Space s5,s2}"
+              BorderBrush="{DynamicResource Paint.Control}" BorderThickness="{x:Static t:Borders.Hairline}">
         <TextBlock x:Name="NameText" FontSize="{x:Static t:TypeRamp.Callout}" FontWeight="SemiBold"/>
       </ui:SquircleBorder>
     </Canvas>

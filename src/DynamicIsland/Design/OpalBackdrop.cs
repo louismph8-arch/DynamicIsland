@@ -1,4 +1,5 @@
 using System.IO;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using DynamicIsland.Services;
@@ -79,7 +80,7 @@ public static class OpalBackdrop
         Task.Run(() =>
         {
             var blurred = OpalPalette.Blurred(Load(path), look.Blur, look.Vibrancy);
-            return (blurred, Brightness(blurred));
+            return (blurred, Measure(blurred));
         }).ContinueWith(task => dispatcher.BeginInvoke(() =>
         {
             _busy = false;
@@ -90,7 +91,7 @@ public static class OpalBackdrop
             }
             else
             {
-                Luminance = task.Result.Item2;
+                (Luminance, Brightest, Darkest) = task.Result.Item2;
                 Publish(task.Result.blurred);
             }
             if (_again)
@@ -111,13 +112,47 @@ public static class OpalBackdrop
         return look.Smoke + (1 - look.Smoke) * boost;
     }
 
-    private static double Brightness(BitmapSource image)
+    /// <summary>
+    /// Couleur moyenne du quart le plus clair de la copie floutée (pire cas pour un texte blanc sur le verre sombre) et du quart
+    /// le plus sombre (pire cas pour un texte sombre sur l'opale blanche) : le voile est réglé pour que le texte reste lisible
+    /// même là (refonte O2). Blanc / noir tant que rien n'est mesuré.
+    /// </summary>
+    public static Color Brightest { get; private set; } = Colors.White;
+    public static Color Darkest { get; private set; } = Colors.Black;
+
+    /// <summary>Luminosité moyenne, quart le plus clair et quart le plus sombre (hors du thread de l'interface).</summary>
+    internal static (double Mean, Color Bright, Color Dark) Measure(BitmapSource image)
     {
         var pixels = new byte[image.PixelWidth * image.PixelHeight * 4];
         image.CopyPixels(pixels, image.PixelWidth * 4, 0);
+        return Measure(pixels);
+    }
+
+    /// <summary>Même mesure sur des pixels BGRA (calcul pur, testé par --self-test).</summary>
+    internal static (double Mean, Color Bright, Color Dark) Measure(byte[] bgra)
+    {
+        int count = bgra.Length / 4;
+        if (count == 0) return (0, Colors.White, Colors.Black);
+        var lum = new double[count];
         double sum = 0;
-        for (int i = 0; i < pixels.Length; i += 4) sum += 0.0722 * pixels[i] + 0.7152 * pixels[i + 1] + 0.2126 * pixels[i + 2];
-        return pixels.Length == 0 ? 0 : sum / (pixels.Length / 4) / 255;
+        for (int i = 0; i < count; i++)
+        {
+            lum[i] = (0.0722 * bgra[i * 4] + 0.7152 * bgra[i * 4 + 1] + 0.2126 * bgra[i * 4 + 2]) / 255;
+            sum += lum[i];
+        }
+        var sorted = (double[])lum.Clone();
+        Array.Sort(sorted);
+        int quarter = Math.Max(1, count / 4);
+        double low = sorted[quarter - 1], high = sorted[count - quarter];
+        double br = 0, bg = 0, bb = 0, dr = 0, dg = 0, db = 0;
+        int bn = 0, dn = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (lum[i] >= high) { bb += bgra[i * 4]; bg += bgra[i * 4 + 1]; br += bgra[i * 4 + 2]; bn++; }
+            if (lum[i] <= low) { db += bgra[i * 4]; dg += bgra[i * 4 + 1]; dr += bgra[i * 4 + 2]; dn++; }
+        }
+        static byte B(double v) => (byte)Math.Clamp(Math.Round(v), 0, 255);
+        return (sum / count, Color.FromRgb(B(br / bn), B(bg / bn), B(bb / bn)), Color.FromRgb(B(dr / dn), B(dg / dn), B(db / dn)));
     }
 
     private static void Publish(BitmapSource? image)

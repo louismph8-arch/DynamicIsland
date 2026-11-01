@@ -17,26 +17,26 @@
     </ScrollViewer>
 
     <StackPanel x:Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center">
-      <TextBlock Text="{x:Static t:Icons.Shelf}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XXL}" Foreground="{StaticResource TextTertiary}"
+      <TextBlock Text="{x:Static t:Icons.Shelf}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XXL}" Foreground="{DynamicResource Paint.TextTertiary}"
                  HorizontalAlignment="Center"/>
       <TextBlock Text="{ui:L shelf.etagere_vide}" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="{ui:Space 0,s4,0,0}"/>
       <TextBlock Text="{ui:L shelf.glisse_fichiers_ile_garder}" FontSize="{x:Static t:TypeRamp.Footnote}"
-                 Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" Margin="{ui:Space 0,s1,0,0}"/>
+                 Foreground="{DynamicResource Paint.TextSecondary}" HorizontalAlignment="Center" Margin="{ui:Space 0,s1,0,0}"/>
     </StackPanel>
 
     <!-- Zone de dépôt (pendant qu'on glisse des fichiers sur l'île) -->
     <ui:SquircleBorder x:Name="DropHint" Grid.RowSpan="2" CornerRadius="{x:Static t:Corners.XL}" BorderThickness="{x:Static t:Borders.Focus}" BorderBrush="{DynamicResource AccentBrush}"
-            Background="{x:Static t:Paint.Card}" Opacity="0" IsHitTestVisible="False">
+            Background="{DynamicResource Paint.Card}" Opacity="0" IsHitTestVisible="False">
       <TextBlock Text="{ui:L shelf.depose_garder_etagere}" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold"
                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
     </ui:SquircleBorder>
 
     <Grid x:Name="Footer" Grid.Row="1" Margin="{ui:Space s1,s2,0,0}">
-      <TextBlock x:Name="CountText" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"/>
+      <TextBlock x:Name="CountText" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{DynamicResource Paint.TextSecondary}" VerticalAlignment="Center"/>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
         <!-- « Envoyer au téléphone » (7E) : déposer une tuile ici la propose sur la page de la télécommande -->
         <ui:SquircleBorder x:Name="PhoneDrop" CornerRadius="{x:Static t:Corners.Pill}" Height="22" Padding="{ui:Space s5,0}" Margin="{ui:Space 0,0,s3,0}"
-                           Background="{StaticResource SurfaceBrush}" BorderThickness="{x:Static t:Borders.Hairline}" BorderBrush="Transparent"
+                           Background="{DynamicResource Paint.Surface}" BorderThickness="{x:Static t:Borders.Hairline}" BorderBrush="Transparent"
                            AllowDrop="True" Cursor="Hand" Visibility="Collapsed" ToolTip="{ui:L shelf.phone.tip}"
                            DragEnter="PhoneDrop_DragEnter" DragOver="PhoneDrop_DragEnter" DragLeave="PhoneDrop_DragLeave" Drop="PhoneDrop_Drop"
                            MouseLeftButtonUp="PhoneDrop_Click">
@@ -45,7 +45,7 @@
             <TextBlock x:Name="PhoneDropText" FontSize="{x:Static t:TypeRamp.Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/>
           </StackPanel>
         </ui:SquircleBorder>
-        <ui:SquircleBorder x:Name="DragAllHandle" CornerRadius="{x:Static t:Corners.Pill}" Height="22" Padding="{ui:Space s5,0}" Background="{StaticResource SurfaceBrush}"
+        <ui:SquircleBorder x:Name="DragAllHandle" CornerRadius="{x:Static t:Corners.Pill}" Height="22" Padding="{ui:Space s5,0}" Background="{DynamicResource Paint.Surface}"
                 Cursor="SizeAll" MouseLeftButtonDown="DragAll_MouseDown" MouseMove="DragAll_MouseMove">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <TextBlock Text="{x:Static t:Icons.Move}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}"/>

@@ -103,8 +103,10 @@ public sealed class ClockWidget : DesktopWidget
         if (day + line == _shown) return;
         _shown = day + line;
         Fill(_day, day, Desk.ClockDay, FontWeights.Bold, Desk.ClockDayTracking, Paint.White);
-        Fill(_line, line, Desk.ClockLine, FontWeights.SemiBold, Desk.ClockLineTracking, Paint.TextMuted);
+        Fill(_line, line, Desk.ClockLine, FontWeights.SemiBold, Desk.ClockLineTracking, ClockLineBrush); // posé sur le fond d'écran : blanc, même en opale blanche
     }
+
+    private static readonly Brush ClockLineBrush = Paint.Frozen(InkPalette.Dark[(int)InkRole.TextMuted]);
 
     /// <summary>WPF n'a pas d'espacement des lettres : une lettre par TextBlock.</summary>
     private static void Fill(Panel panel, string text, double size, FontWeight weight, double tracking, Brush brush)
@@ -130,8 +132,8 @@ public sealed class WeatherWidget : DesktopWidget
 {
     private readonly WeatherService _weather;
     private readonly TextBlock _city = Text("", TypeRamp.Footnote, Paint.TextSecondary, FontWeights.SemiBold);
-    private readonly TextBlock _symbol = Glyph(Icons.WeatherCloud, IconSize.Huge, Paint.White);
-    private readonly TextBlock _temperature = Text("—", Desk.WeatherTemperature, Paint.White, FontWeights.Light);
+    private readonly TextBlock _symbol = Glyph(Icons.WeatherCloud, IconSize.Huge, Paint.TextPrimary);
+    private readonly TextBlock _temperature = Text("—", Desk.WeatherTemperature, Paint.TextPrimary, FontWeights.Light);
     private readonly TextBlock _description = Text("", TypeRamp.Body, Paint.TextPrimary, FontWeights.SemiBold);
     private readonly TextBlock _range = Text("", TypeRamp.Footnote, Paint.TextSecondary);
 
@@ -195,7 +197,7 @@ public sealed class MusicWidget : DesktopWidget
     private readonly MediaService _media;
     private readonly SquircleBorder _cover = new() { Width = Desk.MusicCover, Height = Desk.MusicCover, CornerRadius = Corners.XL, Background = Paint.Surface };
     private readonly TextBlock _placeholder = Glyph(Icons.Music, IconSize.XXL, Paint.TextTertiary);
-    private readonly TextBlock _title = Text("", TypeRamp.Title3, Paint.White, FontWeights.SemiBold);
+    private readonly TextBlock _title = Text("", TypeRamp.Title3, Paint.TextPrimary, FontWeights.SemiBold);
     private readonly TextBlock _artist = Text("", TypeRamp.Footnote, Paint.TextSecondary);
     private readonly Button _play;
 
@@ -250,7 +252,7 @@ public sealed class MusicWidget : DesktopWidget
 /// <summary>Mois en cours, aujourd'hui entouré de la couleur d'accent.</summary>
 public sealed class CalendarWidget : DesktopWidget
 {
-    private readonly TextBlock _month = Text("", TypeRamp.Headline, Paint.White, FontWeights.SemiBold);
+    private readonly TextBlock _month = Text("", TypeRamp.Headline, Paint.TextPrimary, FontWeights.SemiBold);
     private readonly UniformGrid _days = new() { Columns = 7, Rows = 6 };
     private DateTime _shown;
 

@@ -32,12 +32,12 @@
       <UniformGrid x:Name="DaysGrid" Grid.Row="2" Columns="7" Rows="6"/>
     </Grid>
 
-    <Border Grid.Column="1" Width="1" Margin="{ui:Space 0,s2}" HorizontalAlignment="Center" Background="{StaticResource DividerBrush}"/>
+    <Border Grid.Column="1" Width="1" Margin="{ui:Space 0,s2}" HorizontalAlignment="Center" Background="{DynamicResource Paint.Divider}"/>
 
     <!-- Minuteur -->
     <Grid Grid.Column="2">
       <StackPanel x:Name="TimerPanel" VerticalAlignment="Center">
-        <TextBlock x:Name="PhaseText" Text="{ui:L calendar.minuteur}" FontSize="{x:Static t:TypeRamp.Caption2}" FontWeight="SemiBold" Foreground="{StaticResource TextTertiary}"
+        <TextBlock x:Name="PhaseText" Text="{ui:L calendar.minuteur}" FontSize="{x:Static t:TypeRamp.Caption2}" FontWeight="SemiBold" Foreground="{DynamicResource Paint.TextTertiary}"
                    HorizontalAlignment="Center"/>
 
         <!-- Hauteur fixe : « 1:30:00 » s'écrit un peu plus petit sans faire bouger le reste -->
@@ -67,7 +67,7 @@
 
       <!-- Durée « Perso » (correctif 19) : heures / minutes / secondes avec − / + et la molette (l'île ne prend jamais le clavier) -->
       <StackPanel x:Name="CustomPanel" VerticalAlignment="Center" Visibility="Collapsed">
-        <TextBlock Text="{ui:L timer.custom.title}" FontSize="{x:Static t:TypeRamp.Caption2}" FontWeight="SemiBold" Foreground="{StaticResource TextTertiary}"
+        <TextBlock Text="{ui:L timer.custom.title}" FontSize="{x:Static t:TypeRamp.Caption2}" FontWeight="SemiBold" Foreground="{DynamicResource Paint.TextTertiary}"
                    HorizontalAlignment="Center"/>
         <Grid x:Name="CustomCounters" HorizontalAlignment="Center" Margin="{ui:Space 0,s3,0,0}" Background="Transparent"
               MouseWheel="CustomCounters_MouseWheel"/>

@@ -38,11 +38,13 @@ public static class StageManager
     /// <summary>Relevé de la souris pour l'auto-masquage (seulement mode allumé + option + une colonne à montrer).</summary>
     private static readonly TimeSpan EdgeInterval = TimeSpan.FromMilliseconds(60);
 
-    private const uint GA_ROOTOWNER = 3;
     private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_FRAMECHANGED = 0x0020;
     private const uint SWP_ASYNCWINDOWPOS = 0x4000;
     private const int SW_SHOWNOACTIVATE = 4;
-    private static readonly TimeSpan VerifyDelay = TimeSpan.FromMilliseconds(260);
+    private static readonly TimeSpan VerifyDelay = TimeSpan.FromMilliseconds(300);
+    /// <summary>Relevé du premier plan pendant l'attente anti-clignotement (seulement tant qu'une fenêtre attend).</summary>
+    private static readonly TimeSpan SettleInterval = TimeSpan.FromMilliseconds(100);
 
     /// <summary>Fenêtre touchée par nous : sa place d'avant et ce qu'on en a fait.</summary>
     private sealed class Touched
@@ -53,13 +55,20 @@ public static class StageManager
         public bool Minimized;
         public RECT? Placed;
         public string? Screen;
+        /// <summary>Bords invisibles mesurés quand elle était affichée (normale) : sa place exacte après un échange.</summary>
+        public Insets? Borders;
     }
 
     private static Func<IslandWindow?>? _island;
     private static bool _started, _active, _swapping;
     private static WindowTracker? _tracker;
     private static DispatcherTimer? _debounce;
-    private static IntPtr _pendingCenter;
+    // Anti-clignotement (correctif du 2026-11-01) : la fenêtre au premier plan attend 300 ms avant de prendre le centre ; nos propres
+    // mouvements (réduire, rendre, déplacer) rendent Stage Manager « occupé » un instant (leurs événements sont ignorés).
+    private static DispatcherTimer? _settle;
+    private static IntPtr _candidate;
+    private static DateTime _candidateSince;
+    private static DateTime _busyUntil;
     private static HashSet<IntPtr> _known = [];
     private static readonly Dictionary<IntPtr, Touched> TouchedWindows = [];
     private static readonly Dictionary<string, IntPtr> Centers = [];
@@ -89,6 +98,8 @@ public static class StageManager
     public static void Start(Func<IslandWindow?> island)
     {
         if (_started) return;
+        // Rendus --snapshot, --self-test, mesures, démo : JAMAIS de Stage Manager (il réduirait les vraies fenêtres de l'utilisateur).
+        if (App.DeveloperMode) return;
         _started = true;
         _island = island;
         SettingsStore.Changed += Apply;
@@ -139,10 +150,11 @@ public static class StageManager
         _autoHideApplied = AutoHide;
         foreach (var hider in Hiders.Values) hider.Reset();
         var monitors = Monitors();
+        var foreground = GetForegroundWindow();
         foreach (var (screen, center) in Centers.ToList())
             if (IsWindow(center) && !IsIconic(center) && monitors.FirstOrDefault(m => m.Device == screen) is { Device: not null } monitor
                 && !GamingMode.IsOnMonitor(monitor.Handle))
-                Place(center, monitor);
+                Place(center, monitor, canActivate: center == foreground);
         UpdateColumns();
         Log.Info($"Stage Manager : colonne {(AutoHide ? "cachée automatiquement" : "toujours affichée")}");
     }
@@ -160,6 +172,10 @@ public static class StageManager
             _debounce?.Stop();
             Refresh();
         };
+        _settle = new DispatcherTimer { Interval = SettleInterval };
+        _settle.Tick += (_, _) => Guarded.Run(OnSettleTick, "Stage Manager : premier plan");
+        _candidate = IntPtr.Zero;
+        _busyUntil = default;
         _tracker = new WindowTracker();
         _tracker.Changed += Schedule;
         _tracker.ForegroundChanged += OnForeground;
@@ -173,9 +189,14 @@ public static class StageManager
 
     private static void Deactivate()
     {
+        StageSwapEffect.CompleteCurrent(); // échange en cours : terminé tout de suite (fenêtre rendue) avant de tout remettre
+        _animationHolds = 0;
+        RestoreSystemAnimation();
         _active = false;
         _swapping = false;
-        _pendingCenter = IntPtr.Zero;
+        _candidate = IntPtr.Zero;
+        _settle?.Stop();
+        _settle = null;
         _debounce?.Stop();
         _debounce = null;
         if (_tracker != null)
@@ -298,7 +319,7 @@ public static class StageManager
     {
         if (_tracker == null) return;
         var monitors = Monitors();
-        var foreground = Root(GetForegroundWindow());
+        var foreground = StageWindows.VisibleRoot(GetForegroundWindow());
         var windows = _tracker.Windows.Where(Manageable).ToList();
         foreach (var w in windows) if (!Recent.Contains(w.Handle)) Recent.Add(w.Handle); // ordre d'empilement = ordre d'utilisation
         if (foreground != IntPtr.Zero && windows.Any(w => w.Handle == foreground)) MarkRecent(foreground);
@@ -310,7 +331,7 @@ public static class StageManager
             if (mine.Count == 0) continue;
             var center = mine.FirstOrDefault(w => w.Handle == foreground) ?? mine[0];
             Centers[monitor.Device] = center.Handle;
-            Place(center.Handle, monitor);
+            Place(center.Handle, monitor, canActivate: center.Handle == foreground);
             foreach (var other in mine.Where(w => w.Handle != center.Handle)) MinimizeOurs(other.Handle, monitor.Device);
             if (mine.Count > 1) FlashColumn(monitor.Device); // au démarrage du mode : montrer où sont parties les autres fenêtres
         }
@@ -332,50 +353,81 @@ public static class StageManager
         var released = TouchedWindows.Where(t => t.Value.Minimized && current.FirstOrDefault(w => w.Handle == t.Key) is { } w && !Manageable(w)).ToList();
         if (released.Count > 0)
         {
+            MarkBusy();
             StageState.Restore(released.Select(p => Entry(p.Key, p.Value)));
             foreach (var (h, _) in released) TouchedWindows.Remove(h);
         }
 
-        var monitors = Monitors();
-        if (_pendingCenter != IntPtr.Zero && IsWindow(_pendingCenter) && !IsIconic(_pendingCenter))
-        {
-            var pending = _pendingCenter;
-            _pendingCenter = IntPtr.Zero;
-            if (current.FirstOrDefault(w => w.Handle == pending) is { } window && Manageable(window)) TakeCenter(window, monitors);
-        }
-        // Nouvelle fenêtre (pas réduite) : elle prend le centre de son écran, l'ancienne part dans la colonne.
-        foreach (var window in current.Where(w => !_known.Contains(w.Handle) && !w.IsMinimized))
-            if (Manageable(window)) TakeCenter(window, monitors);
+        // Une nouvelle fenêtre ne prend PAS le centre d'office (correctif du 2026-11-01 : les rendus hors écran d'un autre processus,
+        // les écrans de démarrage, les fenêtres ouvertes en arrière-plan la prenaient) : seulement si elle passe au premier plan et y
+        // reste (OnForeground → OnSettleTick). Si elle est déjà au premier plan, on (re)lance l'attente.
+        if (current.Any(w => !_known.Contains(w.Handle) && !w.IsMinimized)) NoteForeground();
         _known = handles;
         SaveState();
         UpdateColumns();
     }
 
+    /// <summary>Nos propres SW_MINIMIZE / SW_RESTORE / SetWindowPos : leurs événements (premier plan, liste) sont ignorés un instant.</summary>
+    private static void MarkBusy()
+    {
+        var until = DateTime.UtcNow + StageLayout.BusyTime;
+        if (until > _busyUntil) _busyUntil = until;
+    }
+
+    /// <summary>
+    /// Premier plan changé : on note la fenêtre (sa racine visible) et on attend qu'elle y reste 300 ms (<see cref="OnSettleTick"/>) ;
+    /// rien ne bouge tout de suite (anti-clignotement, dialogues, nos propres mouvements).
+    /// </summary>
     private static void OnForeground()
     {
-        if (!_active || _tracker == null) return;
-        if (_swapping) return; // l'échange choisit lui-même la fenêtre au premier plan
-        var root = Root(_tracker.Foreground);
-        var window = _tracker.Windows.FirstOrDefault(w => w.Handle == root);
-        if (window == null)
+        if (!_active || _tracker == null || _settle == null) return;
+        NoteForeground();
+        if (!_swapping) UpdateColumns(); // plein écran / jeu sur un écran : colonne cachée
+    }
+
+    private static void NoteForeground()
+    {
+        if (_settle == null) return;
+        var root = StageWindows.VisibleRoot(GetForegroundWindow());
+        if (root != _candidate)
         {
-            Schedule(); // fenêtre toute neuve : vue au prochain rafraîchissement
-            UpdateColumns(); // plein écran / jeu sur un écran : colonne cachée
+            _candidate = root;
+            _candidateSince = DateTime.UtcNow;
+        }
+        if (!_settle.IsEnabled) _settle.Start();
+    }
+
+    /// <summary>Toutes les 100 ms tant qu'une fenêtre attend : décision pure <see cref="StageLayout.Foreground"/>.</summary>
+    private static void OnSettleTick()
+    {
+        if (!_active || _tracker == null || _settle == null)
+        {
+            _settle?.Stop();
             return;
         }
+        var now = DateTime.UtcNow;
+        var foreground = GetForegroundWindow();
+        var root = StageWindows.VisibleRoot(foreground);
+        var window = root == IntPtr.Zero ? null : _tracker.Windows.FirstOrDefault(w => w.Handle == root);
+        var decision = StageLayout.Foreground(new StageForegroundInput(_candidate, _candidateSince, foreground, root, window != null,
+            root != IntPtr.Zero && IsIconic(root), StageLayout.IsBusy(now, _busyUntil, _swapping), now));
+        switch (decision)
+        {
+            case StageForegroundDecision.Restart:
+                _candidate = root;
+                _candidateSince = now;
+                return;
+            case StageForegroundDecision.Wait:
+                return;
+            case StageForegroundDecision.Ignore:
+                _settle.Stop();
+                _candidate = IntPtr.Zero;
+                return;
+        }
+        _settle.Stop();
+        _candidate = IntPtr.Zero;
         MarkRecent(root);
-        if (!Manageable(window))
-        {
-            UpdateColumns();
-            return;
-        }
-        if (IsIconic(root))
-        {
-            _pendingCenter = root; // en train d'être rendue (clic sur le dock…) : placée dès qu'elle est là
-            Schedule();
-            return;
-        }
-        TakeCenter(window, Monitors());
+        if (window != null && Manageable(window)) TakeCenter(window, Monitors());
         UpdateColumns();
     }
 
@@ -389,7 +441,7 @@ public static class StageManager
         if (!StageLayout.TakesCenter(true, window.Handle, old, GamingMode.IsOnMonitor(monitor.Handle))) return;
         Centers[screen] = window.Handle;
         MarkRecent(window.Handle);
-        Place(window.Handle, monitor);
+        Place(window.Handle, monitor, canActivate: true); // elle est au premier plan
         if (old != IntPtr.Zero && IsWindow(old) && !IsIconic(old) && ScreenOf(old, monitors) == screen)
         {
             MinimizeOurs(old, screen);
@@ -431,6 +483,7 @@ public static class StageManager
         if (IsIconic(window)) return;
         MeasureWorkspace(window, screen);
         var touched = Note(window, screen);
+        MeasureBorders(window, touched);
         bool wasMinimized = touched.Minimized;
         touched.Minimized = true;
         if (!SaveState())
@@ -439,6 +492,7 @@ public static class StageManager
             return;
         }
         OurMinimize[window] = DateTime.UtcNow;
+        MarkBusy(); // l'activation d'une voisine qui suit notre réduction ne doit rien déclencher
         WindowActions.Remember(window); // le dock la rendra telle quelle (agrandie ou non, sa place)
         // Réduite SANS activer une autre fenêtre : sinon Windows passerait au premier plan une voisine pas encore réduite, qui
         // prendrait le centre à la place de la bonne.
@@ -446,17 +500,36 @@ public static class StageManager
     }
 
     /// <summary>Place la fenêtre au centre de la scène de son écran (taille gardée si elle tient), puis vérifie un instant après.</summary>
-    private static void Place(IntPtr window, ScreenInfo.Monitor monitor)
+    /// <param name="canActivate">La fenêtre est (ou va être) au premier plan : l'agrandissement natif, qui l'active, est permis.</param>
+    private static void Place(IntPtr window, ScreenInfo.Monitor monitor, bool canActivate)
     {
         if (IsIconic(window) || !GetWindowRect(window, out var windowRect)) return;
         MeasureWorkspace(window, monitor.Device);
         var touched = Note(window, monitor.Device);
+        MeasureBorders(window, touched);
         touched.Minimized = false;
         var visible = GetVisibleBounds(window);
         bool maximized = IsZoomed(window);
         bool resizable = StageWindows.Resizable(window);
+        var mode = StageLayout.PlaceMode(FillStage, AutoHide, resizable, StageWindows.Maximizable(window), maximized, canActivate);
+        if (mode == StagePlaceMode.Maximize)
+        {
+            // Scène = toute la zone de travail : agrandissement natif (Chrome, Electron, Discord ne le refusent pas, contrairement à
+            // un SetWindowPos) ; la place d'avant est déjà notée (Note), le mode coupé la remet.
+            touched.Placed = windowRect;
+            if (maximized && MonitorFromWindow(window, 2) == monitor.Handle)
+            {
+                SaveState();
+                return;
+            }
+            if (!SaveState()) return;
+            MarkBusy();
+            ShowWindowAsync(window, SW_SHOWMAXIMIZED);
+            Verify(window, monitor, mode, default);
+            return;
+        }
         var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale, AutoHide);
-        var target = StageLayout.CenterPlace(stage, visible.Right - visible.Left, visible.Bottom - visible.Top, resizable, maximized || FillStage);
+        var target = StageLayout.CenterPlace(stage, visible.Right - visible.Left, visible.Bottom - visible.Top, resizable, mode == StagePlaceMode.Fill);
         if (!maximized && Near(target, visible, 2))
         {
             touched.Placed = windowRect;
@@ -466,15 +539,20 @@ public static class StageManager
         var full = StageLayout.WithBorders(target, windowRect, visible);
         touched.Placed = full;
         if (!SaveState()) return;
-        if (maximized) ShowWindowAsync(window, SW_SHOWNOACTIVATE); // plus agrandie : la colonne reste libre
-        uint flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS; // asynchrone : une appli figée ne bloque pas Opaline
+        MarkBusy();
+        if (maximized) ShowWindowAsync(window, SW_SHOWNOACTIVATE); // plus agrandie (colonne toujours visible : elle reste libre)
+        // Asynchrone : une appli figée ne bloque pas Opaline ; FRAMECHANGED : les applis à cadre maison recalculent leur cadre.
+        uint flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_ASYNCWINDOWPOS;
         if (!resizable && !maximized) flags |= SWP_NOSIZE;
         SetWindowPos(window, IntPtr.Zero, full.Left, full.Top, full.Right - full.Left, full.Bottom - full.Top, flags);
-        Verify(window, monitor);
+        Verify(window, monitor, mode, target);
     }
 
-    /// <summary>Un instant après : la fenêtre a peut-être refusé la taille (ou ses bords invisibles ont changé) → seulement recentrée.</summary>
-    private static void Verify(IntPtr window, ScreenInfo.Monitor monitor)
+    /// <summary>
+    /// 300 ms après, UNE fois : agrandie = place notée ; « remplir » = si l'appli a changé sa taille, une seule correction (taille et
+    /// place) ; sinon (taille refusée, bords invisibles changés) seulement recentrée.
+    /// </summary>
+    private static void Verify(IntPtr window, ScreenInfo.Monitor monitor, StagePlaceMode mode, RECT target)
     {
         var timer = new DispatcherTimer { Interval = VerifyDelay };
         timer.Tick += (_, _) =>
@@ -484,13 +562,25 @@ public static class StageManager
             {
                 if (!_active || !IsWindow(window) || IsIconic(window) || !GetWindowRect(window, out var rect)) return;
                 var visible = GetVisibleBounds(window);
-                var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale, AutoHide);
-                var target = StageLayout.CenterPlace(stage, visible.Right - visible.Left, visible.Bottom - visible.Top, false, false);
-                int dx = target.Left - visible.Left, dy = target.Top - visible.Top;
-                if (Math.Abs(dx) > 2 || Math.Abs(dy) > 2)
+                if (mode == StagePlaceMode.Fill && !IsZoomed(window) && StageLayout.NeedsResize(target, visible))
                 {
-                    SetWindowPos(window, IntPtr.Zero, rect.Left + dx, rect.Top + dy, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
-                    rect = new RECT { Left = rect.Left + dx, Top = rect.Top + dy, Right = rect.Right + dx, Bottom = rect.Bottom + dy };
+                    var full = StageLayout.WithBorders(target, rect, visible);
+                    MarkBusy();
+                    SetWindowPos(window, IntPtr.Zero, full.Left, full.Top, full.Right - full.Left, full.Bottom - full.Top,
+                        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_ASYNCWINDOWPOS);
+                    rect = full;
+                }
+                else if (mode != StagePlaceMode.Maximize && !IsZoomed(window))
+                {
+                    var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale, AutoHide);
+                    var centered = StageLayout.CenterPlace(stage, visible.Right - visible.Left, visible.Bottom - visible.Top, false, false);
+                    int dx = centered.Left - visible.Left, dy = centered.Top - visible.Top;
+                    if (Math.Abs(dx) > 2 || Math.Abs(dy) > 2)
+                    {
+                        MarkBusy();
+                        SetWindowPos(window, IntPtr.Zero, rect.Left + dx, rect.Top + dy, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+                        rect = new RECT { Left = rect.Left + dx, Top = rect.Top + dy, Right = rect.Right + dx, Bottom = rect.Bottom + dy };
+                    }
                 }
                 if (TouchedWindows.TryGetValue(window, out var touched)) touched.Placed = rect;
                 MeasureWorkspace(window, monitor.Device);
@@ -498,6 +588,13 @@ public static class StageManager
             }, "Stage Manager : vérification de la place");
         };
         timer.Start();
+    }
+
+    /// <summary>Bords invisibles d'une fenêtre affichée normale (ni réduite, ni agrandie).</summary>
+    private static void MeasureBorders(IntPtr window, Touched touched)
+    {
+        if (IsIconic(window) || IsZoomed(window) || !GetWindowRect(window, out var rect)) return;
+        touched.Borders = Insets.Between(rect, GetVisibleBounds(window));
     }
 
     /// <summary>Écart entre la place normale (repère de la zone de travail) et l'écran, mesuré sur une fenêtre ni réduite ni agrandie.</summary>
@@ -513,74 +610,249 @@ public static class StageManager
         Math.Abs(a.Left - b.Left) <= tolerance && Math.Abs(a.Top - b.Top) <= tolerance
         && Math.Abs(a.Right - b.Right) <= tolerance && Math.Abs(a.Bottom - b.Bottom) <= tolerance;
 
-    private static IntPtr Root(IntPtr window) => window == IntPtr.Zero ? IntPtr.Zero : GetAncestor(window, GA_ROOTOWNER);
-
     // ------------------------------------------------------------------ échange depuis la colonne
 
+    /// <summary>
+    /// Clic sur une miniature : échange animé (étapes <see cref="StageSwapMotion.Steps"/>, dans cet ordre). La choisie reçoit sa
+    /// place finale ENCORE RÉDUITE, son image grandit jusqu'à cette place exacte pendant que l'ancienne, réduite au début sous son
+    /// image, file vers la colonne ; la vraie fenêtre est rendue sous l'image à la fin, puis l'image s'efface (~100 ms). Animation
+    /// de Windows coupée le temps de l'échange (réversible). Sans animation (effets d'animation de Windows coupés, jeu sur cet
+    /// écran) : mêmes étapes, sans image.
+    /// </summary>
     private static void OnChosen(string screen, IntPtr window, RECT slot)
     {
-        if (!_active || _swapping || !IsWindow(window)) return;
+        if (!_active || !IsWindow(window)) return;
+        StageSwapEffect.CompleteCurrent(); // clic pendant un échange : celui-ci se termine tout de suite, proprement
+        if (_swapping) return;
         var monitors = Monitors();
         if (monitors.FirstOrDefault(m => m.Device == screen) is not { Device: not null } monitor || monitor.Handle == IntPtr.Zero) return;
-        MarkRecent(window);
         HideColumnNow(screen); // colonne auto-masquée : elle repart dès le clic (l'échange se voit au centre)
         if (!IsIconic(window))
         {
+            MarkRecent(window);
             WindowActions.Activate(window); // déjà affichée : le premier plan suffit (elle prend le centre)
             return;
         }
         Centers.TryGetValue(screen, out var old);
         if (old == window || old != IntPtr.Zero && (!IsWindow(old) || IsIconic(old))) old = IntPtr.Zero;
+        SwapRecent(window, old); // l'ancienne prend la place de la choisie dans la colonne (le reste de la colonne ne bouge pas)
 
-        // Place d'arrivée : sa taille normale (agrandie avant = toute la scène).
+        // Place d'arrivée, calculée comme la vérifiera Place (partie visible centrée) : rien à corriger ensuite.
         var placement = new WINDOWPLACEMENT { length = Marshal.SizeOf<WINDOWPLACEMENT>() };
         GetWindowPlacement(window, ref placement);
         bool maximized = (placement.flags & WPF_RESTORETOMAXIMIZED) != 0;
         var normal = placement.rcNormalPosition;
+        bool resizable = StageWindows.Resizable(window);
+        var mode = StageLayout.PlaceMode(FillStage, AutoHide, resizable, StageWindows.Maximizable(window), maximized, canActivate: true);
         var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale, AutoHide);
-        var target = StageLayout.CenterPlace(stage, normal.Right - normal.Left, normal.Bottom - normal.Top, StageWindows.Resizable(window), maximized || FillStage);
-
         var touched = Note(window, screen);
+        var borders = touched.Borders ?? DefaultBorders(monitor.Scale);
+        var normalPlace = StageSwapMotion.NormalPlace(stage, normal.Right - normal.Left, normal.Bottom - normal.Top, borders, resizable,
+            mode == StagePlaceMode.Fill);
+        var target = mode == StagePlaceMode.Maximize ? StageSwapMotion.Maximized(monitor.WorkArea, FrameThickness(monitor.Scale)) : normalPlace;
         if (old != IntPtr.Zero) MeasureWorkspace(old, screen);
-        if (WorkspaceOffset.TryGetValue(screen, out var offset))
+        var offset = WorkspaceOffset.TryGetValue(screen, out var measured) ? measured
+            : monitors.FirstOrDefault(m => m.IsPrimary) is { Device: not null } primary
+                ? StageSwapMotion.DefaultWorkspaceOffset(primary.WorkArea, primary.Bounds) : default;
+
+        var column = Columns.TryGetValue(screen, out var c) ? c : null;
+        bool columnVisible = column?.StaysVisible == true;
+        bool animated = StageSwapMotion.Animated(WindowsAnimations(), GamingMode.IsOnMonitor(monitor.Handle));
+        double incomingAspect = maximized || mode == StagePlaceMode.Maximize
+            ? (double)(monitor.WorkArea.Right - monitor.WorkArea.Left) / Math.Max(1, monitor.WorkArea.Bottom - monitor.WorkArea.Top)
+            : (double)(normal.Right - normal.Left) / Math.Max(1, normal.Bottom - normal.Top);
+        RECT leavingFrom = default, leavingTo = default;
+        if (old != IntPtr.Zero && GetWindowRect(old, out var oldRect))
         {
-            // Rendue directement à sa place au centre (sinon elle apparaîtrait d'abord à son ancienne place).
-            placement.rcNormalPosition = new RECT
-            {
-                Left = target.Left - offset.X, Top = target.Top - offset.Y,
-                Right = target.Right - offset.X, Bottom = target.Bottom - offset.Y,
-            };
-            placement.flags &= ~WPF_RESTORETOMAXIMIZED;
-            placement.showCmd = SW_SHOWMINNOACTIVE;
-            if (SetWindowPlacement(window, ref placement)) WindowActions.Remember(window); // le dock la rendra elle aussi à cette place
+            leavingFrom = oldRect;
+            double oldAspect = (double)(oldRect.Right - oldRect.Left) / Math.Max(1, oldRect.Bottom - oldRect.Top);
+            bool mainSlot = slot.Right - slot.Left >= StageShape.ThumbWidth * monitor.Scale * 0.8; // pas une petite miniature de pile
+            var landing = mainSlot || column == null ? slot : column.TopSlot;
+            leavingTo = columnVisible ? StageSwapMotion.Fit(landing, oldAspect) : StageSwapMotion.Parking(StageSwapMotion.Fit(slot, oldAspect), monitor.WorkArea);
         }
-        touched.Placed = target;
-        Centers[screen] = window;
-        var leavingFrom = old != IntPtr.Zero ? GetVisibleBounds(old) : default;
-        var column = Columns.TryGetValue(screen, out var c) ? c.TopSlot : slot;
-        if (old != IntPtr.Zero) MinimizeOurs(old, screen);
-        _swapping = true;
-        StageSwapEffect.Run(window, slot, target, old, leavingFrom, column, () =>
+        var request = new StageSwapRequest(window, StageSwapMotion.Fit(slot, incomingAspect), target, old, leavingFrom, leavingTo,
+            columnVisible, monitor.Scale, borders);
+
+        void Do(StageSwapStep step)
         {
-            _swapping = false;
-            touched.Minimized = false;
-            OurMinimize.Remove(window);
-            WindowActions.Activate(window); // rendue (SW_RESTORE) et au premier plan : le clic sur la colonne nous en donne le droit
-            SaveState();
-            // Un instant après (elle est réapparue) : mise au centre exacte (taille, bords invisibles), rien si elle y est déjà.
-            var settle = new DispatcherTimer { Interval = VerifyDelay };
-            settle.Tick += (_, _) =>
+            switch (step)
             {
-                settle.Stop();
-                Guarded.Run(() =>
-                {
-                    if (_active && IsWindow(window) && !IsIconic(window)) Place(window, monitor);
-                    Schedule();
-                }, "Stage Manager : fin de l'échange");
-            };
-            settle.Start();
-        });
+                case StageSwapStep.HoldSystemAnimation:
+                    HoldSystemAnimation();
+                    break;
+                case StageSwapStep.PlaceChosen:
+                    // Réglée PENDANT qu'elle est réduite : rendue directement à sa place finale (agrandie si elle doit l'être).
+                    placement.rcNormalPosition = StageSwapMotion.ToWorkspace(normalPlace, offset);
+                    if (mode == StagePlaceMode.Maximize) placement.flags |= WPF_RESTORETOMAXIMIZED;
+                    else placement.flags &= ~WPF_RESTORETOMAXIMIZED;
+                    placement.showCmd = SW_SHOWMINNOACTIVE;
+                    MarkBusy();
+                    if (SetWindowPlacement(window, ref placement)) WindowActions.Remember(window); // le dock la rendra elle aussi ainsi
+                    touched.Placed = target;
+                    Centers[screen] = window;
+                    _swapping = true;
+                    break;
+                case StageSwapStep.MinimizeLeaving:
+                    MinimizeOurs(old, screen); // sous son image animée, sans l'animation de Windows
+                    break;
+                case StageSwapStep.RestoreChosen:
+                    touched.Minimized = false;
+                    OurMinimize.Remove(window);
+                    MarkBusy(); // le premier plan qui suit (la fenêtre choisie, déjà au centre) ne relance rien
+                    // UNE fois : rendue (SW_RESTORE, agrandie si elle doit l'être) et au premier plan : le clic sur la colonne nous en
+                    // donne le droit.
+                    WindowActions.Activate(window);
+                    SaveState();
+                    break;
+                case StageSwapStep.UpdateColumn:
+                    column?.FadeInThumbnailOf(old); // la miniature de l'ancienne apparaît en fondu à sa place
+                    UpdateColumns();
+                    break;
+                case StageSwapStep.ReleaseSystemAnimation:
+                    ReleaseSystemAnimation();
+                    _swapping = false;
+                    Settle(window, monitor);
+                    break;
+            }
+        }
+
+        var steps = StageSwapMotion.Steps(animated, old != IntPtr.Zero).ToList();
+        int animate = steps.IndexOf(StageSwapStep.Animate), fade = steps.IndexOf(StageSwapStep.FadeOverlay);
+        for (int i = 0; i < steps.Count; i++)
+        {
+            switch (steps[i])
+            {
+                case StageSwapStep.ShowOverlay:
+                    column?.HideThumbnailOf(window); // pas de double : l'image s'envole de la colonne
+                    // La suite (rendre la fenêtre, colonne, fondu, remettre l'animation de Windows) part des rappels de l'animation.
+                    if (StageSwapEffect.TryStart(request,
+                            () => Guarded.Run(() => { foreach (var s in steps.Skip(animate + 1).Take(fade - animate - 1)) Do(s); }, "Stage Manager : fin de l'échange"),
+                            () => Guarded.Run(() => { foreach (var s in steps.Skip(fade + 1)) Do(s); }, "Stage Manager : fin de l'échange")))
+                    {
+                        // Les étapes avant l'animation (réduire l'ancienne SOUS son image) ; l'animation tourne ensuite toute seule.
+                        foreach (var s in steps.Skip(i + 1).Take(animate - i - 1)) Do(s);
+                        return;
+                    }
+                    column?.FadeInThumbnailOf(IntPtr.Zero); // impossible : échange sans image
+                    break;
+                case StageSwapStep.Animate:
+                case StageSwapStep.FadeOverlay:
+                    break;
+                default:
+                    Do(steps[i]);
+                    break;
+            }
+        }
     }
+
+    /// <summary>Un instant après l'échange (la fenêtre est réapparue) : mise au centre exacte, rien si elle y est déjà.</summary>
+    private static void Settle(IntPtr window, ScreenInfo.Monitor monitor)
+    {
+        var settle = new DispatcherTimer { Interval = VerifyDelay };
+        settle.Tick += (_, _) =>
+        {
+            settle.Stop();
+            Guarded.Run(() =>
+            {
+                if (_active && IsWindow(window) && !IsIconic(window)) Place(window, monitor, canActivate: GetForegroundWindow() == window);
+                Schedule();
+            }, "Stage Manager : fin de l'échange");
+        };
+        settle.Start();
+    }
+
+    /// <summary>Échange : l'ancienne fenêtre du centre prend la place de la choisie dans l'ordre de la colonne ; la choisie passe en tête.</summary>
+    private static void SwapRecent(IntPtr chosen, IntPtr old)
+    {
+        int ic = Recent.IndexOf(chosen), io = Recent.IndexOf(old);
+        if (old != IntPtr.Zero && ic >= 0 && io >= 0)
+        {
+            Recent[ic] = old;
+            Recent[io] = chosen;
+        }
+        MarkRecent(chosen);
+    }
+
+    // Animation de réduction / restauration de Windows : coupée pendant les échanges (plusieurs à la suite = une seule coupure).
+    private static int _animationHolds;
+
+    private static void HoldSystemAnimation()
+    {
+        _animationHolds++;
+        try
+        {
+            SystemMinimizeAnimation.Disable(SystemMinimizeAnimation.Stage, notify: false);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Stage Manager : animation de réduction de Windows", ex);
+        }
+    }
+
+    /// <summary>
+    /// Remise un peu après la fin (nos ShowWindowAsync sont traités par les applis à leur rythme), seulement si aucun autre échange
+    /// ne l'a reprise entre-temps.
+    /// </summary>
+    private static void ReleaseSystemAnimation()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (_animationHolds > 0 && --_animationHolds == 0) RestoreSystemAnimation();
+        };
+        timer.Start();
+    }
+
+    private static void RestoreSystemAnimation()
+    {
+        try
+        {
+            SystemMinimizeAnimation.Restore(SystemMinimizeAnimation.Stage, notify: false);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Stage Manager : animation de réduction de Windows", ex);
+        }
+    }
+
+    /// <summary>« Effets d'animation » de Windows (Accessibilité → Effets visuels) : coupés = échanges sans animation.</summary>
+    private static bool WindowsAnimations()
+    {
+        int enabled = 1;
+        return !SystemParametersInfo(SPI_GETCLIENTAREAANIMATION, 0, ref enabled, 0) || enabled != 0;
+    }
+
+    /// <summary>Bord invisible de Windows 11 (redimensionnement) à cette échelle : celui d'une fenêtre agrandie, tout autour.</summary>
+    private static int FrameThickness(double scale)
+    {
+        uint dpi = (uint)Math.Round(96 * (scale <= 0 ? 1 : scale));
+        try
+        {
+            return GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) + GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+        }
+        catch (Exception)
+        {
+            return (int)Math.Round(8 * scale);
+        }
+    }
+
+    /// <summary>Bords invisibles d'une fenêtre normale de Windows 11 (gauche, droite, bas ; aucun en haut), si on n'a rien mesuré.</summary>
+    private static Insets DefaultBorders(double scale)
+    {
+        int frame = Math.Max(0, FrameThickness(scale) - 1);
+        return new Insets(frame, 0, frame, frame);
+    }
+
+    private const uint SPI_GETCLIENTAREAANIMATION = 0x1042;
+    private const int SM_CXSIZEFRAME = 32;
+    private const int SM_CXPADDEDBORDER = 92;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SystemParametersInfo(uint action, uint param, ref int value, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetricsForDpi(int index, uint dpi);
 
     // ------------------------------------------------------------------ colonnes
 
@@ -825,9 +1097,6 @@ public static class StageManager
     private static List<StageEntry> Entries() => TouchedWindows.Select(p => Entry(p.Key, p.Value)).ToList();
 
     private static bool SaveState() => StageState.Save(Entries());
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();

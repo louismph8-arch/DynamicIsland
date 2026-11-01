@@ -77,50 +77,165 @@ public static class Swatch
     public static string Hex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 }
 
-/// <summary>Brosses (gelées) prêtes à l'emploi, nommées par leur rôle.</summary>
+/// <summary>
+/// Couleurs qui changent avec le thème d'Opaline (refonte O2 : verre sombre ou « opale blanche »). Côté C#, les brosses
+/// <see cref="Paint"/> de ces rôles sont modifiables (jamais figées) : leur couleur change en direct. Côté XAML, utiliser
+/// <c>{DynamicResource Paint.Nom}</c> (ressource refaite par <c>Design.OpalShade</c>) — jamais <c>{x:Static t:Paint.Nom}</c>
+/// pour ces rôles : un style ou un modèle figerait la brosse partagée.
+/// </summary>
+public enum InkRole
+{
+    TextPrimary, TextSecondary, TextTertiary, TextFaint, TextMuted,
+    CardBorder, HoverSubtle, Card, Surface, Divider, Raised, Control, SurfaceHover, Selected, SelectedStrong, Track,
+    ScrollThumb, ToggleOff, ScrollThumbHover, Inverse, OnInverse, PopupBackground, LabelBackground, PopupBorder, Indicator,
+    FolderTile, ActiveBorder, Badge, Window, Preview, Sidebar, SidebarOverMica,
+    /// <summary>Texte orange des boutons « doux » (Démarrer le minuteur…) : plus foncé en clair pour rester lisible.</summary>
+    TimerText,
+}
+
+/// <summary>Les deux palettes du thème (refonte O2) : mêmes rôles, valeurs sombres (d'origine) et claires (« opale blanche »).</summary>
+public static class InkPalette
+{
+    /// <summary>Encre du thème clair (texte sombre légèrement bleuté).</summary>
+    public static readonly Color LightInk = Color.FromRgb(0x15, 0x15, 0x1A);
+    /// <summary>Fond « opale blanche » de l'île et du dock (blanc nacré à peine lavande).</summary>
+    public static readonly Color PearlBase = Color.FromRgb(0xF5, 0xF4, 0xF9);
+
+    public static readonly Color[] Dark = Build(new()
+    {
+        [InkRole.TextPrimary] = Swatch.White,
+        [InkRole.TextSecondary] = Swatch.WhiteA(0xA8),
+        [InkRole.TextTertiary] = Swatch.WhiteA(0x66),
+        [InkRole.TextFaint] = Swatch.WhiteA(0x38),
+        [InkRole.TextMuted] = Swatch.WhiteA(0xB3),        // pourcentages sur fond sombre
+        [InkRole.CardBorder] = Swatch.WhiteA(0x0F),
+        [InkRole.HoverSubtle] = Swatch.WhiteA(0x12),
+        [InkRole.Card] = Swatch.WhiteA(0x14),
+        [InkRole.Surface] = Swatch.WhiteA(0x17),
+        [InkRole.Divider] = Swatch.WhiteA(0x1A),
+        [InkRole.Raised] = Swatch.WhiteA(0x1C),
+        [InkRole.Control] = Swatch.WhiteA(0x1F),
+        [InkRole.SurfaceHover] = Swatch.WhiteA(0x26),
+        [InkRole.Selected] = Swatch.WhiteA(0x26),
+        [InkRole.SelectedStrong] = Swatch.WhiteA(0x2E),
+        [InkRole.Track] = Swatch.WhiteA(0x33),
+        [InkRole.ScrollThumb] = Swatch.WhiteA(0x38),
+        [InkRole.ToggleOff] = Swatch.WhiteA(0x40),
+        [InkRole.ScrollThumbHover] = Swatch.WhiteA(0x66),
+        [InkRole.Inverse] = Swatch.WhiteA(0xF2),           // tuile active, curseur rempli
+        [InkRole.OnInverse] = Swatch.Ink,                  // texte d'une tuile active
+        [InkRole.PopupBackground] = Swatch.WithAlpha(Swatch.Raised, 0xF5),
+        [InkRole.LabelBackground] = Swatch.WithAlpha(Swatch.Raised, 0xF2),
+        [InkRole.PopupBorder] = Swatch.WhiteA(0x26),
+        [InkRole.Indicator] = Swatch.WhiteA(0xE6),         // point « appli ouverte »
+        [InkRole.FolderTile] = Swatch.WhiteA(0x3D),        // fond d'une icône de dossier
+        [InkRole.ActiveBorder] = Swatch.WhiteA(0x59),      // aperçu de la fenêtre active
+        [InkRole.Badge] = Swatch.WithAlpha(Swatch.Elevated, 0xE6), // « × » d'une tuile
+        [InkRole.Window] = Swatch.Window,
+        [InkRole.Preview] = Swatch.Preview,
+        [InkRole.Sidebar] = Swatch.Raised,
+        [InkRole.SidebarOverMica] = Swatch.WithAlpha(Swatch.Raised, 0x55),
+        [InkRole.TimerText] = Swatch.Orange,
+    });
+
+    public static readonly Color[] Light = Build(new()
+    {
+        [InkRole.TextPrimary] = LightInk,
+        [InkRole.TextSecondary] = Ink(0xB4),
+        [InkRole.TextTertiary] = Ink(0x8E),
+        [InkRole.TextFaint] = Ink(0x52),
+        [InkRole.TextMuted] = Ink(0xC0),
+        [InkRole.CardBorder] = Ink(0x14),
+        [InkRole.HoverSubtle] = Ink(0x0F),
+        [InkRole.Card] = Ink(0x0C),
+        [InkRole.Surface] = Ink(0x0F),
+        [InkRole.Divider] = Ink(0x1A),
+        [InkRole.Raised] = Ink(0x12),
+        [InkRole.Control] = Ink(0x17),
+        [InkRole.SurfaceHover] = Ink(0x1F),
+        [InkRole.Selected] = Ink(0x1C),
+        [InkRole.SelectedStrong] = Ink(0x26),
+        [InkRole.Track] = Ink(0x24),
+        [InkRole.ScrollThumb] = Ink(0x38),
+        [InkRole.ToggleOff] = Ink(0x33),
+        [InkRole.ScrollThumbHover] = Ink(0x5C),
+        [InkRole.Inverse] = Color.FromArgb(0xEB, 0x1C, 0x1C, 0x22),
+        [InkRole.OnInverse] = Swatch.White,
+        [InkRole.PopupBackground] = Color.FromArgb(0xF5, 0xFA, 0xFA, 0xFC),
+        [InkRole.LabelBackground] = Color.FromArgb(0xF2, 0xFA, 0xFA, 0xFC),
+        [InkRole.PopupBorder] = Ink(0x1F),
+        [InkRole.Indicator] = Ink(0xCC),
+        [InkRole.FolderTile] = Ink(0x1A),
+        [InkRole.ActiveBorder] = Ink(0x59),
+        [InkRole.Badge] = Color.FromArgb(0xE6, 0xE9, 0xE9, 0xEE),
+        [InkRole.Window] = Color.FromRgb(0xF3, 0xF3, 0xF6),
+        [InkRole.Preview] = Color.FromRgb(0xEE, 0xEE, 0xF2),
+        [InkRole.Sidebar] = Color.FromRgb(0xE9, 0xE9, 0xEE),
+        [InkRole.SidebarOverMica] = Swatch.WhiteA(0x66),
+        [InkRole.TimerText] = Color.FromRgb(0xA0, 0x46, 0x06),
+    });
+
+    private static Color Ink(byte alpha) => Swatch.WithAlpha(LightInk, alpha);
+
+    private static Color[] Build(Dictionary<InkRole, Color> values)
+    {
+        var colors = new Color[Enum.GetValues<InkRole>().Length];
+        foreach (var (role, color) in values) colors[(int)role] = color;
+        return colors;
+    }
+}
+
+/// <summary>Brosses prêtes à l'emploi, nommées par leur rôle (gelées, sauf celles qui suivent le thème : voir <see cref="InkRole"/>).</summary>
 public static class Paint
 {
+    /// <summary>Brosses qui suivent le thème (une par rôle), modifiées en direct par <c>Design.OpalShade</c>.</summary>
+    public static readonly SolidColorBrush[] Themed = Enum.GetValues<InkRole>().Select(r => new SolidColorBrush(InkPalette.Dark[(int)r])).ToArray();
+
+    /// <summary>Nom de la ressource dynamique (XAML) d'un rôle : « Paint.TextPrimary ».</summary>
+    public static string Key(InkRole role) => "Paint." + role;
+
     // Texte
     public static readonly Brush White = Frozen(Swatch.White);
-    public static readonly Brush TextPrimary = Frozen(Swatch.White);
-    public static readonly Brush TextSecondary = Frozen(Swatch.WhiteA(0xA8));
-    public static readonly Brush TextTertiary = Frozen(Swatch.WhiteA(0x66));
-    public static readonly Brush TextFaint = Frozen(Swatch.WhiteA(0x38));
-    public static readonly Brush TextMuted = Frozen(Swatch.WhiteA(0xB3));        // pourcentages sur fond sombre
-    public static readonly Brush Ink = Frozen(Swatch.Ink);                       // texte sur fond blanc
+    public static readonly Brush TextPrimary = Themed[(int)InkRole.TextPrimary];
+    public static readonly Brush TextSecondary = Themed[(int)InkRole.TextSecondary];
+    public static readonly Brush TextTertiary = Themed[(int)InkRole.TextTertiary];
+    public static readonly Brush TextFaint = Themed[(int)InkRole.TextFaint];
+    public static readonly Brush TextMuted = Themed[(int)InkRole.TextMuted];
+    public static readonly Brush Ink = Frozen(Swatch.Ink);                       // texte sur fond blanc (toujours)
     public static readonly Brush InkMuted = Frozen(Swatch.InkA(0xB3));
+    public static readonly Brush OnInverse = Themed[(int)InkRole.OnInverse];     // texte d'une tuile active (Inverse)
 
-    // Surfaces (voiles de blanc sur fond sombre)
-    public static readonly Brush CardBorder = Frozen(Swatch.WhiteA(0x0F));
-    public static readonly Brush HoverSubtle = Frozen(Swatch.WhiteA(0x12));
-    public static readonly Brush Card = Frozen(Swatch.WhiteA(0x14));
-    public static readonly Brush Surface = Frozen(Swatch.WhiteA(0x17));
-    public static readonly Brush Divider = Frozen(Swatch.WhiteA(0x1A));
-    public static readonly Brush Raised = Frozen(Swatch.WhiteA(0x1C));
-    public static readonly Brush Control = Frozen(Swatch.WhiteA(0x1F));
-    public static readonly Brush SurfaceHover = Frozen(Swatch.WhiteA(0x26));
-    public static readonly Brush Selected = Frozen(Swatch.WhiteA(0x26));
-    public static readonly Brush SelectedStrong = Frozen(Swatch.WhiteA(0x2E));
-    public static readonly Brush Track = Frozen(Swatch.WhiteA(0x33));
-    public static readonly Brush ScrollThumb = Frozen(Swatch.WhiteA(0x38));
-    public static readonly Brush ToggleOff = Frozen(Swatch.WhiteA(0x40));
-    public static readonly Brush ScrollThumbHover = Frozen(Swatch.WhiteA(0x66));
-    public static readonly Brush Inverse = Frozen(Swatch.WhiteA(0xF2));          // tuile active, curseur rempli
-    public static readonly Brush PopupBackground = Frozen(Swatch.WithAlpha(Swatch.Raised, 0xF5));
-    public static readonly Brush LabelBackground = Frozen(Swatch.WithAlpha(Swatch.Raised, 0xF2));
-    public static readonly Brush PopupBorder = Frozen(Swatch.WhiteA(0x26));
+    // Surfaces (voiles de blanc sur fond sombre, d'encre sur fond clair)
+    public static readonly Brush CardBorder = Themed[(int)InkRole.CardBorder];
+    public static readonly Brush HoverSubtle = Themed[(int)InkRole.HoverSubtle];
+    public static readonly Brush Card = Themed[(int)InkRole.Card];
+    public static readonly Brush Surface = Themed[(int)InkRole.Surface];
+    public static readonly Brush Divider = Themed[(int)InkRole.Divider];
+    public static readonly Brush Raised = Themed[(int)InkRole.Raised];
+    public static readonly Brush Control = Themed[(int)InkRole.Control];
+    public static readonly Brush SurfaceHover = Themed[(int)InkRole.SurfaceHover];
+    public static readonly Brush Selected = Themed[(int)InkRole.Selected];
+    public static readonly Brush SelectedStrong = Themed[(int)InkRole.SelectedStrong];
+    public static readonly Brush Track = Themed[(int)InkRole.Track];
+    public static readonly Brush ScrollThumb = Themed[(int)InkRole.ScrollThumb];
+    public static readonly Brush ToggleOff = Themed[(int)InkRole.ToggleOff];
+    public static readonly Brush ScrollThumbHover = Themed[(int)InkRole.ScrollThumbHover];
+    public static readonly Brush Inverse = Themed[(int)InkRole.Inverse];          // tuile active, curseur rempli
+    public static readonly Brush PopupBackground = Themed[(int)InkRole.PopupBackground];
+    public static readonly Brush LabelBackground = Themed[(int)InkRole.LabelBackground];
+    public static readonly Brush PopupBorder = Themed[(int)InkRole.PopupBorder];
     public static readonly Brush ThumbStroke = Frozen(Color.FromArgb(0x33, 0, 0, 0));
-    public static readonly Brush Indicator = Frozen(Swatch.WhiteA(0xE6));     // point « appli ouverte »
-    public static readonly Brush FolderTile = Frozen(Swatch.WhiteA(0x3D));    // fond d'une icône de dossier
-    public static readonly Brush ActiveBorder = Frozen(Swatch.WhiteA(0x59));  // aperçu de la fenêtre active
-    public static readonly Brush Badge = Frozen(Swatch.WithAlpha(Swatch.Elevated, 0xE6)); // « × » d'une tuile
+    public static readonly Brush Indicator = Themed[(int)InkRole.Indicator];     // point « appli ouverte »
+    public static readonly Brush FolderTile = Themed[(int)InkRole.FolderTile];   // fond d'une icône de dossier
+    public static readonly Brush ActiveBorder = Themed[(int)InkRole.ActiveBorder]; // aperçu de la fenêtre active
+    public static readonly Brush Badge = Themed[(int)InkRole.Badge];             // « × » d'une tuile
     /// <summary>Presque transparent (alpha 1) : capte la souris dans une fenêtre « layered » sans se voir.</summary>
     public static readonly Brush HitTarget = Frozen(Color.FromArgb(1, 0, 0, 0));
-    public static readonly Brush Window = Frozen(Swatch.Window);
-    public static readonly Brush Preview = Frozen(Swatch.Preview);
+    public static readonly Brush Window = Themed[(int)InkRole.Window];
+    public static readonly Brush Preview = Themed[(int)InkRole.Preview];
     public static readonly Brush TextSelection = Frozen(Swatch.Blue);
-    public static readonly Brush Sidebar = Frozen(Swatch.Raised);
-    public static readonly Brush SidebarOverMica = Frozen(Swatch.WithAlpha(Swatch.Raised, 0x55));
+    public static readonly Brush Sidebar = Themed[(int)InkRole.Sidebar];
+    public static readonly Brush SidebarOverMica = Themed[(int)InkRole.SidebarOverMica];
 
     // Couleurs de sens
     public static readonly Brush Timer = Frozen(Swatch.Orange);
@@ -831,6 +946,10 @@ public static class StageShape
     public const double HandleHitHeight = 120;
     public const double HandleInset = 2;       // entre le bord de l'écran et la pilule
     public const byte HandleAlpha = 0x8C;      // opacité de la pilule (couleur d'accent)
+    public const double SwapLeavingOpacity = 0.72; // échange : la fenêtre qui part vers la colonne s'estompe un peu (en retrait)
+    public const double SwapShadowBlur = 36;   // échange : ombre légère sous la fenêtre qui arrive
+    public const double SwapShadowDepth = 10;
+    public const double SwapShadowOpacity = 0.38;
     /// <summary>Largeur totale de la colonne (miniature + marges de la carte et de la fenêtre).</summary>
     public const double ColumnWidth = ThumbWidth + 2 * 8 + 2 * 8 + 2 * PileOffset;
 }
@@ -876,7 +995,9 @@ public static class Motion
     public static readonly TimeSpan Bounce = TimeSpan.FromMilliseconds(600); // rebond d'une icône au lancement
     public static readonly TimeSpan Pulse = TimeSpan.FromMilliseconds(650);  // alerte de fin du minuteur
     public static readonly TimeSpan Genie = TimeSpan.FromMilliseconds(500);  // réduction façon macOS
-    public static readonly TimeSpan StageSwap = TimeSpan.FromMilliseconds(380); // Stage Manager : échange colonne ↔ centre
+    public static readonly TimeSpan StageSwap = TimeSpan.FromMilliseconds(360); // Stage Manager : échange colonne ↔ centre
+    public static readonly TimeSpan StageSwapFade = TimeSpan.FromMilliseconds(100); // fin de l'échange : l'image animée s'efface sur la vraie fenêtre
+    public static readonly TimeSpan StageColumnFade = TimeSpan.FromMilliseconds(160); // nouvelle miniature de la colonne après un échange
     public static readonly TimeSpan IntroStretch = TimeSpan.FromMilliseconds(170); // intro : la bulle attend avant de s'étirer
     public static readonly TimeSpan Page = TimeSpan.FromMilliseconds(320);   // assistant : changement de page
     public static readonly TimeSpan DelayShort = TimeSpan.FromMilliseconds(40);
@@ -1138,6 +1259,50 @@ public static class Opal
         Settings.OpalStyle.Intense => Intense,
         _ => Balanced,
     };
+
+    /// <summary>
+    /// « Opale blanche » (refonte O2) : la même intensité en clair — voile nacré plus présent (c'est lui qui fait le blanc
+    /// laiteux), teinte et grain plus légers, bordure irisée plus saturée (un pastel trop pâle disparaît sur du blanc),
+    /// ombre et lueur plus douces.
+    /// </summary>
+    public static OpalLook Light(OpalLook look) => look with
+    {
+        Smoke = Math.Max(look.Smoke + LightSmokeExtra, LightSmokeMin),
+        MilkTop = look.MilkTop * 1.3, MilkBottom = look.MilkBottom * 1.3,
+        Tint = look.Tint * 0.75, Grain = look.Grain * 0.6,
+        IridPale = look.IridPale * 0.55, IridAlpha = Math.Min(1, look.IridAlpha * 1.15),
+        TopLine = look.TopLine * 1.2,
+        Shadow = new(look.Shadow.Blur * 1.15, look.Shadow.Depth * 0.8, look.Shadow.Opacity * LightShadow),
+        GlowOpacity = look.GlowOpacity * 0.7, SweepAlpha = look.SweepAlpha * 0.8,
+    };
+
+    /// <summary>Intensité entre le sombre (0) et le clair (1), pour la transition entre les deux thèmes.</summary>
+    public static OpalLook Blend(OpalLook a, OpalLook b, double t)
+    {
+        if (t <= 0) return a;
+        if (t >= 1) return b;
+        double L(double x, double y) => x + (y - x) * t;
+        return new OpalLook(L(a.Blur, b.Blur), L(a.Vibrancy, b.Vibrancy), L(a.Smoke, b.Smoke), L(a.MilkTop, b.MilkTop),
+            L(a.MilkBottom, b.MilkBottom), L(a.Tint, b.Tint), L(a.Grain, b.Grain), L(a.IridShift, b.IridShift), L(a.IridPale, b.IridPale),
+            L(a.IridAlpha, b.IridAlpha), L(a.IridWidth, b.IridWidth), L(a.TopLine, b.TopLine),
+            new ShadowSpec(L(a.Shadow.Blur, b.Shadow.Blur), L(a.Shadow.Depth, b.Shadow.Depth), L(a.Shadow.Opacity, b.Shadow.Opacity)),
+            L(a.GlowBlur, b.GlowBlur), L(a.GlowOpacity, b.GlowOpacity), L(a.SweepAlpha, b.SweepAlpha), L(a.SweepWidth, b.SweepWidth));
+    }
+
+    // Couleurs (refonte O2)
+    public const double LightSmokeExtra = 0.16; // voile nacré en plus en clair
+    public const double LightSmokeMin = 0.62;
+    public const double LightShadow = 0.5;      // ombres (île, dock, fenêtres) moins fortes en clair
+    public const double LightSurfaceTint = 0.10; // part de l'accent du fond d'écran dans le blanc nacré de l'île
+    /// <summary>Changement de fond d'écran, de couleur ou de thème : couleurs interpolées (OKLCH) pendant ce temps.</summary>
+    public static readonly TimeSpan ColorTransition = TimeSpan.FromMilliseconds(1200);
+    public static readonly TimeSpan ColorTick = TimeSpan.FromMilliseconds(33); // ~30 images/s, seulement pendant une transition
+    /// <summary>Copie floutée du fond : ancienne image qui s'efface en fondu quand le fond d'écran change.</summary>
+    public static readonly TimeSpan BackdropFade = TimeSpan.FromMilliseconds(1200);
+    // Verre liquide (shader) en clair : le liseré et la lumière ajoutent du blanc, invisible (ou délavé) sur du blanc
+    public const double LightGlassRim = 0.45;
+    public const double LightGlassSheen = 0.6;
+    public const double LightGlassTopLight = 0.25;
 
     // Rayons cohérents : panneau > tuile > bouton
     public const double PanelRadius = 28;      // île ouverte, carte du bas de colonne

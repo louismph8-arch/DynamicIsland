@@ -45,12 +45,19 @@ public static class OpalTheme
         Changed?.Invoke();
     }
 
+    /// <summary>Intensité en sombre, en opale blanche (<see cref="Opal.Light"/>) ou entre les deux pendant la transition.</summary>
+    public static OpalLook LookFor(OpalStyle style, double light)
+    {
+        var dark = Opal.For(style);
+        return light <= 0 ? dark : Opal.Blend(dark, Opal.Light(dark), light);
+    }
+
     private static void BuildResources()
     {
         var resources = Application.Current?.Resources;
         if (resources == null) return;
         var look = Look;
-        Color start = AppearanceService.AccentStart, end = AppearanceService.AccentEnd, white = Swatch.White;
+        Color start = OpalShade.Shown.AccentStart, end = OpalShade.Shown.AccentEnd, white = Swatch.White;
         double tint = look.Tint * Opal.TileTint;
 
         resources[TileKey] = Gradient(
@@ -77,7 +84,7 @@ public static class OpalTheme
     /// <summary>Bordure en dégradé de trois teintes voisines de l'accent (orientée vers la lumière au repos).</summary>
     public static LinearGradientBrush Iridescent(double alpha, Color? accent = null)
     {
-        var irid = OpalPalette.Iridescent(accent ?? AppearanceService.AccentMid, Look.IridShift, Look.IridPale);
+        var irid = OpalPalette.Iridescent(accent ?? AppearanceService.ShownAccentMid, Look.IridShift, Look.IridPale, OpalShade.Light);
         var (from, to) = OpalPalette.Direction(Opal.IridBaseAngle);
         return new LinearGradientBrush
         {

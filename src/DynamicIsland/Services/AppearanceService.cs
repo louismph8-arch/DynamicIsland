@@ -31,14 +31,30 @@ public static class AppearanceService
     public static Color AccentEnd =>
         AppearanceColors.TryParse(UsesWallpaperColors ? Settings.WallpaperAccentEnd : Settings.AccentEnd, out var c) ? c : AccentStart;
 
-    /// <summary>Fond de l'île et du dock : noir, ou mêlé d'une teinte très sombre du fond d'écran.</summary>
-    public static Color SurfaceBase =>
-        UsesWallpaperColors && Settings.TintFromWallpaper && AppearanceColors.TryParse(Settings.WallpaperSurface, out var tint)
+    /// <summary>
+    /// Fond de l'île et du dock AFFICHÉ (pendant un changement de fond d'écran ou de thème : couleur de transition) :
+    /// noir mêlé d'une teinte très sombre du fond d'écran, ou blanc nacré (opale blanche) à peine teinté.
+    /// </summary>
+    public static Color SurfaceBase => Design.OpalShade.Shown.SurfaceBase;
+
+    /// <summary>Fond de l'île et du dock visé, en sombre ou en clair (couleurs du fond d'écran comprises).</summary>
+    public static Color SurfaceFor(bool light)
+    {
+        bool tinted = UsesWallpaperColors && Settings.TintFromWallpaper;
+        if (light)
+            return tinted && AppearanceColors.TryParse(Settings.WallpaperAccentStart, out var accent)
+                ? Design.OpalColor.Mix(InkPalette.PearlBase, accent, Opal.LightSurfaceTint)
+                : InkPalette.PearlBase;
+        return tinted && AppearanceColors.TryParse(Settings.WallpaperSurface, out var tint)
             ? Lerp(Swatch.IslandBase, tint, AutoColor.SurfaceMix)
             : Swatch.IslandBase;
+    }
 
     /// <summary>Couleur unique représentant l'accent (milieu du dégradé).</summary>
     public static Color AccentMid => Lerp(AccentStart, AccentEnd, 0.5);
+
+    /// <summary>Accent AFFICHÉ (milieu du dégradé), qui glisse doucement vers le nouveau quand le fond d'écran change.</summary>
+    public static Color ShownAccentMid => Design.OpalColor.Mix(Design.OpalShade.Shown.AccentStart, Design.OpalShade.Shown.AccentEnd, 0.5);
 
     public static double Glow => Settings.GlowIntensity;
     public static double Speed => Settings.AnimationSpeed;
@@ -46,38 +62,35 @@ public static class AppearanceService
     /// <summary>Rayon d'une forme réglable selon le réglage « Arrondi des coins ».</summary>
     public static double Radius(RadiusRange range) => range.At(Settings.Roundness);
 
-    public static void Apply()
-    {
-        var resources = Application.Current.Resources;
-        resources[IslandBrushKey] = Paint.Frozen(Swatch.WithAlpha(SurfaceBase, (byte)Math.Round(Settings.Opacity * 255)));
-        // Alpha 1 minimum : un pixel 100 % transparent laisserait passer les clics à travers la barre.
-        resources[DockBrushKey] = Paint.Frozen(Swatch.WithAlpha(SurfaceBase, (byte)Math.Max(1, Math.Round(Settings.DockOpacity * 255))));
-        resources[AccentBrushKey] = Paint.Frozen(AccentMid);
-        resources[AccentGradientKey] = Paint.Gradient(AccentStart, AccentEnd);
-        Design.OpalTheme.Apply(); // verre opalin : tuiles, menus et surfaces (seulement si le style ou l'accent ont changé)
-    }
+    /// <summary>
+    /// Réglages changés : nouvelles couleurs visées (accent, fond, thème), atteintes en douceur par <see cref="Design.OpalShade"/>
+    /// qui refait les ressources (IslandBrush, DockBrush, AccentBrush, AccentGradientBrush, « Paint.Nom ») et le verre opalin.
+    /// </summary>
+    public static void Apply() => Design.OpalShade.Retarget();
 
     /// <summary>
     /// Ombre / halo néon : à 0 % l'ombre <paramref name="shape"/> classique (noire), à 100 % un halo plus large
-    /// de la couleur d'accent.
+    /// de la couleur d'accent. En opale blanche, l'ombre est plus douce.
     /// </summary>
     /// <param name="color">Couleur imposée (ex. pochette de l'album) ; le halo est alors au moins à <see cref="Shadows.GlowMinWithCover"/>.</param>
     public static void ApplyGlow(DropShadowEffect effect, ShadowSpec shape, Color? color = null)
     {
         double glow = color != null ? Math.Max(Glow, Shadows.GlowMinWithCover) : Glow;
+        double soft = Design.OpalShade.IsLight ? Opal.LightShadow : 1; // valeurs visées : ces effets ne sont refaits qu'au changement de réglage
         effect.Color = Lerp(Swatch.Black, color ?? AccentMid, Math.Min(1, glow * Shadows.GlowColorBoost));
-        effect.Opacity = shape.Opacity + Shadows.GlowOpacityRange * glow;
+        effect.Opacity = (shape.Opacity + Shadows.GlowOpacityRange * glow) * soft;
         effect.BlurRadius = shape.Blur + Shadows.GlowBlurExtra * glow;
         effect.ShadowDepth = shape.Depth * (1 - glow);
         effect.Direction = shape.Direction;
     }
 
-    /// <summary>Liseré autour de l'île et du dock : blanc discret, qui prend la couleur d'accent avec le halo.</summary>
+    /// <summary>Liseré autour de l'île et du dock : blanc (encre en clair) discret, qui prend la couleur d'accent avec le halo.</summary>
     public static Color RimColor(Color? color = null)
     {
         var c = color ?? AccentMid;
         double glow = color != null ? Math.Max(Glow, Shadows.GlowMinWithCover) : Glow;
-        return Lerp(Swatch.WhiteA(Shadows.RimAlphaRest), Swatch.WithAlpha(c, Shadows.RimAlphaGlow), glow);
+        var rest = Design.OpalColor.Mix(Swatch.WhiteA(Shadows.RimAlphaRest), Swatch.WithAlpha(InkPalette.LightInk, Shadows.RimAlphaRest), Design.OpalShade.IsLight ? 1 : 0);
+        return Lerp(rest, Swatch.WithAlpha(c, Shadows.RimAlphaGlow), glow);
     }
 
     public static Color Lerp(Color a, Color b, double t) => Color.FromArgb(

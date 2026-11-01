@@ -350,7 +350,7 @@ public sealed class MenuBarWindow : Window
         {
             Style = (Style)Application.Current.FindResource("RoundButton"),
             Background = Brushes.Transparent,
-            Foreground = Paint.White,
+            Foreground = Paint.TextPrimary,
             Height = MenuBarShape.ItemHeight,
             Padding = new Thickness(MenuBarShape.ItemPadding, 0, MenuBarShape.ItemPadding, 0),
             Margin = new Thickness(Space.Px, 0, Space.Px, 0),

@@ -11,7 +11,7 @@ internal static class FolderIcon
 {
     private const int Size = 128;
     private const double Radius = 30; // pour une image de 128 px (= rayon d'une tuile de dossier à 48 px)
-    private static readonly Pen Border = FrozenPen(Paint.SelectedStrong, Stroke.Focus);
+    private static readonly Pen Border = FrozenPen(Design.OpalShade.Frozen(InkRole.SelectedStrong), Stroke.Focus);
 
     public static ImageSource Render(IEnumerable<ImageSource?> icons)
     {

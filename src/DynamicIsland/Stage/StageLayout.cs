@@ -19,11 +19,63 @@ internal enum StageExclusion
     Elevated,
     /// <summary>« Stage Manager : ignorer » dans les règles par application.</summary>
     Ignored,
+    /// <summary>Boîte de dialogue, menu, fenêtre possédée par une autre, écran de démarrage, petite fenêtre fixe : jamais au centre.</summary>
+    Popup,
+    /// <summary>Hors de tout écran (rendu hors écran), « cloaked », transparente aux clics ou minuscule.</summary>
+    Invisible,
 }
 
 /// <summary>Ce qu'on sait d'une fenêtre pour décider si Stage Manager s'en occupe (calcul pur, vérifié par --self-test).</summary>
+/// <param name="Popup">Voir <see cref="StageLayout.Shape"/> : dialogue, menu, fenêtre possédée…</param>
+/// <param name="Invisible">Voir <see cref="StageLayout.Shape"/> : hors écran, cloaked, transparente, minuscule.</param>
 internal readonly record struct StageFlags(bool Own, bool ToolWindow, bool Minimizable, bool Topmost, bool Fullscreen, bool Game,
-    bool Elevated, bool Ignored);
+    bool Elevated, bool Ignored, bool Popup = false, bool Invisible = false);
+
+/// <summary>
+/// Ce qu'on lit d'une fenêtre (styles bruts, propriétaire, place) pour savoir si c'est une VRAIE fenêtre d'appli : calcul pur
+/// (<see cref="StageLayout.Shape"/>), vérifié par --self-test avec des fenêtres simulées.
+/// </summary>
+/// <param name="Process">Nom de l'exe sans « .exe » (null si illisible).</param>
+/// <param name="OwnProcess">Fenêtre de CE processus d'Opaline.</param>
+/// <param name="OwnedByVisible">Possédée (GW_OWNER, en remontant) par une fenêtre visible : dialogue, palette, fenêtre secondaire.</param>
+/// <param name="Bounds">Partie visible (fenêtre affichée) ou place normale (fenêtre réduite), en pixels.</param>
+/// <param name="OnScreen">Touche au moins un écran (sans objet pour une fenêtre réduite).</param>
+internal readonly record struct StageWindowShape(string? Process, bool OwnProcess, string ClassName, int Style, int ExStyle,
+    bool OwnedByVisible, bool Minimized, RECT Bounds, bool OnScreen, bool Cloaked, double Scale);
+
+/// <summary>Comment mettre la fenêtre au centre.</summary>
+internal enum StagePlaceMode
+{
+    /// <summary>Taille gardée (ou ramenée à 80 % si elle ne tient pas), centrée ; fenêtre non redimensionnable : seulement centrée.</summary>
+    Center,
+    /// <summary>Remplit la scène par SetWindowPos (colonne toujours visible : la scène n'est pas toute la zone de travail).</summary>
+    Fill,
+    /// <summary>Agrandissement natif de Windows (scène = toute la zone de travail) : aucune appli ne le refuse ni le « corrige ».</summary>
+    Maximize,
+}
+
+/// <summary>Que faire de la fenêtre au premier plan (anti-clignotement, dialogues, nos propres mouvements).</summary>
+internal enum StageForegroundDecision
+{
+    /// <summary>Pas encore : 300 ms pas écoulées, réorganisation en cours, fenêtre pas encore listée ou en train d'être rendue.</summary>
+    Wait,
+    /// <summary>Une autre fenêtre est passée au premier plan entre-temps : on recommence à compter pour elle.</summary>
+    Restart,
+    /// <summary>Rien à faire (dialogue / menu possédé, rien au premier plan, fenêtre jamais apparue).</summary>
+    Ignore,
+    /// <summary>Elle est restée au premier plan assez longtemps : elle prend le centre (si elle est gérée).</summary>
+    Take,
+}
+
+/// <param name="Candidate">Fenêtre qu'on attend (la « racine » du premier plan au moment de l'événement).</param>
+/// <param name="Since">Depuis quand elle est au premier plan.</param>
+/// <param name="Foreground">Fenêtre au premier plan MAINTENANT.</param>
+/// <param name="ForegroundRoot">Sa racine (on remonte les propriétaires visibles).</param>
+/// <param name="Listed">La racine est une fenêtre d'appli suivie (WindowTracker).</param>
+/// <param name="RootIconic">La racine est encore réduite (en train d'être rendue).</param>
+/// <param name="Busy">Stage Manager est en train de réorganiser (nos SW_MINIMIZE / SW_RESTORE / SetWindowPos, échange animé).</param>
+internal readonly record struct StageForegroundInput(IntPtr Candidate, DateTime Since, IntPtr Foreground, IntPtr ForegroundRoot,
+    bool Listed, bool RootIconic, bool Busy, DateTime Now);
 
 /// <summary>Un groupe de la colonne : les fenêtres d'une même appli (la plus récente d'abord).</summary>
 internal sealed record StageGroup(string Key, IReadOnlyList<IntPtr> Windows);
@@ -156,6 +208,8 @@ internal static class StageLayout
     public static StageExclusion Exclusion(StageFlags f) =>
         f.Own ? StageExclusion.Own
         : f.Ignored ? StageExclusion.Ignored
+        : f.Invisible ? StageExclusion.Invisible
+        : f.Popup ? StageExclusion.Popup
         : f.ToolWindow || !f.Minimizable ? StageExclusion.Tool
         : f.Topmost ? StageExclusion.Topmost
         : f.Fullscreen || f.Game ? StageExclusion.Fullscreen
@@ -174,6 +228,92 @@ internal static class StageLayout
         !string.IsNullOrEmpty(appId) ? "app:" + appId.ToLowerInvariant()
         : !string.IsNullOrEmpty(exePath) ? "exe:" + exePath.ToLowerInvariant()
         : "win:" + handle.ToInt64();
+
+    // ------------------------------------------------------------------ vraies fenêtres d'appli (correctifs du 2026-11-01)
+
+    /// <summary>Nom de l'exe d'Opaline : TOUT processus de ce nom (rendus --snapshot / --self-test d'un dossier de compilation…) est ignoré.</summary>
+    public const string OwnExe = "DynamicIsland";
+
+    /// <summary>En dessous (DIP), ce n'est pas une fenêtre d'appli (fenêtre de mesure, bouton flottant…).</summary>
+    public const double MinWidth = 200, MinHeight = 150;
+    /// <summary>Fenêtre NON redimensionnable plus petite que ça (DIP) : petit dialogue, fenêtre « À propos », écran de démarrage.</summary>
+    public const double SmallFixedWidth = 520, SmallFixedHeight = 360;
+
+    /// <summary>Une fenêtre ne prend le centre que si elle reste au premier plan au moins ce temps (anti-clignotement).</summary>
+    public static readonly TimeSpan SettleTime = TimeSpan.FromMilliseconds(300);
+    /// <summary>Fenêtre au premier plan jamais apparue dans la liste (ou toujours réduite) après ce temps : on laisse tomber.</summary>
+    public static readonly TimeSpan GiveUpTime = TimeSpan.FromSeconds(2);
+    /// <summary>Après un de NOS mouvements (réduire, rendre, déplacer) : les événements qu'il provoque sont ignorés pendant ce temps.</summary>
+    public static readonly TimeSpan BusyTime = TimeSpan.FromMilliseconds(450);
+
+    private const int WS_POPUP = unchecked((int)0x80000000);
+    private const int WS_CAPTION = 0x00C00000;
+    private const int WS_THICKFRAME = 0x00040000;
+    private const int WS_EX_DLGMODALFRAME = 0x00000001;
+    private const int WS_EX_TRANSPARENT = 0x00000020;
+
+    public static bool IsOpaline(string? process, bool ownProcess) =>
+        ownProcess || string.Equals(process, OwnExe, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Est-ce une vraie fenêtre d'appli ? <see cref="StageExclusion.Own"/> (n'importe quel processus d'Opaline),
+    /// <see cref="StageExclusion.Invisible"/> (cloaked, transparente aux clics, hors de tout écran, minuscule) ou
+    /// <see cref="StageExclusion.Popup"/> (dialogue #32770, possédée par une fenêtre visible, cadre de dialogue modal, popup sans barre
+    /// de titre ni bord redimensionnable = menu / écran de démarrage / notification, petite fenêtre fixe), sinon None.
+    /// Une fenêtre sans barre de titre MAIS redimensionnable (Discord, Spotify, Electron « frameless ») reste une vraie fenêtre.
+    /// </summary>
+    public static StageExclusion Shape(StageWindowShape w)
+    {
+        if (IsOpaline(w.Process, w.OwnProcess)) return StageExclusion.Own;
+        if (w.Cloaked || (w.ExStyle & WS_EX_TRANSPARENT) != 0) return StageExclusion.Invisible;
+        if (!w.Minimized && !w.OnScreen) return StageExclusion.Invisible;
+        double scale = Math.Max(0.5, w.Scale);
+        int width = w.Bounds.Right - w.Bounds.Left, height = w.Bounds.Bottom - w.Bounds.Top;
+        if (width < MinWidth * scale || height < MinHeight * scale) return StageExclusion.Invisible;
+        if (w.ClassName == "#32770" || w.OwnedByVisible || (w.ExStyle & WS_EX_DLGMODALFRAME) != 0) return StageExclusion.Popup;
+        bool resizable = (w.Style & WS_THICKFRAME) != 0;
+        if ((w.Style & WS_POPUP) != 0 && (w.Style & WS_CAPTION) != WS_CAPTION && !resizable) return StageExclusion.Popup;
+        if (!resizable && (width < SmallFixedWidth * scale || height < SmallFixedHeight * scale)) return StageExclusion.Popup;
+        return StageExclusion.None;
+    }
+
+    /// <summary>
+    /// Anti-clignotement : la fenêtre au premier plan prend le centre seulement si elle y reste <see cref="SettleTime"/> (un passage
+    /// éclair pendant un Alt+Tab ou une activation par une autre appli ne fait rien), jamais pendant une de nos réorganisations, et
+    /// jamais pour un dialogue / menu possédé (la fenêtre du centre garde sa place).
+    /// </summary>
+    public static StageForegroundDecision Foreground(StageForegroundInput i)
+    {
+        if (i.Foreground == IntPtr.Zero || i.ForegroundRoot == IntPtr.Zero) return StageForegroundDecision.Ignore;
+        if (i.Foreground != i.ForegroundRoot) return StageForegroundDecision.Ignore; // possédée par une autre fenêtre : on ne change rien
+        if (i.ForegroundRoot != i.Candidate) return StageForegroundDecision.Restart;
+        if (i.Busy) return StageForegroundDecision.Wait;
+        var elapsed = i.Now - i.Since;
+        if (elapsed < SettleTime) return StageForegroundDecision.Wait;
+        if (!i.Listed || i.RootIconic) return elapsed < GiveUpTime ? StageForegroundDecision.Wait : StageForegroundDecision.Ignore;
+        return StageForegroundDecision.Take;
+    }
+
+    /// <summary>Stage Manager est-il en train de réorganiser (événements provoqués par nous à ignorer) ?</summary>
+    public static bool IsBusy(DateTime now, DateTime busyUntil, bool swapping) => swapping || now < busyUntil;
+
+    /// <summary>
+    /// Comment placer la fenêtre du centre. Non redimensionnable : seulement centrée. À remplir (« Applis en plein écran », ou déjà
+    /// agrandie) avec la colonne auto-masquée (scène = toute la zone de travail) : agrandissement natif si elle a le bouton Agrandir
+    /// (et si on peut l'activer, ShowWindow(SW_MAXIMIZE) l'active ; ou si elle l'est déjà) ; sinon SetWindowPos vers la scène.
+    /// </summary>
+    public static StagePlaceMode PlaceMode(bool fillStage, bool autoHide, bool resizable, bool maximizable, bool maximized, bool canActivate)
+    {
+        if (!resizable) return StagePlaceMode.Center;
+        if (!fillStage && !maximized) return StagePlaceMode.Center;
+        if (autoHide && maximizable && (maximized || canActivate)) return StagePlaceMode.Maximize;
+        return StagePlaceMode.Fill;
+    }
+
+    /// <summary>Après un SetWindowPos « remplir » : l'appli a-t-elle changé sa taille (plus de 4 px) ? → une seule correction.</summary>
+    public static bool NeedsResize(RECT target, RECT visible) =>
+        Math.Abs((target.Right - target.Left) - (visible.Right - visible.Left)) > 4
+        || Math.Abs((target.Bottom - target.Top) - (visible.Bottom - visible.Top)) > 4;
 
     /// <summary>Rectangle de la fenêtre entière pour une partie visible voulue (bords invisibles de Windows 11 ajoutés).</summary>
     public static RECT WithBorders(RECT visible, RECT windowRect, RECT visibleRect) => new()

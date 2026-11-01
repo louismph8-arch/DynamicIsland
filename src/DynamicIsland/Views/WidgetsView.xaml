@@ -19,7 +19,7 @@
     <Style x:Key="TileLabel" TargetType="TextBlock">
       <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Caption}"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
-      <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     </Style>
     <Style x:Key="TileValue" TargetType="TextBlock">
       <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Headline}"/>
@@ -35,7 +35,7 @@
     <Style x:Key="TileBar" TargetType="Border">
       <Setter Property="Height" Value="{x:Static t:Sizes.Bar}"/>
       <Setter Property="CornerRadius" Value="{x:Static t:Corners.Pill}"/>
-      <Setter Property="Background" Value="{x:Static t:Paint.Selected}"/>
+      <Setter Property="Background" Value="{DynamicResource Paint.Selected}"/>
       <Setter Property="VerticalAlignment" Value="Bottom"/>
     </Style>
   </UserControl.Resources>
@@ -75,7 +75,7 @@
                        Margin="{ui:Space s3,0,0,0}" VerticalAlignment="Center"/>
           </StackPanel>
           <TextBlock x:Name="WeatherDescription" Grid.Row="2" FontSize="{x:Static t:TypeRamp.Footnote}" TextTrimming="CharacterEllipsis"/>
-          <TextBlock x:Name="WeatherRange" Grid.Row="3" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{StaticResource TextSecondary}"/>
+          <TextBlock x:Name="WeatherRange" Grid.Row="3" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{DynamicResource Paint.TextSecondary}"/>
         </Grid>
       </ui:SquircleBorder>
 
@@ -141,10 +141,10 @@
     </Grid>
 
     <StackPanel x:Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-      <TextBlock Text="{x:Static t:Icons.Widgets}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XXL}" Foreground="{StaticResource TextTertiary}"
+      <TextBlock Text="{x:Static t:Icons.Widgets}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XXL}" Foreground="{DynamicResource Paint.TextTertiary}"
                  HorizontalAlignment="Center"/>
       <TextBlock Text="{ui:L widgets.aucun_widget_active}" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="{ui:Space 0,s4,0,0}"/>
-      <TextBlock Text="{ui:L widgets.active_parametres_widgets}" FontSize="{x:Static t:TypeRamp.Footnote}" Foreground="{StaticResource TextSecondary}"
+      <TextBlock Text="{ui:L widgets.active_parametres_widgets}" FontSize="{x:Static t:TypeRamp.Footnote}" Foreground="{DynamicResource Paint.TextSecondary}"
                  HorizontalAlignment="Center" Margin="{ui:Space 0,s1,0,0}"/>
     </StackPanel>
   </Grid>
