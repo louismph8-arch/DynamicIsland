@@ -34,6 +34,7 @@ public partial class IslandWindow
         Tab.Mixer => MixerTab,
         Tab.Clipboard => ClipboardTab,
         Tab.Notes => NotesTab,
+        Tab.Translate => TranslateTab,
         _ => MusicTab,
     };
 

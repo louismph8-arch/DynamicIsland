@@ -317,6 +317,7 @@ public partial class App : Application
             GlobalHotkey.IslandPressed += () => RunModule("Île", () => _island?.ToggleByUser());
             GlobalHotkey.NotePressed += () => RunModule("Notes", () => Notes.NoteEditorWindow.Open(null), ModuleGuard.NotesTab);
             GlobalHotkey.StagePressed += () => RunModule("Stage Manager", Stage.StageManager.Toggle, ModuleGuard.Stage);
+            GlobalHotkey.TranslatePressed += () => RunModule("Traduire", () => _island?.TranslateClipboard(), ModuleGuard.TranslateTab);
             GlobalHotkey.Start();
         }, ModuleGuard.Palette);
         RunModule("Zone d'état du dock", () =>
@@ -617,6 +618,11 @@ public partial class App : Application
         });
         ModuleGuard.Register(ModuleGuard.Discord, DiscordVoice.Reconnect); // la boucle se réveille et voit le module arrêté
         ModuleGuard.Register(ModuleGuard.Claude, ClaudeService.Stop);
+        ModuleGuard.Register(ModuleGuard.TranslateTab, () =>
+        {
+            TranslateService.Stop();
+            GlobalHotkey.Refresh(); // raccourci « Traduire » libéré
+        });
         ModuleGuard.Register(ModuleGuard.Palette, GlobalHotkey.Refresh);
         ModuleGuard.Register(ModuleGuard.Rgb, Services.Rgb.RgbService.Stop); // G HUB reprend l'éclairage
         ModuleGuard.Register(ModuleGuard.Friends, Services.Friends.FriendsService.Stop); // présence effacée du serveur
@@ -754,6 +760,7 @@ public partial class App : Application
             menuBar.Close();
             var media = new MediaService(Dispatcher);
             await media.InitializeAsync();
+            if (SnapshotDemo) media.UseDemo(); // images publiques : pas ce qui joue vraiment sur le PC (widget Musique)
             await DesktopWidgets.DesktopWidgetsService.RenderSnapshotsAsync(folder, media);
             await Plugins.PluginSnapshots.RenderAsync(folder); // widgets des potes d'exemple (en mémoire, données d'exemple)
             await Welcome.WelcomeWindow.RenderSnapshotsAsync(folder);
@@ -1045,6 +1052,7 @@ public partial class App : Application
         RunQuietly("Fond animé", AnimatedWallpaper.Stop); // retire nos fenêtres du bureau
         RunQuietly("Widgets du bureau", DesktopWidgets.DesktopWidgetsService.Stop);
         RunQuietly("Claude", ClaudeService.Stop); // ferme une réponse en cours (processus de Claude Code)
+        RunQuietly("Traduire", TranslateService.Stop); // idem pour une traduction en cours
         RunQuietly("Presse-papiers", () =>
         {
             SecureClipboard.EraseNow(); // un mot de passe du coffre encore copié (option d'effacement) ne survit pas à l'app

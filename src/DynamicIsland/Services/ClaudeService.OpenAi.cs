@@ -30,8 +30,9 @@ public static partial class ClaudeService
     /// <summary>Pas de délai propre : la question a déjà son délai maximal (3 min) et « Arrêter ».</summary>
     private static readonly HttpClient OpenAiHttp = new() { BaseAddress = new Uri(OpenAiBase), Timeout = Timeout.InfiniteTimeSpan };
 
-    private static async Task RunOpenAiAsync(ClaudeTurn turn, string question, List<ClaudeTurn> history, CancellationToken token)
+    private static async Task RunOpenAiAsync(ClaudeTurn turn, string question, List<ClaudeTurn> history, CancellationToken token, AiRequest? ai = null)
     {
+        var notify = ai?.Notify ?? Raise;
         var key = ApiKeys.OpenAi.Load() ?? throw new ClaudeException(Loc.F("claude.api.no_key", "OpenAI"), ClaudeFix.ApiKey);
         var input = new JsonArray();
         foreach (var past in history)
@@ -42,12 +43,12 @@ public static partial class ClaudeService
         input.Add(new JsonObject { ["role"] = "user", ["content"] = question });
         var body = new JsonObject
         {
-            ["model"] = SettingsStore.Current.Claude.OpenAiModel,
-            ["instructions"] = SystemPrompt(),
+            ["model"] = ai?.Model ?? SettingsStore.Current.Claude.OpenAiModel,
+            ["instructions"] = ai?.System ?? SystemPrompt(),
             ["input"] = input,
             ["stream"] = true,
             ["store"] = false,
-            ["max_output_tokens"] = ApiMaxTokens,
+            ["max_output_tokens"] = ai?.MaxTokens ?? ApiMaxTokens,
             // Réponses courtes dans l'île : peu de réflexion (comme « effort low » pour Claude).
             ["reasoning"] = new JsonObject { ["effort"] = "low" },
         };
@@ -72,7 +73,7 @@ public static partial class ClaudeService
                 if (sse.Delta is { Length: > 0 } delta)
                 {
                     turn.Answer += delta;
-                    Raise();
+                    notify();
                 }
                 if (sse.Error != null)
                 {

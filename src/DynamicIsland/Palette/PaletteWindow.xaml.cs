@@ -47,7 +47,9 @@ public partial class PaletteWindow : Window
         _actions = new PaletteActions(duration => _island?.StartTimer(duration), () => _island?.StartPomodoro(),
             question => _island?.AskClaude(question), id => _island?.Surprise(id),
             vault => _island?.OpenClipboard(vault), (glyph, text) => _island?.ShowNotice(glyph, text, duration: TimeSpan.FromSeconds(3)),
-            () => _island?.OpenNotes());
+            () => _island?.OpenNotes(),
+            (text, target) => _island?.TranslateText(text, target), url => _island?.TranslatePage(url),
+            () => _island?.TranslateClipboard(), () => _island?.OpenTranslate());
         SourceInitialized += (_, _) =>
         {
             // Ni barre des tâches ni Alt+Tab, mais activable (on doit pouvoir taper).

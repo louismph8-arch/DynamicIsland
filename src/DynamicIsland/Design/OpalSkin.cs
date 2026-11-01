@@ -134,6 +134,7 @@ public sealed class OpalSkin
     {
         if (!_attached) return;
         _attached = false;
+        _breathTimer?.Stop();
         OpalTheme.Changed -= Rebuild;
         OpalBackdrop.Changed -= Layout;
     }
@@ -174,7 +175,62 @@ public sealed class OpalSkin
     {
         _paint = new OpalPaint(OpalTheme.Look, OpalTheme.Grain, _accent);
         _paint.SetLight(_light.X, _light.Y);
+        if (_breathing) BreathStep();
         Apply();
+    }
+
+    // ------------------------------------------------------------------ respiration (O5)
+
+    private System.Windows.Threading.DispatcherTimer? _breathTimer;
+    private readonly System.Diagnostics.Stopwatch _breathClock = new();
+    private bool _breathing;
+
+    /// <summary>Vrai tant que la bordure respire (--self-test, rendus).</summary>
+    public bool IsBreathing => _breathing;
+
+    /// <summary>
+    /// Bordure irisée qui « respire » pendant une activité en direct (O5) : minuterie à ≈ 15 images/s créée seulement à ce
+    /// moment-là, arrêtée sinon (au repos rien ne tourne). La décision (réduire les animations, jeu, verre coupé…) est prise par
+    /// l'appelant avec <see cref="Live.LiveBreath.ShouldRun"/>.
+    /// </summary>
+    public void SetBreathing(bool on)
+    {
+        if (on == _breathing) return;
+        _breathing = on;
+        if (on)
+        {
+            _breathTimer ??= CreateBreathTimer();
+            _breathClock.Restart();
+            _breathTimer.Start();
+            return;
+        }
+        _breathTimer?.Stop();
+        _breathClock.Reset();
+        _paint.SetBreath(0, 1); // reflets à leur place, éclat normal
+    }
+
+    /// <summary>Rendu --snapshot : respiration figée à cet instant (secondes), sans minuterie.</summary>
+    public void ShowBreathAt(double seconds)
+    {
+        var (angle, glow) = Live.LiveBreath.At(seconds);
+        _paint.SetBreath(angle, glow);
+    }
+
+    private System.Windows.Threading.DispatcherTimer CreateBreathTimer()
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Render) { Interval = Opal.BreathFrame };
+        timer.Tick += (_, _) =>
+        {
+            if (!_attached || !_body.IsVisible) { SetBreathing(false); return; }
+            BreathStep();
+        };
+        return timer;
+    }
+
+    private void BreathStep()
+    {
+        var (angle, glow) = Live.LiveBreath.At(_breathClock.Elapsed.TotalSeconds);
+        _paint.SetBreath(angle, glow);
     }
 
     /// <summary>Pinceaux de l'intensité actuelle.</summary>

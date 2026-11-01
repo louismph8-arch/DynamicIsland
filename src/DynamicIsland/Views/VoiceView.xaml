@@ -3,27 +3,58 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:t="clr-namespace:DynamicIsland.Themes"
         xmlns:ui="clr-namespace:DynamicIsland.Controls"
-             Width="{x:Static t:IslandShape.ContentWidth}" Height="128">
+             Width="{x:Static t:IslandShape.VoiceContentWidth}" Height="{x:Static t:IslandShape.VoiceContentHeight}">
   <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <!-- Salon vocal Discord : nom + nombre de présents -->
-    <StackPanel x:Name="Header" Orientation="Horizontal" Margin="{ui:Space s1,0,0,s4}">
-      <TextBlock Text="{x:Static t:Icons.Voice}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}" VerticalAlignment="Center"
-                 Foreground="{DynamicResource AccentGradientBrush}"/>
-      <TextBlock x:Name="ChannelText" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold" Margin="{ui:Space s4,0,0,0}" VerticalAlignment="Center"
-                 MaxWidth="260" TextTrimming="CharacterEllipsis"/>
-      <TextBlock x:Name="CountText" FontSize="{x:Static t:TypeRamp.Footnote}" Foreground="{DynamicResource Paint.TextSecondary}" Margin="{ui:Space s4,0,0,0}" VerticalAlignment="Center"/>
-    </StackPanel>
+    <!-- Salon vocal Discord : nom + nombre de présents, et MES boutons micro / casque à droite -->
+    <Grid x:Name="Header" Margin="{ui:Space s1,0,0,s3}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock Text="{x:Static t:Icons.Voice}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}" VerticalAlignment="Center"
+                   Foreground="{DynamicResource AccentGradientBrush}"/>
+        <TextBlock x:Name="ChannelText" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold" Margin="{ui:Space s4,0,0,0}" VerticalAlignment="Center"
+                   MaxWidth="230" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="CountText" FontSize="{x:Static t:TypeRamp.Footnote}" Foreground="{DynamicResource Paint.TextSecondary}" Margin="{ui:Space s4,0,0,0}" VerticalAlignment="Center"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+        <Button x:Name="SelfMicButton" Style="{StaticResource SmallIconButton}" Content="{x:Static t:Icons.Voice}" Click="SelfMic_Click"/>
+        <Button x:Name="SelfDeafButton" Style="{StaticResource SmallIconButton}" Content="{x:Static t:Icons.Headphones}" Click="SelfDeaf_Click"
+                Margin="{ui:Space s2,0,0,0}"/>
+      </StackPanel>
+    </Grid>
 
-    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
-      <WrapPanel x:Name="MembersPanel"/>
+    <!-- Ancien jeton sans le droit « rpc.voice.write » : on explique et on propose un nouvel accord -->
+    <ui:SquircleBorder x:Name="WriteBanner" Grid.Row="1" Visibility="Collapsed" CornerRadius="{x:Static t:Corners.L}" Background="{DynamicResource Paint.Surface}"
+                       Padding="{ui:Space s4,s3}" Margin="{ui:Space 0,0,0,s3}">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="{ui:L voice.write.missing}" FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{DynamicResource Paint.TextSecondary}"
+                   TextWrapping="Wrap" VerticalAlignment="Center"/>
+        <Button Grid.Column="1" Style="{StaticResource RoundButton}" Content="{ui:L voice.write.reconnect}" Click="Reconnect_Click" Background="{DynamicResource Paint.Selected}"
+                FontSize="{x:Static t:TypeRamp.Caption}" Padding="{ui:Space s5,s2}" Margin="{ui:Space s4,0,0,0}" VerticalAlignment="Center"/>
+      </Grid>
+    </ui:SquircleBorder>
+
+    <ScrollViewer x:Name="MembersScroller" Grid.Row="2" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel x:Name="MembersPanel"/>
     </ScrollViewer>
 
-    <StackPanel x:Name="EmptyPanel" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+    <TextBlock x:Name="LocalNote" Grid.Row="3" Text="{ui:L voice.local_note}" FontSize="{x:Static t:TypeRamp.Caption2}" Foreground="{DynamicResource Paint.TextTertiary}"
+               HorizontalAlignment="Center" Margin="{ui:Space 0,s2,0,0}" TextTrimming="CharacterEllipsis"/>
+
+    <StackPanel x:Name="EmptyPanel" Grid.RowSpan="4" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
       <TextBlock Text="{x:Static t:Icons.Voice}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XXL}" Foreground="{DynamicResource Paint.TextTertiary}"
                  HorizontalAlignment="Center"/>
       <TextBlock x:Name="EmptyTitle" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="{ui:Space 0,s4,0,0}"/>

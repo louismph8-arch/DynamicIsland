@@ -22,11 +22,12 @@ public static class GlobalHotkey
     private const int IslandId = 0x444B;
     private const int NoteId = 0x444C;
     private const int StageId = 0x444D;
+    private const int TranslateId = 0x444E;
     private const uint MOD_NOREPEAT = 0x4000;
     private static readonly IntPtr HWND_MESSAGE = new(-3);
 
     private static HwndSource? _window;
-    private static string? _palette, _reveal, _island, _note, _stage; // raccourcis enregistrés
+    private static string? _palette, _reveal, _island, _note, _stage, _translate; // raccourcis enregistrés
     private static bool _suspended;
 
     /// <summary>Le raccourci de la palette a été pressé (thread UI).</summary>
@@ -39,6 +40,8 @@ public static class GlobalHotkey
     public static event Action? NotePressed;
     /// <summary>Le raccourci « Stage Manager » a été pressé (thread UI ; aucun par défaut).</summary>
     public static event Action? StagePressed;
+    /// <summary>Le raccourci « Traduire ce que j'ai copié » a été pressé (thread UI ; Ctrl+Alt+T par défaut).</summary>
+    public static event Action? TranslatePressed;
     /// <summary>Un raccourci a été (ou n'a pas pu être) enregistré.</summary>
     public static event Action? StateChanged;
 
@@ -52,6 +55,8 @@ public static class GlobalHotkey
     public static string? NoteError { get; private set; }
     /// <summary>Idem pour le raccourci « Stage Manager ».</summary>
     public static string? StageError { get; private set; }
+    /// <summary>Idem pour le raccourci « Traduire ce que j'ai copié ».</summary>
+    public static string? TranslateError { get; private set; }
 
     public static void Start()
     {
@@ -95,6 +100,11 @@ public static class GlobalHotkey
         _stage = Register(StageId, _stage,
             !_suspended && !GamingMode.IsActive && !App.SafeMode && !ModuleGuard.IsDisabled(ModuleGuard.Stage) && settings.Stage.Hotkey.Length > 0 ? settings.Stage.Hotkey : null,
             "Stage Manager", error => StageError = error);
+        // « Traduire ce que j'ai copié » : libéré en jeu comme la palette (le jeu garde toutes ses touches).
+        _translate = Register(TranslateId, _translate,
+            !_suspended && !GamingMode.IsActive && !ModuleGuard.IsDisabled(ModuleGuard.TranslateTab) && settings.Translate.Hotkey.Length > 0
+                ? settings.Translate.Hotkey : null,
+            "Traduire", error => TranslateError = error);
     }
 
     /// <returns>Le raccourci enregistré après l'appel (null si aucun).</returns>
@@ -128,7 +138,7 @@ public static class GlobalHotkey
     {
         if (msg != WM_HOTKEY) return IntPtr.Zero;
         int id = wParam.ToInt32();
-        if (id != PaletteId && id != RevealId && id != IslandId && id != NoteId && id != StageId) return IntPtr.Zero;
+        if (id != PaletteId && id != RevealId && id != IslandId && id != NoteId && id != StageId && id != TranslateId) return IntPtr.Zero;
         handled = true;
         try
         {
@@ -136,6 +146,7 @@ public static class GlobalHotkey
             else if (id == IslandId) IslandPressed?.Invoke();
             else if (id == NoteId) NotePressed?.Invoke();
             else if (id == StageId) StagePressed?.Invoke();
+            else if (id == TranslateId) TranslatePressed?.Invoke();
             else RevealPressed?.Invoke();
         }
         catch (Exception ex)
@@ -163,6 +174,12 @@ public static class Hotkeys
     public const string DefaultNote = "Ctrl+Alt+N";
     /// <summary>Proposé par « Par défaut » de Stage Manager (7G) ; aucun raccourci tant qu'on ne le choisit pas.</summary>
     public const string DefaultStage = "Ctrl+Alt+S";
+    /// <summary>
+    /// « Traduire ce que j'ai copié » : T comme Traduire. Ctrl+Alt = AltGr sur les claviers français : AltGr+T ne tape aucun
+    /// caractère en français (France), français (Canada) et anglais (États-Unis), vérifié par <c>--self-test</c> dans les tables
+    /// de ces dispositions (KBDFR, KBDCA, KBDFC, KBDUS).
+    /// </summary>
+    public const string DefaultTranslate = "Ctrl+Alt+T";
 
     public static bool TryParse(string? text, out ModifierKeys modifiers, out Key key)
     {

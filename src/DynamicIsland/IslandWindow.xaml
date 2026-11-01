@@ -1,4 +1,4 @@
-<Window x:Class="DynamicIsland.IslandWindow"
+﻿<Window x:Class="DynamicIsland.IslandWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:t="clr-namespace:DynamicIsland.Themes"
@@ -60,29 +60,47 @@
 
         <Grid x:Name="IslandContent">
 
-          <!-- ===== Vue compacte : heure (+ pochette / égaliseur / minuteur) ===== -->
+          <!-- ===== Vue compacte (O5) : au repos l'heure seule ; une activité en direct (minuteur, transfert, installation,
+               assistant, musique, vocal…) ajoute un bord gauche (anneau / pochette / avatars) et un bord droit (valeur /
+               égaliseur / « +1 »). La pilule prend la largeur de son contenu (LivePill.Width), l'heure reste au centre. ===== -->
           <Grid x:Name="CompactView">
-            <ui:SquircleBorder x:Name="CompactArt" Width="24" Height="24" CornerRadius="{x:Static t:Corners.S}" Margin="{ui:Space s3,0,0,0}"
-                    HorizontalAlignment="Left" VerticalAlignment="Center" Opacity="0"
-                    RenderOptions.BitmapScalingMode="HighQuality"/>
-            <!-- Salon vocal Discord : avatars (anneau vert = parle) -->
-            <StackPanel x:Name="VoiceAvatars" Orientation="Horizontal" Margin="{ui:Space s3,0,0,0}"
-                        HorizontalAlignment="Left" VerticalAlignment="Center" Opacity="0"/>
+            <Grid x:Name="LiveLeading" HorizontalAlignment="Left" VerticalAlignment="Center" Opacity="0">
+              <ui:SquircleBorder x:Name="CompactArt" Width="{x:Static t:IslandShape.LiveArt}" Height="{x:Static t:IslandShape.LiveArt}" CornerRadius="{x:Static t:Corners.S}"
+                      VerticalAlignment="Center" Visibility="Collapsed" RenderOptions.BitmapScalingMode="HighQuality"/>
+              <!-- Salon vocal Discord : avatars (anneau vert = parle) -->
+              <StackPanel x:Name="VoiceAvatars" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed"/>
+              <!-- Anneau de progression (indéterminée = un arc qui tourne doucement) avec l'icône de l'activité au centre -->
+              <Grid x:Name="LiveRing" Width="{x:Static t:IslandShape.LiveRing}" Height="{x:Static t:IslandShape.LiveRing}" VerticalAlignment="Center" Visibility="Collapsed">
+                <Ellipse Stroke="{DynamicResource Paint.Track}" StrokeThickness="{x:Static t:Stroke.Focus}"/>
+                <Path x:Name="LiveArc" StrokeThickness="{x:Static t:Stroke.Focus}" StrokeStartLineCap="Round" StrokeEndLineCap="Round" RenderTransformOrigin="0.5,0.5">
+                  <Path.RenderTransform><RotateTransform x:Name="LiveArcTurn"/></Path.RenderTransform>
+                </Path>
+                <TextBlock x:Name="LiveIcon" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XS}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource Paint.TextSecondary}"/>
+              </Grid>
+            </Grid>
 
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
+            <StackPanel x:Name="CompactCenter" HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
               <!-- « Ne pas déranger » actif (7F) : petite lune discrète devant l'heure -->
-              <TextBlock x:Name="FocusMoon" Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}"
-                         Foreground="{DynamicResource Paint.TextSecondary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
+              <TextBlock x:Name="FocusMoon" Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XS}"
+                         Foreground="{DynamicResource Paint.TextTertiary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
               <TextBlock x:Name="CompactClock" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Headline}" VerticalAlignment="Center"/>
-              <!-- Confidentialité : vert = webcam utilisée, orange = micro -->
-              <Ellipse x:Name="CameraDot" Width="6" Height="6" Margin="{ui:Space s3,0,0,0}" VerticalAlignment="Center"
-                       Fill="{StaticResource CameraBrush}" Visibility="Collapsed"/>
-              <Ellipse x:Name="MicDot" Width="6" Height="6" Margin="{ui:Space s3,0,0,0}" VerticalAlignment="Center"
-                       Fill="{StaticResource MicrophoneBrush}" Visibility="Collapsed"/>
+              <!-- Confidentialité : vert = webcam utilisée, orange = micro (petits points discrets, regroupés) -->
+              <StackPanel x:Name="PrivacyDots" Orientation="Vertical" VerticalAlignment="Center" Margin="{ui:Space s3,0,0,0}" Visibility="Collapsed">
+                <Ellipse x:Name="CameraDot" Width="5" Height="5" Margin="{ui:Space 0,px}" Fill="{StaticResource CameraBrush}" Visibility="Collapsed"/>
+                <Ellipse x:Name="MicDot" Width="5" Height="5" Margin="{ui:Space 0,px}" Fill="{StaticResource MicrophoneBrush}" Visibility="Collapsed"/>
+              </StackPanel>
+              <!-- Batterie : SEULEMENT si le PC en a une (BatteryFlag ≠ 128 / 255) -->
+              <StackPanel x:Name="CompactBattery" Orientation="Horizontal" VerticalAlignment="Center" Margin="{ui:Space s4,0,0,0}" Visibility="Collapsed">
+                <TextBlock x:Name="BatteryIcon" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Paint.TextSecondary}"/>
+                <TextBlock x:Name="BatteryText" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Caption}" VerticalAlignment="Center"
+                           Margin="{ui:Space s1,0,0,0}" Foreground="{DynamicResource Paint.TextSecondary}"/>
+              </StackPanel>
             </StackPanel>
 
-            <Grid HorizontalAlignment="Right" VerticalAlignment="Center" Margin="{ui:Space 0,0,s7,0}">
-              <StackPanel x:Name="Bars" Orientation="Horizontal" Height="14" Opacity="0">
+            <StackPanel x:Name="LiveTrailing" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Opacity="0">
+              <StackPanel x:Name="Bars" Orientation="Horizontal" Height="14" VerticalAlignment="Center" Visibility="Collapsed">
                 <Rectangle Width="3" Height="14" Margin="{ui:Space px,0}" RadiusX="{x:Static t:Radius.Marker}" RadiusY="{x:Static t:Radius.Marker}"
                            VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1">
                   <Rectangle.RenderTransform><ScaleTransform ScaleY="0.35"/></Rectangle.RenderTransform>
@@ -100,18 +118,13 @@
                   <Rectangle.RenderTransform><ScaleTransform ScaleY="0.35"/></Rectangle.RenderTransform>
                 </Rectangle>
               </StackPanel>
-
-              <StackPanel x:Name="CompactTimer" Orientation="Horizontal" Opacity="0">
-                <!-- Anneau de progression du minuteur / Pomodoro -->
-                <Grid Width="16" Height="16" VerticalAlignment="Center" Margin="{ui:Space 0,0,s3,0}">
-                  <Ellipse Stroke="{DynamicResource Paint.Track}" StrokeThickness="{x:Static t:Stroke.Focus}"/>
-                  <Path x:Name="TimerRing" StrokeThickness="{x:Static t:Stroke.Focus}" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                        Stroke="{StaticResource TimerBrush}"/>
-                </Grid>
-                <TextBlock x:Name="CompactTimerText" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Body}"
-                           Foreground="{StaticResource TimerBrush}" VerticalAlignment="Center"/>
-              </StackPanel>
-            </Grid>
+              <TextBlock x:Name="LiveValue" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Body}" VerticalAlignment="Center" Visibility="Collapsed"/>
+              <!-- Autres activités en cours : « +1 » -->
+              <ui:SquircleBorder x:Name="LiveMore" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource Paint.Track}" VerticalAlignment="Center"
+                                 Padding="{ui:Space s2,0}" Margin="{ui:Space s3,0,0,0}" Visibility="Collapsed">
+                <TextBlock x:Name="LiveMoreText" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Micro}" Foreground="{DynamicResource Paint.TextSecondary}"/>
+              </ui:SquircleBorder>
+            </StackPanel>
           </Grid>
 
           <!-- ===== Volume : s'affiche quelques instants quand il change ===== -->
@@ -202,6 +215,8 @@
                              Content="{ui:L island.clipboard}" Checked="Tab_Checked"/>
                 <RadioButton x:Name="NotesTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Notes}"
                              Content="{ui:L island.notes}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="TranslateTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Translate}"
+                             Content="{ui:L island.translate}" Checked="Tab_Checked"/>
               </StackPanel>
               </ScrollViewer>
               <TextBlock x:Name="TabTitle" VerticalAlignment="Center" Visibility="Collapsed" Margin="{ui:Space s2,0,0,0}"
@@ -232,6 +247,7 @@
                 <views:FriendsView x:Name="FriendsTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:ClipboardView x:Name="ClipboardTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:NotesView x:Name="NotesTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:TranslateView x:Name="TranslateTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
               </Grid>
             </Grid>
           </Grid>

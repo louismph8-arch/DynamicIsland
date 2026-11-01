@@ -25,6 +25,7 @@ public partial class IslandWindow
         (Tab.Widgets, IslandTabItem.Widgets), (Tab.Shelf, IslandTabItem.Shelf), (Tab.Voice, IslandTabItem.Voice),
         (Tab.Claude, IslandTabItem.Claude), (Tab.Clocks, IslandTabItem.Clocks), (Tab.Health, IslandTabItem.Health),
         (Tab.Friends, IslandTabItem.Friends), (Tab.Mixer, IslandTabItem.Mixer), (Tab.Clipboard, IslandTabItem.Clipboard), (Tab.Notes, IslandTabItem.Notes),
+        (Tab.Translate, IslandTabItem.Translate),
     ];
 
     private static string IdOf(Tab tab) => TabIds.First(t => t.Tab == tab).Id;

@@ -10,10 +10,7 @@
         FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource Paint.TextPrimary}">
 
   <!-- Fenêtre NON transparente : les miniatures DWM ne s'affichent pas sur une fenêtre « layered ».
-       Coins arrondis et bordure sombre fournis par Windows 11 (DWM). -->
-  <StackPanel Margin="{ui:Space s4}">
-    <TextBlock x:Name="AppName" FontSize="{x:Static t:TypeRamp.Footnote}" FontWeight="SemiBold" Foreground="{DynamicResource Paint.TextSecondary}"
-               Margin="{ui:Space s4,s1,s4,s3}"/>
-    <StackPanel x:Name="Slots" Orientation="Horizontal"/>
-  </StackPanel>
+       Coins arrondis et bordure fournis par Windows 11 (DWM) : c'est le seul encadré. Le nom de l'appli n'est pas répété
+       (l'étiquette du dock le montre déjà) : chaque carte = titre de la fenêtre + « × », puis sa miniature. -->
+  <StackPanel x:Name="Slots" Orientation="Horizontal" Margin="{ui:Space s2}"/>
 </Window>

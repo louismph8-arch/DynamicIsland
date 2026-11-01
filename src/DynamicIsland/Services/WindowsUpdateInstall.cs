@@ -27,6 +27,28 @@ public static class WindowsUpdateInstall
 
     public static bool Running => _watch != null;
 
+    /// <summary>Installation commencée, avancée ou finie : activité en direct de l'île (O5).</summary>
+    public static event Action? Changed;
+
+    /// <summary>Avancement de l'installation en cours (null = pas encore d'étape connue).</summary>
+    public static (double? Progress, string Value) Status { get; private set; } = (null, "");
+
+    /// <summary>
+    /// Ligne du fichier d'avancement → progression 0–1 et valeur courte : téléchargement = première moitié, installation =
+    /// seconde moitié (« download|2/4 » → 0,25 et « 2/4 ») ; « restart » = fini ; autre chose = indéterminée.
+    /// </summary>
+    internal static (double? Progress, string Value) Parse(string line)
+    {
+        var parts = line.Trim().Split('|');
+        if (parts[0] == "restart") return (1, "");
+        if (parts.Length < 2 || parts[0] is not ("download" or "install")) return (null, "");
+        var step = parts[1].Split('/');
+        if (step.Length != 2 || !int.TryParse(step[0], out int i) || !int.TryParse(step[1], out int n) || n <= 0) return (null, "");
+        i = Math.Clamp(i, 1, n);
+        double half = (i - 1) / (double)n / 2;
+        return (parts[0] == "download" ? half : 0.5 + half, $"{i}/{n}");
+    }
+
     /// <param name="restart">Vrai = redémarrer, faux = arrêter le PC.</param>
     public static async void Start(bool restart)
     {
@@ -58,11 +80,15 @@ public static class WindowsUpdateInstall
         _watch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _watch.Tick += (_, _) => Guarded.Run(ShowProgress, "Windows Update : avancement");
         _watch.Start();
+        Status = (null, "");
+        Changed?.Invoke();
         Notify(Loc.T("updates.win.progress.start"));
         var exe = Environment.ProcessPath ?? "";
         bool? done = await Remote.FirewallRule.RunElevatedAsync(exe, $"{Argument} {(restart ? "restart" : "shutdown")}");
         _watch?.Stop();
         _watch = null;
+        _lastProgress = null;
+        Changed?.Invoke();
         if (done == null) Notify(Loc.T("updates.win.refused"));
         else if (done == false) Notify(Loc.T("updates.win.failed"));
         _ = WindowsUpdateService.CheckAsync(online: false);
@@ -77,6 +103,8 @@ public static class WindowsUpdateInstall
         catch (Exception) { return; }
         if (text.Length == 0 || text == _lastProgress) return;
         _lastProgress = text;
+        Status = Parse(text);
+        Changed?.Invoke();
         var parts = text.Split('|');
         string message = parts[0] switch
         {

@@ -95,10 +95,22 @@ public partial class CalendarTimerView : UserControl
         }
     }
 
+    private bool _shown = true;
+
+    /// <summary>
+    /// Île refermée (O5) : le minuteur de l'onglet n'est plus redessiné 5 fois par seconde derrière la pilule (elle a son
+    /// propre anneau) ; il est remis à jour à l'ouverture.
+    /// </summary>
+    public void SetShown(bool shown)
+    {
+        _shown = shown;
+        if (shown) UpdateTimer();
+    }
+
     private void UpdateTimer()
     {
         var timer = _timer;
-        if (timer == null) return;
+        if (timer == null || !_shown) return;
 
         var shown = timer.State == TimerState.Idle ? timer.Duration : timer.Remaining;
         TimerText.Text = TimerService.Format(shown);

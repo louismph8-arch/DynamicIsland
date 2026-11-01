@@ -42,6 +42,7 @@ public partial class IslandWindow : Window
         Mixer,
         Clipboard,
         Notes,
+        Translate,
     }
 
     /// <summary>Arrondis selon le réglage « Arrondi des coins » (100 % = pilule).</summary>
@@ -172,6 +173,8 @@ public partial class IslandWindow : Window
         GamingMode.Changed += OnGamingChanged;
         DiscordVoice.Changed += UpdateCompact;
         ClaudeService.Changed += OnClaudeChanged;
+        TranslateService.Changed += OnTranslateChanged;
+        TranslateTab.TranslateClipboardRequested += () => TranslateClipboard();
         ClaudeTab.AskRequested += () => Palette.PaletteWindow.Toggle(this, "? "); // la barre de saisie sort de l'île
         ControlTab.HeightChanged += () =>
         {
@@ -190,9 +193,12 @@ public partial class IslandWindow : Window
         ApplySettings();
 
         SelectTab(Tab.Music, animate: false);
+        InitializeLive(); // activités en direct de la pilule (O5)
         ApplyGeometry();
         UpdateClock();
         UpdateCompact();
+        SyncAssistantActivity();
+        SyncUpdateActivity();
         InitializeClickThrough(); // le halo laisse passer les clics
         Loaded += OnLoaded;
     }
@@ -217,6 +223,7 @@ public partial class IslandWindow : Window
             UpdateCompact();
         }
         if (!settings.PrivacyDots) UpdatePrivacyDots();
+        UpdateLiveMotion(); // verre coupé, animations réduites : la respiration et l'arc qui tourne suivent
         ClocksTab.Refresh();
         ApplyScale(); // taille de l'île (point 12)
         ApplyTabLayout(); // rangée ou colonne d'onglets
@@ -275,6 +282,8 @@ public partial class IslandWindow : Window
         GamingMode.Changed -= OnGamingChanged;
         DiscordVoice.Changed -= UpdateCompact;
         ClaudeService.Changed -= OnClaudeChanged;
+        DetachLive();
+        TranslateService.Changed -= OnTranslateChanged;
         if (_animating) CompositionTarget.Rendering -= OnRendering;
         foreach (var timer in new[] { _privacyWatch, _volumeWatch, _hudTimer, _noticeTimer, _meterTimer, _followWatch }) timer.Stop();
         _brightness.Dispose();
@@ -719,6 +728,7 @@ public partial class IslandWindow : Window
             SelectTab(Tab.Calendar, animate: false);
             _timer.Acknowledge();
         }
+        CalendarTab.SetShown(true);
         CalendarTab.ShowToday();
         if (_tab == Tab.Control) ControlTab.Refresh();
         MusicTab.IsActive = _tab == Tab.Music;
@@ -731,8 +741,9 @@ public partial class IslandWindow : Window
         MixerTab.IsActive = _tab == Tab.Mixer && SnapshotFolder == null;
         ClipboardTab.IsActive = _tab == Tab.Clipboard;
         NotesTab.IsActive = _tab == Tab.Notes;
+        TranslateTab.IsActive = _tab == Tab.Translate;
         ControlTab.IsActive = _tab == Tab.Control && SnapshotFolder == null;
-        SetBarsRunning(false);
+        UpdateLiveMotion(); // O5 : égaliseur, arc qui tourne et respiration s'arrêtent, l'île est ouverte
         SeasonLayer.Wake(open: true); // 7A : les particules ne bougent que quand on regarde l'île
 
         CompactView.IsHitTestVisible = false;
@@ -776,6 +787,7 @@ public partial class IslandWindow : Window
     {
         if (!_expanded) return;
         _expanded = false;
+        CalendarTab.SetShown(false); // O5 : la pilule a son propre anneau
         MusicTab.IsActive = false;
         WidgetsTab.IsActive = false;
         VoiceTab.IsActive = false;
@@ -786,6 +798,7 @@ public partial class IslandWindow : Window
         MixerTab.IsActive = false;
         ClipboardTab.IsActive = false;
         NotesTab.IsActive = false;
+        TranslateTab.IsActive = false;
         ControlTab.IsActive = false;
         SeasonLayer.Wake(open: false); // encore un moment, puis elles se figent
         _morph?.Finish(); // outil ouvert depuis une tuile : il reste affiché, sans retour animé
@@ -838,12 +851,14 @@ public partial class IslandWindow : Window
         Tab.Calendar => IslandShape.Calendar,
         Tab.Control => new Size(IslandShape.Control.Width, IslandShape.Control.Height + (ControlTab.HasDevices ? IslandShape.DevicesRow : 0)), // + profils, appareils
         Tab.Widgets => new Size(IslandShape.Panel.Width, IslandShape.Panel.Height + (WidgetsTab.HasPlugins ? PluginShape.IslandRow : 0)), // + widgets des potes
-        Tab.Shelf or Tab.Voice or Tab.Clocks or Tab.Friends => IslandShape.Panel,
+        Tab.Shelf or Tab.Clocks or Tab.Friends => IslandShape.Panel,
+        Tab.Voice => IslandShape.Voice,
         Tab.Claude => IslandShape.Claude,
         Tab.Health => IslandShape.Health,
         Tab.Mixer => IslandShape.Mixer,
         Tab.Clipboard => IslandShape.Clipboard,
         Tab.Notes => IslandShape.Notes,
+        Tab.Translate => IslandShape.Translate,
         _ => IslandShape.Music,
     };
 
@@ -851,9 +866,7 @@ public partial class IslandWindow : Window
         _gaming ? IslandShape.Gaming
         : _noticeVisible ? _noticeSize
         : _hudVisible ? IslandShape.Hud
-        : _timer.State is TimerState.Running or TimerState.Paused && TimerService.HasHours(_timer.Remaining) ? IslandShape.CompactWideHours // « 1:30:00 »
-        : (_media.HasSession && _media.IsPlaying) || _timer.State != TimerState.Idle || InVoice ? IslandShape.CompactWide
-        : IslandShape.Compact;
+        : _pillSize; // O5 : largeur d'après le contenu (heure seule, ou activité en direct)
 
     // ------------------------------------------------------------------ onglets
 
@@ -873,6 +886,7 @@ public partial class IslandWindow : Window
         else if (sender == MixerTabButton) SelectTab(Tab.Mixer);
         else if (sender == ClipboardTabButton) SelectTab(Tab.Clipboard);
         else if (sender == NotesTabButton) SelectTab(Tab.Notes);
+        else if (sender == TranslateTabButton) SelectTab(Tab.Translate);
     }
 
     /// <param name="slide">Faux : pas de glissement de page (l'outil ouvert depuis une tuile a son propre mouvement).</param>
@@ -894,11 +908,12 @@ public partial class IslandWindow : Window
         MixerTabButton.IsChecked = tab == Tab.Mixer;
         ClipboardTabButton.IsChecked = tab == Tab.Clipboard;
         NotesTabButton.IsChecked = tab == Tab.Notes;
+        TranslateTabButton.IsChecked = tab == Tab.Translate;
         _syncingTabs = false;
         UpdateTabTitle();
 
         foreach (var (view, viewTab) in new (FrameworkElement, Tab)[]
-                 { (MusicTab, Tab.Music), (CalendarTab, Tab.Calendar), (ControlTab, Tab.Control), (WidgetsTab, Tab.Widgets), (ShelfTab, Tab.Shelf), (VoiceTab, Tab.Voice), (ClaudeTab, Tab.Claude), (ClocksTab, Tab.Clocks), (FriendsTab, Tab.Friends), (HealthTab, Tab.Health), (MixerTab, Tab.Mixer), (ClipboardTab, Tab.Clipboard), (NotesTab, Tab.Notes) })
+                 { (MusicTab, Tab.Music), (CalendarTab, Tab.Calendar), (ControlTab, Tab.Control), (WidgetsTab, Tab.Widgets), (ShelfTab, Tab.Shelf), (VoiceTab, Tab.Voice), (ClaudeTab, Tab.Claude), (ClocksTab, Tab.Clocks), (FriendsTab, Tab.Friends), (HealthTab, Tab.Health), (MixerTab, Tab.Mixer), (ClipboardTab, Tab.Clipboard), (NotesTab, Tab.Notes), (TranslateTab, Tab.Translate) })
         {
             bool visible = viewTab == tab;
             view.IsHitTestVisible = visible;
@@ -927,6 +942,7 @@ public partial class IslandWindow : Window
         MixerTab.IsActive = _expanded && tab == Tab.Mixer && SnapshotFolder == null; // rendus : applis d'exemple, aucun volume lu
         ClipboardTab.IsActive = _expanded && tab == Tab.Clipboard;
         NotesTab.IsActive = _expanded && tab == Tab.Notes;
+        TranslateTab.IsActive = _expanded && tab == Tab.Translate;
         if (_expanded) AnimateTo(ExpandedSize(tab), ExpandedRadius, Springs.Resize);
     }
 
@@ -937,6 +953,7 @@ public partial class IslandWindow : Window
         [Tab.Widgets] = ModuleGuard.WidgetsTab, [Tab.Shelf] = ModuleGuard.ShelfTab, [Tab.Voice] = ModuleGuard.Discord,
         [Tab.Claude] = ModuleGuard.Claude, [Tab.Clocks] = ModuleGuard.ClocksTab, [Tab.Health] = ModuleGuard.Health,
         [Tab.Friends] = ModuleGuard.Friends, [Tab.Mixer] = ModuleGuard.MixerTab, [Tab.Clipboard] = ModuleGuard.ClipboardTab, [Tab.Notes] = ModuleGuard.NotesTab,
+        [Tab.Translate] = ModuleGuard.TranslateTab,
     };
 
     private static bool TabStopped(Tab tab) => TabModules.TryGetValue(tab, out var module) && ModuleGuard.IsDisabled(module);
@@ -946,6 +963,7 @@ public partial class IslandWindow : Window
         (MusicTabButton, Tab.Music), (CalendarTabButton, Tab.Calendar), (ControlTabButton, Tab.Control), (WidgetsTabButton, Tab.Widgets),
         (ShelfTabButton, Tab.Shelf), (VoiceTabButton, Tab.Voice), (ClaudeTabButton, Tab.Claude), (ClocksTabButton, Tab.Clocks),
         (HealthTabButton, Tab.Health), (FriendsTabButton, Tab.Friends), (MixerTabButton, Tab.Mixer), (ClipboardTabButton, Tab.Clipboard), (NotesTabButton, Tab.Notes),
+        (TranslateTabButton, Tab.Translate),
     ];
 
     /// <summary>Onglets dont le module s'est arrêté : cachés ; l'onglet ouvert passe au premier qui marche encore.</summary>
@@ -1011,11 +1029,13 @@ public partial class IslandWindow : Window
 
     // ------------------------------------------------------------------ vue compacte
 
+    /// <summary>
+    /// Pilule réduite (O5) : minuteur / Pomodoro, musique et salon vocal remis dans les activités en direct, puis la pilule
+    /// redessinée (IslandWindow.Live.cs). Appelée 5 fois par seconde pendant un minuteur : seuls de vrais changements
+    /// (seconde affichée, anneau visiblement avancé) redessinent quelque chose.
+    /// </summary>
     private void UpdateCompact()
     {
-        bool playing = _media.HasSession && _media.IsPlaying;
-        bool timerShown = _timer.State != TimerState.Idle;
-
         if (!ReferenceEquals(_compactCover, _media.Cover))
         {
             _compactCover = _media.Cover;
@@ -1025,25 +1045,13 @@ public partial class IslandWindow : Window
         }
         _barsBrush.Color = _media.Accent;
 
-        bool voice = InVoice;
-        FadeOnce(CompactArt, playing && !voice ? 1 : 0); // en vocal, les avatars prennent la place de la pochette
-        FadeOnce(VoiceAvatars, voice ? 1 : 0);
-        if (voice) UpdateVoiceAvatars();
-        FadeOnce(Bars, playing && !timerShown ? 1 : 0);
-        FadeOnce(CompactTimer, timerShown ? 1 : 0);
-        CompactTimerText.Text = _timer.State == TimerState.Finished ? Loc.T("timer.done") : TimerService.Format(_timer.Remaining);
-        if (timerShown)
-        {
-            var kindBrush = Views.CalendarTimerView.KindBrush(_timer.Kind);
-            TimerRing.Stroke = kindBrush;
-            CompactTimerText.Foreground = kindBrush;
-            TimerRing.Data = RingGeometry(_timer.State == TimerState.Finished ? 1 : _timer.Progress);
-        }
-        SetBarsRunning(playing && !timerShown && !_expanded && !_hudVisible && !_noticeVisible && !_gaming);
+        SyncCoreActivities();
+        if (_liveDirty) RenderPill(); // rien de changé (minuteur dans la même seconde) : rien n'est redessiné
+        else UpdateLiveMotion();      // annonce / volume refermés, jeu fini : égaliseur et respiration repartent
 
         if (_alerting && _timer.State != TimerState.Finished) StopAlert();
         UpdateGlow();
-        if (!_expanded) AnimateTo(CompactTargetSize(), CompactRadius, Springs.Settle);
+        SettlePill(); // HUD / annonce refermés, mode Gaming : la bonne taille (rien si elle n'a pas changé)
     }
 
     private static bool InVoice => DiscordVoice.InVoice && SettingsStore.Current.Discord.Enabled;
@@ -1097,11 +1105,16 @@ public partial class IslandWindow : Window
 
     private void UpdateClock()
     {
-        var text = DateTime.Now.ToString("HH:mm");
+        var now = DateTime.Now;
+        // O5 : réveil juste après la minute suivante (au lieu de chaque seconde) ; une seconde de plus si l'horloge a avancé
+        // trop tôt (minuterie de Windows arrondie).
+        _clock.Interval = TimeSpan.FromMilliseconds(Math.Max(250, 60_000 - now.Second * 1000 - now.Millisecond + 40));
+        var text = now.ToString("HH:mm");
         if (text == _clockText) return;
         _clockText = text;
         CompactClock.Text = text;
         ExpandedClock.Text = text;
+        UpdateBattery(); // une fois par minute, et seulement si le PC a une batterie
     }
 
     // ------------------------------------------------------------------ fin du minuteur
@@ -1119,6 +1132,7 @@ public partial class IslandWindow : Window
         IslandShadow.BeginAnimation(DropShadowEffect.ColorProperty, pulse);
         // Son choisi dans Paramètres → Île → Minuteur (correctif 19) : 3 fois au plus, coupé dès que l'alerte est acquittée.
         TimerSound.Ring(() => _timer.State == TimerState.Finished);
+        UpdateBreathing(); // l'alerte orange passe devant la respiration
     }
 
     private void StopAlert()
@@ -1129,6 +1143,7 @@ public partial class IslandWindow : Window
         _opal.OverrideRim(null);
         IslandShadow.BeginAnimation(DropShadowEffect.ColorProperty, null);
         UpdateGlow();
+        UpdateBreathing();
     }
 
     // ------------------------------------------------------------------ halo, visualiseur, confidentialité, volume
@@ -1166,7 +1181,9 @@ public partial class IslandWindow : Window
     private void UpdateFocusIndicator()
     {
         var visibility = FocusService.DoNotDisturb ? Visibility.Visible : Visibility.Collapsed;
+        if (FocusMoon.Visibility == visibility) return;
         FocusMoon.Visibility = ExpandedFocusMoon.Visibility = visibility;
+        if (IsLoaded) LayoutPill();
     }
 
     private void UpdatePrivacyDots()
@@ -1175,8 +1192,12 @@ public partial class IslandWindow : Window
         bool enabled = SettingsStore.Current.Island.PrivacyDots;
         var camera = enabled && PrivacyService.IsCameraInUse() ? Visibility.Visible : Visibility.Collapsed;
         var microphone = enabled && PrivacyService.IsMicrophoneInUse() ? Visibility.Visible : Visibility.Collapsed;
+        var group = camera == Visibility.Visible || microphone == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
+        bool changed = CameraDot.Visibility != camera || MicDot.Visibility != microphone || PrivacyDots.Visibility != group;
         CameraDot.Visibility = ExpandedCameraDot.Visibility = camera;
         MicDot.Visibility = ExpandedMicDot.Visibility = microphone;
+        PrivacyDots.Visibility = group;
+        if (changed && IsLoaded) LayoutPill(); // points regroupés à droite de l'heure : la pilule s'ajuste
     }
 
     /// <summary>Volume changé ailleurs (touches du clavier, autre appli) : on l'affiche dans l'île.</summary>
@@ -1202,7 +1223,7 @@ public partial class IslandWindow : Window
         if (!_hudVisible)
         {
             _hudVisible = true;
-            SetBarsRunning(false);
+            UpdateLiveMotion();
             Fade(CompactView, 0, Motion.Fast);
             Fade(VolumeHud, 1, Motion.Short, Motion.DelayShort);
             AnimateTo(IslandShape.Hud, CompactRadius, Springs.Hud);
@@ -1255,7 +1276,7 @@ public partial class IslandWindow : Window
             Fade(VolumeHud, 0, Motion.Fast);
         }
         _noticeVisible = true;
-        SetBarsRunning(false);
+        UpdateLiveMotion();
         Fade(CompactView, 0, Motion.Fast);
         Fade(Notice, 1, Motion.Swift, Motion.Delay);
         Notice.IsHitTestVisible = true;
@@ -1309,21 +1330,6 @@ public partial class IslandWindow : Window
         Fade(Notice, 0, Motion.Quick);
         if (!_expanded) Fade(CompactView, 1, Motion.Base, Motion.DelayLong);
         UpdateCompact();
-    }
-
-    /// <summary>Arc de cercle (anneau de progression) dans un carré de 16 px, en partant du haut.</summary>
-    private static Geometry RingGeometry(double progress)
-    {
-        const double Center = 8, Radius = 7;
-        if (progress >= 0.999) return new EllipseGeometry(new Point(Center, Center), Radius, Radius);
-        double angle = Math.Max(progress, 0.001) * 2 * Math.PI;
-        var start = new Point(Center, Center - Radius);
-        var end = new Point(Center + Radius * Math.Sin(angle), Center - Radius * Math.Cos(angle));
-        var figure = new PathFigure { StartPoint = start, IsClosed = false };
-        figure.Segments.Add(new ArcSegment(end, new Size(Radius, Radius), 0, progress > 0.5, SweepDirection.Clockwise, true));
-        var geometry = new PathGeometry { Figures = { figure } };
-        geometry.Freeze();
-        return geometry;
     }
 
     // ------------------------------------------------------------------ écran suivi
@@ -1455,6 +1461,7 @@ public partial class IslandWindow : Window
             HoverRoot.IsHitTestVisible = !_gaming;
         }
         UpdateCloak();
+        UpdateLiveMotion(); // O5 : rien ne tourne dans une pilule cachée
     }
 
     /// <summary>Nom du programme au premier plan, pour le journal (« Île : cachée … »).</summary>
@@ -1520,6 +1527,7 @@ public partial class IslandWindow : Window
         {
             _cloakDelay?.Stop();
             if (_cloaked) Interop.DockNative.SetCloaked(_hwnd, _cloaked = false);
+            UpdateBreathing();
             return;
         }
         if (_cloaked || _cloakDelay?.IsEnabled == true) return;
@@ -1534,6 +1542,7 @@ public partial class IslandWindow : Window
         _cloakDelay!.Stop();
         bool cloak = _hiddenForFullscreen || (_gaming && !SettingsStore.Current.Island.GameLine && _timer.State != TimerState.Finished);
         if (cloak && !_cloaked) Interop.DockNative.SetCloaked(_hwnd, _cloaked = true);
+        UpdateBreathing();
     }
 
     // ------------------------------------------------------------------ animation ressort

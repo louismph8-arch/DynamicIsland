@@ -34,19 +34,17 @@
         <TextBlock x:Name="ArtistText" Grid.Row="1" Margin="{ui:Space 0,px,0,0}" FontSize="{x:Static t:TypeRamp.Callout}"
                    Foreground="{DynamicResource Paint.TextSecondary}" TextTrimming="CharacterEllipsis"/>
 
+        <!-- Position du morceau : clic / glisser / molette (±5 s) si le lecteur le permet, sinon simple barre. -->
         <Grid x:Name="ProgressPanel" Grid.Row="3">
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="34"/>
+            <ColumnDefinition Width="Auto" MinWidth="{x:Static t:Sizes.SoftButton}"/>
             <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="34"/>
+            <ColumnDefinition Width="Auto" MinWidth="{x:Static t:Sizes.SoftButton}"/>
           </Grid.ColumnDefinitions>
-          <TextBlock x:Name="PositionText" FontSize="{x:Static t:TypeRamp.Caption2}" Foreground="{DynamicResource Paint.TextTertiary}" VerticalAlignment="Center"/>
-          <ui:SquircleBorder x:Name="ProgressTrack" Grid.Column="1" Height="4" CornerRadius="{x:Static t:Corners.Pill}" Margin="{ui:Space s2,0}"
-                  Background="{DynamicResource Paint.Selected}" VerticalAlignment="Center">
-            <ui:SquircleBorder x:Name="ProgressFill" HorizontalAlignment="Left" Width="0" CornerRadius="{x:Static t:Corners.Pill}" Background="{DynamicResource Paint.TextPrimary}"/>
-          </ui:SquircleBorder>
-          <TextBlock x:Name="DurationText" Grid.Column="2" FontSize="{x:Static t:TypeRamp.Caption2}" Foreground="{DynamicResource Paint.TextTertiary}"
-                     VerticalAlignment="Center" HorizontalAlignment="Right"/>
+          <TextBlock x:Name="PositionText" Foreground="{DynamicResource Paint.TextTertiary}" VerticalAlignment="Center"/>
+          <ui:SeekBar x:Name="SeekBar" Grid.Column="1" Margin="{ui:Space s2,-s3}" VerticalAlignment="Center" ToolTipService.InitialShowDelay="600"/>
+          <TextBlock x:Name="DurationText" Grid.Column="2" Foreground="{DynamicResource Paint.TextTertiary}"
+                     VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right"/>
         </Grid>
 
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center" Margin="{ui:Space 0,s3,0,0}">
@@ -64,11 +62,15 @@
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="AppVolumeIcon" Text="{x:Static t:Icons.VolumeHigh}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}"
-                   Foreground="{DynamicResource Paint.TextSecondary}" VerticalAlignment="Center"/>
-        <ui:LineSlider x:Name="AppVolumeSlider" Grid.Column="1" Margin="{ui:Space s5,0}" VerticalAlignment="Center"/>
+        <!-- Clic sur l'icône = couper / rétablir le son de l'appli ; molette sur le curseur = ±2 %. -->
+        <Button x:Name="AppVolumeButton" Style="{StaticResource SmallIconButton}" Content="{x:Static t:Icons.VolumeHigh}" Click="AppVolumeMute_Click"
+                VerticalAlignment="Center"/>
+        <ui:LineSlider x:Name="AppVolumeSlider" Grid.Column="1" Margin="{ui:Space s5,0}" VerticalAlignment="Center" WheelStep="0.02"/>
+        <TextBlock x:Name="AppVolumeMissing" Grid.Column="1" Grid.ColumnSpan="2" Margin="{ui:Space s5,0,0,0}" Visibility="Collapsed"
+                   FontSize="{x:Static t:TypeRamp.Caption}" Foreground="{DynamicResource Paint.TextTertiary}" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"/>
         <TextBlock x:Name="AppVolumeText" Grid.Column="2" MinWidth="{x:Static t:Sizes.SoftButton}" TextAlignment="Right"
-                   FontSize="{x:Static t:TypeRamp.Caption2}" Foreground="{DynamicResource Paint.TextTertiary}" VerticalAlignment="Center"/>
+                   Foreground="{DynamicResource Paint.TextSecondary}" VerticalAlignment="Center"/>
       </Grid>
     </Grid>
 

@@ -26,6 +26,22 @@ internal static class PerfBench
             "Référence (île en pilule, dock, rien d'animé) : " + await MeasureAsync(),
         };
 
+        // Île réduite (O5) : pilule au repos, puis avec un minuteur qui tourne (anneau, valeur, bordure qui respire).
+        lines.Add("Pilule au repos (O5) : " + await MeasureAsync() + $", mouvements en cours : {Animation.MotionClock.Count}");
+        island.BenchTimer(true);
+        lines.Add("Pilule avec un minuteur qui tourne (O5) : " + await MeasureAsync());
+        // Hors écran, WPF dessine la fenêtre en logiciel : chaque seconde du minuteur coûte plus cher que dans l'app. Même mesure
+        // avec la fenêtre posée sur l'écran mais masquée par DWM (rendu GPU, invisible), puis avec la bordure qui respire.
+        island.BenchOnScreen(true);
+        lines.Add("  même chose, fenêtre sur l'écran mais invisible (rendu GPU) : " + await MeasureAsync());
+        island.BenchBreath(true);
+        lines.Add("  + bordure qui respire (≈ 12 images/s) : " + await MeasureAsync());
+        island.BenchBreath(false);
+        island.BenchTimer(false);
+        lines.Add("Pilule au repos, fenêtre sur l'écran mais invisible (O5) : " + await MeasureAsync());
+        island.BenchOnScreen(false);
+        lines.Add("Pilule au repos après le minuteur (O5) : " + await MeasureAsync() + $", mouvements en cours : {Animation.MotionClock.Count}");
+
         foreach (var season in new[] { Season.Halloween, Season.Christmas })
         {
             island.BenchSeason(season, run: true);

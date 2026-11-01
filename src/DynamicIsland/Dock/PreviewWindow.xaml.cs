@@ -1,9 +1,11 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using DynamicIsland.Controls;
+using DynamicIsland.Design;
 using DynamicIsland.Services;
 using DynamicIsland.Settings;
 using DynamicIsland.Themes;
@@ -15,18 +17,15 @@ namespace DynamicIsland.Dock;
 /// <summary>
 /// Aperçu des fenêtres d'une appli au survol de son icône : miniatures en direct fournies par DWM.
 /// Clic sur une miniature = aller à cette fenêtre ; « × » = la fermer (taille et couleur réglables, correctif 15c).
-/// Un seul cadre par fenêtre (correctif 15c) : la carte entière (titre, « × » et miniature) s'encadre au survol ; la zone de
-/// la miniature n'a plus de fond à elle (on voyait deux rectangles l'un dans l'autre).
+/// Refait après la 1.35.0 (« la fenêtre doit prendre toute la place ») : plus de bande avec le nom de l'appli (l'étiquette du
+/// dock le montre déjà) ; chaque carte = une ligne fine (titre tronqué + « × ») puis la miniature. La zone de la miniature a
+/// le format de la fenêtre (<see cref="PreviewLayout"/>) et DWM la remplit entièrement ; le rectangle est lu en pixels
+/// physiques d'après la position réelle de la zone à l'écran (aucun facteur DPI deviné) ; une fenêtre réduite (DWM peut ne
+/// donner que la taille de sa petite barre) prend le format de sa place normale. Une seule fenêtre = pas de cadre de carte (le
+/// bord de l'aperçu est le seul encadré) ; plusieurs = cartes côte à côte, la survolée encadrée en verre opalin.
 /// </summary>
 public partial class PreviewWindow : Window
 {
-    private const double MaxThumbWidth = 220;
-    private const double MaxThumbHeight = 140;
-    private const double MinSlotWidth = 130;
-
-    private static readonly Brush HoverBrush = Paint.Control;
-    private static readonly Brush FrameBrush = Paint.ActiveBorder;
-
     private readonly IntPtr _hwnd;
     private readonly List<Slot> _slots = [];
     private DockItem? _item;
@@ -36,8 +35,10 @@ public partial class PreviewWindow : Window
     private Slot? _hoveredSlot;
     /// <summary>Mode --snapshot : fenêtres d'exemple sans miniature DWM, fenêtre hors écran.</summary>
     private bool _snapshot;
+    /// <summary>Mode --snapshot : taille (px) de chaque fenêtre d'exemple, dans l'ordre.</summary>
+    private IReadOnlyList<(int Width, int Height)> _snapshotSizes = [];
 
-    private sealed record Slot(AppWindow Window, IntPtr Thumbnail, Border Root, Border Area, Button Close, double FitWidth, double FitHeight);
+    private sealed record Slot(AppWindow Window, IntPtr Thumbnail, Border Root, Border Area, Button Close, double Aspect);
 
     public PreviewWindow()
     {
@@ -51,13 +52,14 @@ public partial class PreviewWindow : Window
             Reposition();
             UpdateThumbnails();
         };
+        // Autre écran, autre DPI : la mise en page change d'abord, puis on replace les miniatures.
+        DpiChanged += (_, _) => Dispatcher.BeginInvoke(UpdateThumbnails);
         Closed += (_, _) => ClearSlots();
     }
 
     /// <summary>L'utilisateur a choisi une fenêtre (le dock ferme alors l'aperçu).</summary>
     public event Action? WindowChosen;
 
-    /// <param name="anchorPx">Haut-centre de l'icône survolée, en pixels écran.</param>
     /// <param name="anchorPx">Milieu du bord intérieur de l'icône, en pixels.</param>
     /// <param name="below">Dock en haut de l'écran : l'aperçu s'ouvre sous l'icône.</param>
     public void ShowFor(DockItem item, Point anchorPx, bool below = false)
@@ -102,18 +104,22 @@ public partial class PreviewWindow : Window
     public void RefreshActive() => UpdateFrames();
 
     /// <summary>
-    /// Un seul cadre net : la fenêtre survolée (fond + liseré, son « × » visible) ; sans survol, un simple liseré autour de la
-    /// fenêtre au premier plan.
+    /// Plusieurs fenêtres : un seul cadre net, la fenêtre survolée (fond + liseré opalins, son « × » visible) ; sans survol, un
+    /// simple liseré autour de la fenêtre au premier plan. Une seule fenêtre : jamais de cadre de carte (le bord de l'aperçu
+    /// suffit), seulement son « × » au survol.
     /// </summary>
     private void UpdateFrames()
     {
         var foreground = _snapshot ? IntPtr.Zero : GetForegroundWindow();
+        bool several = _slots.Count > 1;
         foreach (var slot in _slots)
         {
             bool hovered = slot == _hoveredSlot;
-            bool framed = hovered || (_hoveredSlot == null && foreground != IntPtr.Zero && slot.Window.Handle == foreground);
-            slot.Root.Background = hovered ? HoverBrush : Brushes.Transparent;
-            slot.Root.BorderBrush = framed ? FrameBrush : Brushes.Transparent;
+            bool framed = several && (hovered || (_hoveredSlot == null && foreground != IntPtr.Zero && slot.Window.Handle == foreground));
+            if (several && hovered) slot.Root.SetResourceReference(BackgroundProperty, OpalTheme.TileHoverKey);
+            else slot.Root.Background = Brushes.Transparent;
+            if (framed) slot.Root.SetResourceReference(BorderBrushProperty, OpalTheme.TileRimKey);
+            else slot.Root.BorderBrush = Brushes.Transparent;
             slot.Close.Opacity = hovered ? 1 : 0;
         }
     }
@@ -133,31 +139,39 @@ public partial class PreviewWindow : Window
     {
         ClearSlots();
         if (_item == null) return;
-        AppName.Text = _item.Name;
 
         var dock = SettingsStore.Current.Dock;
+        bool several = _item.Windows.Count > 1;
+        int index = 0;
         foreach (var window in _item.Windows)
         {
             var thumbnail = IntPtr.Zero;
-            var source = new SIZE { cx = 16, cy = 10 }; // fenêtre d'exemple (--snapshot) : format 16/10
-            if (!_snapshot)
+            double aspect;
+            if (_snapshot)
+            {
+                var (w, h) = index < _snapshotSizes.Count ? _snapshotSizes[index] : (16, 10);
+                aspect = PreviewLayout.Aspect(w, h);
+            }
+            else
             {
                 if (DwmRegisterThumbnail(_hwnd, window.Handle, out thumbnail) != 0) continue;
-                DwmQueryThumbnailSourceSize(thumbnail, out source);
+                aspect = SourceAspect(thumbnail, window.Handle);
             }
-            var (fitWidth, fitHeight) = Fit(source.cx, source.cy);
-            double areaWidth = Math.Max(fitWidth, MinSlotWidth);
+            index++;
+            var size = PreviewLayout.Area(aspect);
 
             // Zone sur laquelle DWM dessine la miniature (sans fond : le seul cadre est celui de la carte) ; l'icône reste
             // visible si Windows n'a pas d'image de la fenêtre.
             var area = new SquircleBorder
             {
-                Width = areaWidth,
-                Height = fitHeight,
-                Margin = new Thickness(0, Space.S3, 0, 0),
+                Width = size.Width,
+                Height = size.Height,
+                Margin = new Thickness(0, Space.S2, 0, 0),
                 CornerRadius = Corners.XS,
                 Background = Brushes.Transparent,
-                Child = new Image { Source = _item.Icon, Width = Sizes.AppIcon, Height = Sizes.AppIcon, Opacity = Interaction.DimmedOpacity },
+                Child = _snapshot
+                    ? FakeThumbnail(size, aspect)
+                    : new Image { Source = _item.Icon, Width = Sizes.AppIcon, Height = Sizes.AppIcon, Opacity = Interaction.DimmedOpacity },
             };
 
             var close = CloseButton(dock);
@@ -166,12 +180,14 @@ public partial class PreviewWindow : Window
             {
                 Text = window.Title,
                 FontSize = TypeRamp.Caption,
-                MaxWidth = areaWidth - close.Width - Space.S3,
+                Margin = new Thickness(Space.S1, 0, close.Width + Space.S3, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center,
             };
+            title.SetResourceReference(TextBlock.ForegroundProperty, "Paint.TextSecondary");
 
-            var header = new Grid { Height = Math.Max(Sizes.TinyButton, close.Height) };
+            // Ligne fine au-dessus de la miniature : titre tronqué à la largeur de la miniature, « × » à droite.
+            var header = new Grid { Width = size.Width, Height = Math.Max(Sizes.TinyButton, close.Height) };
             header.Children.Add(title);
             header.Children.Add(close);
 
@@ -182,15 +198,15 @@ public partial class PreviewWindow : Window
             var root = new SquircleBorder
             {
                 Child = content,
-                Padding = new Thickness(Space.S4),
-                Margin = new Thickness(Space.S1),
+                Padding = new Thickness(Space.S3),
+                Margin = new Thickness(several ? Space.S1 : 0),
                 CornerRadius = Corners.M,
                 BorderThickness = Borders.Hairline,
                 BorderBrush = Brushes.Transparent,
                 Background = Brushes.Transparent,
                 Cursor = Cursors.Hand,
             };
-            var slot = new Slot(window, thumbnail, root, area, close, fitWidth, fitHeight);
+            var slot = new Slot(window, thumbnail, root, area, close, aspect);
             root.MouseEnter += (_, _) =>
             {
                 _hoveredSlot = slot;
@@ -211,6 +227,37 @@ public partial class PreviewWindow : Window
             _slots.Add(slot);
         }
         UpdateFrames();
+    }
+
+    /// <summary>
+    /// Format de la fenêtre : taille de l'image que DWM garde ; une fenêtre réduite peut n'annoncer que sa petite barre
+    /// (160 × 28 px, d'où une miniature minuscule) → format de sa place normale.
+    /// </summary>
+    private static double SourceAspect(IntPtr thumbnail, IntPtr window)
+    {
+        int width = 0, height = 0, normalWidth = 0, normalHeight = 0;
+        if (DwmQueryThumbnailSourceSize(thumbnail, out var source) == 0)
+        {
+            width = source.cx;
+            height = source.cy;
+        }
+        bool iconic = IsIconic(window);
+        if (iconic || height < DockShape.PreviewThinSource)
+        {
+            var placement = new WINDOWPLACEMENT { length = Marshal.SizeOf<WINDOWPLACEMENT>() };
+            if (GetWindowPlacement(window, ref placement))
+            {
+                normalWidth = placement.rcNormalPosition.Right - placement.rcNormalPosition.Left;
+                normalHeight = placement.rcNormalPosition.Bottom - placement.rcNormalPosition.Top;
+            }
+        }
+        if (iconic && normalWidth > 0 && normalHeight > 0) return (double)normalWidth / normalHeight;
+        if ((width <= 0 || height <= 0) && GetWindowRect(window, out var rect))
+        {
+            width = rect.Right - rect.Left;
+            height = rect.Bottom - rect.Top;
+        }
+        return PreviewLayout.Aspect(width, height, normalWidth, normalHeight);
     }
 
     /// <summary>« × » d'une fenêtre : petite / moyenne (comme avant) / grande ; gris (comme avant), rouge ou couleur d'accent.</summary>
@@ -246,41 +293,27 @@ public partial class PreviewWindow : Window
         return close;
     }
 
-    /// <summary>Taille de la miniature (en DIP) en gardant le format de la fenêtre.</summary>
-    private static (double Width, double Height) Fit(int sourceWidth, int sourceHeight)
-    {
-        double aspect = sourceWidth > 0 && sourceHeight > 0 ? (double)sourceWidth / sourceHeight : 16.0 / 10;
-        double width = MaxThumbWidth, height = width / aspect;
-        if (height > MaxThumbHeight)
-        {
-            height = MaxThumbHeight;
-            width = height * aspect;
-        }
-        return (Math.Round(width), Math.Round(height));
-    }
-
-    /// <summary>Place chaque miniature DWM sur sa zone (en pixels physiques de la fenêtre).</summary>
+    /// <summary>
+    /// Place chaque miniature DWM sur sa zone. DWM attend des pixels physiques relatifs à la fenêtre de l'aperçu : on les lit
+    /// directement à l'écran (PointToScreen de la zone moins celui de la fenêtre), ce qui reste juste quel que soit le DPI de
+    /// l'écran du dock, même juste après un passage d'un écran à l'autre.
+    /// </summary>
     private void UpdateThumbnails()
     {
-        if (!IsVisible) return;
-        double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        if (!IsVisible || PresentationSource.FromVisual(this) == null) return;
+        var origin = PointToScreen(new Point(0, 0));
         foreach (var slot in _slots)
         {
             if (slot.Thumbnail == IntPtr.Zero || PresentationSource.FromVisual(slot.Area) == null) continue;
-            var area = slot.Area.TransformToAncestor(this).TransformBounds(new Rect(slot.Area.RenderSize));
-            var dest = new Rect(area.X + (area.Width - slot.FitWidth) / 2, area.Y + (area.Height - slot.FitHeight) / 2,
-                slot.FitWidth, slot.FitHeight);
+            var topLeft = slot.Area.PointToScreen(new Point(0, 0));
+            var bottomRight = slot.Area.PointToScreen(new Point(slot.Area.ActualWidth, slot.Area.ActualHeight));
+            var dest = PreviewLayout.Destination(
+                new Rect(topLeft.X - origin.X, topLeft.Y - origin.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y), slot.Aspect);
 
             var properties = new DWM_THUMBNAIL_PROPERTIES
             {
                 dwFlags = DWM_TNP_RECTDESTINATION | DWM_TNP_VISIBLE | DWM_TNP_OPACITY | DWM_TNP_SOURCECLIENTAREAONLY,
-                rcDestination = new RECT
-                {
-                    Left = (int)Math.Round(dest.Left * scale),
-                    Top = (int)Math.Round(dest.Top * scale),
-                    Right = (int)Math.Round(dest.Right * scale),
-                    Bottom = (int)Math.Round(dest.Bottom * scale),
-                },
+                rcDestination = new RECT { Left = dest.X, Top = dest.Y, Right = dest.X + dest.Width, Bottom = dest.Y + dest.Height },
                 opacity = 255,
                 fVisible = 1,
                 fSourceClientAreaOnly = 0,
@@ -312,15 +345,81 @@ public partial class PreviewWindow : Window
     }
 
     /// <summary>
-    /// Mode --snapshot : aperçu de deux fenêtres d'exemple (sans miniature DWM, hors écran), la 2e survolée : un seul cadre et
-    /// son « × » à la taille et à la couleur des réglages.
+    /// Mode --snapshot : fausse fenêtre dessinée (barre de titre, barre latérale, contenu) à la place de la miniature DWM,
+    /// posée exactement sur le rectangle que DWM recevrait (même calcul, à 100 %).
     /// </summary>
-    internal static async Task RenderSnapshotAsync(DockItem item, string path)
+    private static FrameworkElement FakeThumbnail(Size area, double aspect)
     {
+        var dest = PreviewLayout.Destination(new Rect(area), aspect);
+        var page = new Grid
+        {
+            Width = dest.Width,
+            Height = dest.Height,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(dest.X, dest.Y, 0, 0),
+            ClipToBounds = true,
+        };
+        page.SetResourceReference(Panel.BackgroundProperty, "Paint.Window");
+        page.RowDefinitions.Add(new RowDefinition { Height = new GridLength(Math.Max(Space.S4, dest.Height * 0.08)) });
+        page.RowDefinitions.Add(new RowDefinition());
+        page.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(dest.Width * 0.24) });
+        page.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var bar = new Border();
+        bar.SetResourceReference(Border.BackgroundProperty, "Paint.Control");
+        Grid.SetColumnSpan(bar, 2);
+        page.Children.Add(bar);
+        var side = new Border();
+        side.SetResourceReference(Border.BackgroundProperty, "Paint.Card");
+        Grid.SetRow(side, 1);
+        page.Children.Add(side);
+        var hero = new Border
+        {
+            Margin = new Thickness(Space.S3),
+            Height = dest.Height * 0.32,
+            VerticalAlignment = VerticalAlignment.Top,
+            CornerRadius = Corners.XS,
+        };
+        hero.SetResourceReference(Border.BackgroundProperty, AppearanceService.AccentGradientKey);
+        Grid.SetRow(hero, 1);
+        Grid.SetColumn(hero, 1);
+        page.Children.Add(hero);
+        var lines = new StackPanel { Margin = new Thickness(Space.S3), VerticalAlignment = VerticalAlignment.Bottom };
+        foreach (double part in new[] { 0.9, 0.6, 0.75 })
+        {
+            var line = new Border
+            {
+                Height = Space.S2,
+                Margin = new Thickness(0, Space.S2, 0, 0),
+                Width = dest.Width * 0.5 * part,
+                HorizontalAlignment = HorizontalAlignment.Left,
+            };
+            line.SetResourceReference(Border.BackgroundProperty, "Paint.Control");
+            lines.Children.Add(line);
+        }
+        Grid.SetRow(lines, 1);
+        Grid.SetColumn(lines, 1);
+        page.Children.Add(lines);
+        return page;
+    }
+
+    /// <summary>
+    /// Mode --snapshot : aperçu de fenêtres d'exemple (fausses miniatures dessinées, hors écran) aux formats donnés (px) ; la
+    /// dernière est survolée : son « × » à la taille et à la couleur des réglages (et son cadre s'il y a plusieurs fenêtres).
+    /// </summary>
+    internal static async Task RenderSnapshotAsync(DockItem item, string path, params (int Width, int Height)[] sizes)
+    {
+        if (sizes.Length == 0) sizes = [(1920, 1080), (1024, 768), (1080, 1920)];
         item.Windows.Clear();
-        item.Windows.Add(new AppWindow(IntPtr.Zero, "Exemple — fenêtre 1", null, null, false));
-        item.Windows.Add(new AppWindow(IntPtr.Zero, "Exemple — fenêtre 2 (survolée)", null, null, false));
-        var window = new PreviewWindow { _snapshot = true, Left = -30000, Top = 0 };
+        for (int i = 0; i < sizes.Length; i++)
+        {
+            string title = sizes.Length == 1
+                ? "Paramètres — Opaline"
+                : $"Exemple — fenêtre {i + 1} ({sizes[i].Width} × {sizes[i].Height})";
+            item.Windows.Add(new AppWindow(IntPtr.Zero, title, null, null, false));
+        }
+        var window = new PreviewWindow { _snapshot = true, _snapshotSizes = sizes, Left = -30000, Top = 0 };
         window._item = item;
         window.Rebuild();
         window._hoveredSlot = window._slots[^1];

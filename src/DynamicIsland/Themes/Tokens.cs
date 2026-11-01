@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 
@@ -622,6 +622,7 @@ public static class Desk
     public const double ClockLineTracking = 3;
     public const double WeatherTemperature = 54;
     public const double MusicCover = 100;
+    public const double MusicVolume = 60;          // curseur du volume de l'appli qui joue (à droite des boutons)
     public const double CalendarCell = 28;
     public static readonly TimeSpan StatsInterval = TimeSpan.FromSeconds(2);
     public static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(350);
@@ -869,6 +870,14 @@ public static class IslandShape
     public static readonly Size Compact = new(124, 36);
     public static readonly Size CompactWide = new(220, 36);
     public static readonly Size CompactWideHours = new(252, 36); // minuteur d'une heure ou plus (« 1:30:00 ») : l'heure reste dégagée
+    // Pilule réduite (O5) : largeur calculée d'après son contenu (LivePill.Width), entre ces bornes
+    public const double CompactMin = 96;
+    public const double CompactMax = 300;
+    public const double PillRestPad = 24;    // air de chaque côté de l'heure au repos
+    public const double PillPad = 8;         // bord de la pilule → anneau / pochette / valeur
+    public const double PillGap = 8;         // anneau / valeur → heure
+    public const double LiveRing = 20;       // anneau de progression d'une activité
+    public const double LiveArt = 22;        // pochette (musique) dans la pilule
     public static readonly Size Hud = new(250, 36);
     public static readonly Size Gaming = new(64, 6);
     public const double IntroDot = 8;            // intro : le point lumineux d'où l'île se déploie
@@ -884,6 +893,13 @@ public static class IslandShape
     public const double WidgetsContentHeight = 128;
     public static readonly GridLength WidgetsContentRow = new(WidgetsContentHeight);
     public static readonly Size Claude = new(480, 262);  // mini Claude : la conversation défile
+    public static readonly Size Voice = new(480, 262);   // vocal Discord : une ligne par personne (volume, couper pour moi), la liste défile
+    public const double VoiceContentWidth = 444;
+    public const double VoiceContentHeight = 192;
+    public const double VoiceRowHeight = 36;
+    public const double VoiceName = 118;           // colonne du nom (les noms longs sont coupés)
+    public const double VoiceWheelStep = 5;        // molette sur le volume d'une personne : ±5 points (0 à 200 %)
+    public static readonly int[] VoiceMenuLevels = [50, 100, 150]; // clic droit : volumes proposés
     public static readonly Size Health = new(488, 272);  // santé du PC : mesures, disques, 3 applis
     public static readonly Size Clipboard = new(480, 272); // presse-papiers : historique ou coffre (la liste défile)
     public const double ClipboardContentWidth = 444;
@@ -891,6 +907,11 @@ public static class IslandShape
     public const double ClipboardRow = 40;
     public const double ClipboardThumb = 30;
     public static readonly Size Notes = new(480, 272);    // notes : la liste défile
+    /// <summary>Traduire : texte d'origine et traduction côte à côte (chacun défile), langues et boutons.</summary>
+    public static readonly Size Translate = new(480, 272);
+    public const double TranslateContentWidth = 444;
+    public const double TranslateContentHeight = 206;
+    public const double TranslatePaneGap = 8;    // entre les deux cadres (origine | traduction)
     public const double NotesContentWidth = 444;
     public const double NotesListHeight = 176;
     public const double NoteStripe = 3;          // liseré de couleur d'une note
@@ -912,7 +933,7 @@ public static class IslandShape
     public const double ClockCardWidth = 94;     // horloges du monde : une carte par ville (4 au plus)
     public const double ClockCardHeight = 128;
     // Placement libre (5I)
-    public static readonly double MaxExpandedWidth = Math.Max(WideTabs, new[] { Music, Calendar, Control, Panel, Claude, Health, Mixer, Clipboard, Notes }.Max(s => s.Width));
+    public static readonly double MaxExpandedWidth = Math.Max(WideTabs, new[] { Music, Calendar, Control, Panel, Claude, Voice, Health, Mixer, Clipboard, Notes, Translate }.Max(s => s.Width));
     public const double ClaudeBubble = 340;      // largeur max d'une question dans la conversation
     public const double ClaudeContentWidth = 444; // contenu de l'onglet Claude (île de 480 moins ses marges)
     public const double ClaudeContentHeight = 192;
@@ -967,6 +988,11 @@ public static class DockShape
     public const double PreviewCloseGlyphSmall = 8;
     public const double PreviewCloseGlyphMedium = 9;
     public const double PreviewCloseGlyphLarge = 12;
+    public const double PreviewThumbMaxWidth = 320;  // miniature d'une fenêtre dans l'aperçu : la carte suit le format de la
+    public const double PreviewThumbMaxHeight = 200; // fenêtre dans ces bornes (bandes vides seulement si une borne mini joue)
+    public const double PreviewThumbMinWidth = 168;  // assez large pour le titre et le « × »
+    public const double PreviewThumbMinHeight = 84;
+    public const double PreviewThinSource = 60;      // hauteur (px) en dessous de laquelle DWM rend la barre d'une fenêtre réduite
     public const double FolderTileWidth = 96;       // case de la grille d'un dossier ouvert
     public const double FolderTileIcon = 52;
     public const double FolderMinWidth = 220;
@@ -1099,6 +1125,11 @@ public static class Motion
 /// <summary>Valeurs du mouvement (refonte O3) : cascade, inclinaison des tuiles, pages, élastique, outils. Voir Animation/.</summary>
 public static class Kinetics
 {
+    // Activité en direct indéterminée (O5) : arc de l'anneau qui tourne doucement, à faible cadence
+    public const double LiveSpinArc = 0.28;      // longueur de l'arc (part du tour)
+    public static readonly TimeSpan LiveSpin = TimeSpan.FromSeconds(1.6); // un tour
+    public const int LiveFrameRate = 20;
+
     public const int CascadeMaxItems = 12;       // au-delà, les éléments arrivent avec le dernier (une longue liste ne traîne pas)
     public const double CascadeScale = 0.94;     // échelle de départ d'un élément
     public const double CascadeShift = 8;        // décalage de départ (DIP, vers le bas)
@@ -1218,6 +1249,9 @@ public static class Icons
     public const string ClipboardPlus = "\uE5BF"; // clipboard-plus (ajouter un texte au presse-papiers)
     public const string Notes = "\uE303"; // sticky-note (onglet \u00AB Notes \u00BB)
     public const string NotePen = "\uE596"; // notebook-pen (nouvelle note)
+    public const string Translate = "\uE0FE"; // languages (onglet \u00AB Traduire \u00BB)
+    public const string SwapLanguages = "\uE24A"; // arrow-left-right (inverser les langues)
+    public const string Paste = "\uE3E8"; // clipboard-paste (traduire ce qui a \u00E9t\u00E9 copi\u00E9)
     public const string TaskOpen = "\uE167"; // square (case \u00E0 cocher vide d'une note)
     public const string TaskDone = "\uE16A"; // check-square (case coch\u00E9e)
     public const string ListChecks = "\uE1D0"; // list-checks (ins\u00E9rer une case)
@@ -1442,6 +1476,12 @@ public static class Opal
     public const double SweepAngle = 18;
     public static readonly TimeSpan GlowFade = TimeSpan.FromMilliseconds(220);
     public const double HaloReach = 90;        // place autour d'une surface pour son ombre et sa lueur
+
+    // Respiration de la bordure irisée pendant une activité en direct (O5) : lente, à faible cadence, jamais au repos
+    public static readonly TimeSpan BreathPeriod = TimeSpan.FromSeconds(3);
+    public static readonly TimeSpan BreathFrame = TimeSpan.FromMilliseconds(80); // ≈ 12 images/s (≤ 20) : assez pour une onde de 3 s
+    public const double BreathSwing = 22;      // ± degrés de rotation des reflets
+    public const double BreathLow = 0.55;      // éclat le plus bas de la bordure (1 = normal)
 
     // Application à l'app (O1, suite) : île, dock, palette, cartes, tuiles, menus
     public const double CoveredSmoke = 0.86;   // voile quand une fenêtre (pas le bureau) est derrière l'île : pas de flou du fond

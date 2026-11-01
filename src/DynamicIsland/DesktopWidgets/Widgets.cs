@@ -203,6 +203,10 @@ public sealed class MusicWidget : DesktopWidget
     private readonly TextBlock _title = Text("", TypeRamp.Title3, Paint.TextPrimary, FontWeights.SemiBold);
     private readonly TextBlock _artist = Text("", TypeRamp.Footnote, Paint.TextSecondary);
     private readonly Button _play;
+    private readonly Button _mute;
+    private readonly LineSlider _volume = new() { Width = Desk.MusicVolume, WheelStep = 0.02, VerticalAlignment = VerticalAlignment.Center };
+    private readonly AppVolumeService _appVolume = new();
+    private bool _muted;
 
     public MusicWidget(MediaService media) : base(Desk.Music, card: true)
     {
@@ -225,6 +229,27 @@ public sealed class MusicWidget : DesktopWidget
         _play.Margin = new Thickness(Space.S4, 0, Space.S4, 0);
         controls.Children.Add(_play);
         controls.Children.Add(Control(Icons.Next, () => _media.Next()));
+        // Volume de l'appli qui joue (Spotify, navigateur…), sans toucher au volume de Windows : clic sur l'icône = muet.
+        _mute = new Button
+        {
+            Style = (Style)Application.Current.FindResource("SmallIconButton"),
+            Content = Icons.VolumeHigh,
+            Margin = new Thickness(Space.S4, 0, Space.S1, 0),
+        };
+        _mute.Click += (_, _) =>
+        {
+            if (App.SnapshotDemo || !_media.HasSession) return;
+            if (_appVolume.SetMute(_media.SourceAppId, !_muted)) RefreshVolume();
+        };
+        controls.Children.Add(_mute);
+        _volume.UserChanged += value =>
+        {
+            if (App.SnapshotDemo) return;
+            _appVolume.SetLevel(_media.SourceAppId, value);
+            ShowVolume(value, false);
+        };
+        controls.Children.Add(_volume);
+        MouseEnter += (_, _) => RefreshVolume(); // suit un changement fait ailleurs (île, mélangeur de Windows)
         right.Children.Add(controls);
         Grid.SetColumn(right, 1);
         grid.Children.Add(right);
@@ -249,6 +274,32 @@ public sealed class MusicWidget : DesktopWidget
         _placeholder.Visibility = _media.Cover != null ? Visibility.Collapsed : Visibility.Visible;
         _play.Content = _media.IsPlaying ? Icons.Pause : Icons.Play;
         _play.IsEnabled = _media.HasSession;
+        RefreshVolume();
+    }
+
+    private void RefreshVolume()
+    {
+        if (_volume.IsDragging) return;
+        double level = 0;
+        bool muted = false;
+        bool found = _media.HasSession && (App.SnapshotDemo ? (level = 0.72) > 0 : _appVolume.TryRead(_media.SourceAppId, out level, out muted));
+        _mute.IsEnabled = _volume.IsEnabled = found;
+        _volume.ToolTip = found ? null : Loc.F("music.volume.missing", _media.AppName.Length > 0 ? _media.AppName : Loc.T("music.volume.this_app"));
+        if (!found)
+        {
+            _mute.Content = Icons.VolumeMute;
+            _volume.Value = 0;
+            return;
+        }
+        _volume.Value = muted ? 0 : level;
+        ShowVolume(level, muted);
+    }
+
+    private void ShowVolume(double level, bool muted)
+    {
+        _muted = muted;
+        _mute.Content = muted || level < 0.005 ? Icons.VolumeMute : level < 0.34 ? Icons.VolumeLow : level < 0.67 ? Icons.VolumeMedium : Icons.VolumeHigh;
+        _mute.ToolTip = muted ? Loc.T("volume.muted") : Loc.F("format.percent", Math.Round(level * 100));
     }
 }
 

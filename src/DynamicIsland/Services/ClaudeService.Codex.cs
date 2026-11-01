@@ -53,9 +53,10 @@ public static partial class ClaudeService
         id.Length == 0 ? Loc.T("codex.model.default") : CodexModels().FirstOrDefault(m => m.Id == id).Name ?? id;
 
     /// <summary>Lance « codex exec --json » et lit le flux : chaque message de l'agent s'affiche dès qu'il arrive.</summary>
-    private static async Task RunCodexAsync(ClaudeTurn turn, string prompt, CancellationToken token)
+    private static async Task RunCodexAsync(ClaudeTurn turn, string prompt, CancellationToken token, AiRequest? request = null)
     {
-        var start = CodexExecCommand(SettingsStore.Current.Claude.CodexModel, SystemPrompt())
+        var notify = request?.Notify ?? Raise;
+        var start = CodexExecCommand(request?.Model ?? SettingsStore.Current.Claude.CodexModel, request?.System ?? SystemPrompt())
                     ?? throw new ClaudeException(Loc.T("codex.error.not_installed"), ClaudeFix.CodexInstall);
         start.RedirectStandardInput = true;
         start.RedirectStandardOutput = true;
@@ -75,7 +76,7 @@ public static partial class ClaudeService
         {
             if (!stream.Feed(line)) continue;
             turn.Answer = stream.Answer;
-            Raise();
+            notify();
         }
         await process.WaitForExitAsync(token);
 

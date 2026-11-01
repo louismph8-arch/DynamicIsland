@@ -51,6 +51,21 @@ public sealed class AppVolumeService
         }
     }
 
+    /// <summary>Coupe / rétablit le son de l'appli (toutes ses sessions), comme le mélangeur de Windows. Faux si introuvable.</summary>
+    public bool SetMute(string? sourceAppId, bool mute)
+    {
+        Refresh(sourceAppId);
+        bool any = false;
+        foreach (var (volume, _) in _matched) any |= volume.SetMute(mute, ref _context) == 0;
+        return any;
+    }
+
+    /// <summary>
+    /// Vrai si une session audio du processus <paramref name="process"/> (nom en minuscules, sans .exe) à l'identifiant
+    /// <paramref name="identifier"/> appartient à l'appli de la session média <paramref name="sourceAppId"/> (calcul pur, --self-test).
+    /// </summary>
+    internal static bool Matches(string sourceAppId, string process, string identifier) => Target.From(sourceAppId).Matches(process, identifier);
+
     private void Refresh(string? sourceAppId)
     {
         sourceAppId ??= "";
@@ -151,7 +166,7 @@ public sealed class AppVolumeService
     }
 
     /// <summary>Ce qu'on cherche dans les sessions audio pour un identifiant de session média.</summary>
-    private sealed record Target(string? Process, string? PackageName, string? Publisher)
+    private sealed record Target(string? Process, string? PackageName, string? Publisher, string? AppProcess = null)
     {
         public static Target From(string appId)
         {
@@ -162,9 +177,12 @@ public sealed class AppVolumeService
                 // Appli du Store : « Nom.Paquet_éditeur!App » ; le chemin de son exe contient « Nom.Paquet_version_…__éditeur ».
                 var family = id[..bang];
                 int underscore = family.LastIndexOf('_');
+                // Secours : l'appli après « ! » quand c'est un vrai nom (« SpotifyAB.SpotifyMusic_…!Spotify » → spotify.exe), pas « App ».
+                var app = id[(bang + 1)..].Trim().ToLowerInvariant();
+                string? appProcess = app.Length > 2 && app != "app" && app.All(char.IsLetterOrDigit) ? app : null;
                 return underscore > 0
-                    ? new Target(null, family[..underscore].ToLowerInvariant(), family[(underscore + 1)..].ToLowerInvariant())
-                    : new Target(null, family.ToLowerInvariant(), null);
+                    ? new Target(null, family[..underscore].ToLowerInvariant(), family[(underscore + 1)..].ToLowerInvariant(), appProcess)
+                    : new Target(null, family.ToLowerInvariant(), null, appProcess);
             }
             var exe = id.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? id[..^4] : id;
             return new Target(System.IO.Path.GetFileName(exe).ToLowerInvariant(), null, null);
@@ -174,7 +192,8 @@ public sealed class AppVolumeService
         {
             if (Process != null) return process.Length > 0 && process == Process;
             var lower = identifier.ToLowerInvariant();
-            return PackageName != null && lower.Contains(PackageName) && (Publisher == null || lower.Contains(Publisher));
+            if (PackageName != null && lower.Contains(PackageName) && (Publisher == null || lower.Contains(Publisher))) return true;
+            return AppProcess != null && process.Length > 0 && process == AppProcess;
         }
     }
 }

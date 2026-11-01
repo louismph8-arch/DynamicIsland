@@ -177,12 +177,14 @@ public static partial class ClaudeService
         + $"Nous sommes le {DateTime.Now.ToString("dddd d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}.";
 
     /// <summary>Lance « claude -p » et lit le flux : texte au fil de l'eau, puis le résultat (ou l'erreur).</summary>
-    private static async Task RunAsync(ClaudeTurn turn, string prompt, CancellationToken token)
+    private static async Task RunAsync(ClaudeTurn turn, string prompt, CancellationToken token, AiRequest? request = null)
     {
+        var model = request?.Model ?? SettingsStore.Current.Claude.Model;
+        var notify = request?.Notify ?? Raise;
         var start = Command([
-            "-p", "--model", SettingsStore.Current.Claude.Model, "--effort", "low",
+            "-p", "--model", model, "--effort", "low",
             "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-            "--tools", "", "--no-session-persistence", "--system-prompt", SystemPrompt(),
+            "--tools", "", "--no-session-persistence", "--system-prompt", request?.System ?? SystemPrompt(),
         ]) ?? throw new ClaudeException(Loc.T("claude.error.not_installed_command"), ClaudeFix.Locate);
         start.RedirectStandardInput = true;
         start.RedirectStandardOutput = true;
@@ -218,7 +220,7 @@ public static partial class ClaudeService
                 case "stream_event" when root.TryGetProperty("event", out var e) && Text(e, "type") == "content_block_delta"
                                          && e.TryGetProperty("delta", out var delta) && Text(delta, "type") == "text_delta":
                     turn.Answer += Text(delta, "text");
-                    Raise();
+                    notify();
                     break;
                 case "assistant" when turn.Answer.Length == 0 && root.TryGetProperty("message", out var message)
                                       && Text(message, "model") != "<synthetic>" // message d'erreur fabriqué par Claude Code
@@ -238,15 +240,46 @@ public static partial class ClaudeService
         if (failed)
         {
             turn.Answer = ""; // l'erreur s'affiche à part, en clair
-            throw Explain(result ?? "");
+            throw Explain(result ?? "", model);
         }
         if (turn.Answer.Length == 0 && !string.IsNullOrWhiteSpace(result)) turn.Answer = result;
         if (turn.Answer.Length == 0)
         {
             var stderr = (await errors).Trim();
-            throw Explain(stderr.Length > 0 ? stderr.Split('\n').Last().Trim() : Loc.F("claude.error.exit", process.ExitCode));
+            throw Explain(stderr.Length > 0 ? stderr.Split('\n').Last().Trim() : Loc.F("claude.error.exit", process.ExitCode), model);
         }
     }
+
+    /// <summary>
+    /// Requête à part (traduction…) : sa consigne, son modèle (null = celui des réglages), sa façon de prévenir l'affichage et sa
+    /// longueur maximale (moteurs par API). Jamais d'historique, et la conversation de l'onglet Claude n'est pas touchée.
+    /// </summary>
+    internal sealed record AiRequest(string System, string? Model, Action Notify, int MaxTokens);
+
+    /// <summary>
+    /// Une requête isolée par le moteur ACTIF (Claude Code, clé Anthropic, clé OpenAI ou Codex), réponse écrite au fil de l'eau
+    /// dans <paramref name="turn"/>. Les erreurs sont celles du moteur (<see cref="ClaudeException"/> avec la même aide que
+    /// l'onglet Claude : se connecter, mettre à jour…). Utilisée par <see cref="TranslateService"/>.
+    /// </summary>
+    internal static Task RunDetachedAsync(ClaudeTurn turn, string prompt, AiRequest request, CancellationToken token) =>
+        SettingsStore.Current.Claude.Engine switch
+        {
+            ClaudeEngine.ApiKey => RunApiAsync(turn, prompt, [], token, request),
+            ClaudeEngine.OpenAi => RunOpenAiAsync(turn, prompt, [], token, request),
+            ClaudeEngine.Codex => RunCodexAsync(turn, prompt, token, request),
+            _ => RunAsync(turn, prompt, token, request),
+        };
+
+    /// <summary>
+    /// Modèle rapide du moteur actif pour une tâche simple (traduction) : Haiku pour Claude (Code ou clé API), le plus petit de la
+    /// liste pour ChatGPT par clé API ; Codex garde le modèle choisi (sa liste dépend du compte), avec peu de réflexion.
+    /// </summary>
+    internal static string? FastModel(ClaudeEngine engine) => engine switch
+    {
+        ClaudeEngine.ClaudeCode or ClaudeEngine.ApiKey => "claude-haiku-5-5",
+        ClaudeEngine.OpenAi => "gpt-6.1-terra",
+        _ => null,
+    };
 
     [GeneratedRegex(@"Claude Code (?<have>\d[\w.\-]*) does not support this model; version (?<need>\d[\w.\-]*) or newer")]
     private static partial Regex TooOld();
@@ -255,14 +288,14 @@ public static partial class ClaudeService
     /// Message clair pour les erreurs connues de Claude Code (« API Error: 400 {json} » : on garde le message du JSON).
     /// Vérifié par <c>--self-test</c>.
     /// </summary>
-    internal static ClaudeException Explain(string message)
+    internal static ClaudeException Explain(string message, string? model = null)
     {
         // Claude Code trop ancien pour le modèle choisi (vu chez l'utilisateur : 2.1.92 pour Opus 5.5, 2.1.280 requise).
         if (message.Contains("claude_code_version_too_old", StringComparison.OrdinalIgnoreCase) || TooOld().IsMatch(message))
         {
             var match = TooOld().Match(message);
             var versions = match.Success ? " " + Loc.F("claude.error.versions", match.Groups["have"].Value, match.Groups["need"].Value) : "";
-            return new ClaudeException(Loc.F("claude.error.too_old", ModelName(SettingsStore.Current.Claude.Model), versions), ClaudeFix.Update);
+            return new ClaudeException(Loc.F("claude.error.too_old", ModelName(model ?? SettingsStore.Current.Claude.Model), versions), ClaudeFix.Update);
         }
         if (message.Contains("Not logged in", StringComparison.OrdinalIgnoreCase) || message.Contains("/login", StringComparison.OrdinalIgnoreCase)
             || message.Contains("authentication_error", StringComparison.OrdinalIgnoreCase) || message.Contains("OAuth token", StringComparison.OrdinalIgnoreCase))

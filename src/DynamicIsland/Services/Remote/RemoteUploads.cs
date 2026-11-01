@@ -53,7 +53,12 @@ public sealed partial class RemoteUploads
             file.Write(request.Body);
         if (offset == 0) File.SetAttributes(partial, File.GetAttributes(partial) | FileAttributes.Hidden);
         long received = offset + request.Body.Length;
-        if (received < total) return RemoteResponse.Json(200, new JsonObject { ["offset"] = received }.ToJsonString());
+        if (received < total)
+        {
+            RemoteTransfers.Report("in:" + id, incoming: true, received, total); // activité en direct de l'île (O5)
+            return RemoteResponse.Json(200, new JsonObject { ["offset"] = received }.ToJsonString());
+        }
+        RemoteTransfers.Finish("in:" + id);
 
         var final = UniquePath(SafeName(request.Param("name")));
         File.Move(partial, final);

@@ -43,10 +43,11 @@ public static partial class ClaudeService
     private static string HistoryAnswer(ClaudeTurn turn) =>
         turn.Answer.Length > ApiAnswerChars ? turn.Answer[..ApiAnswerChars] + "…" : turn.Answer;
 
-    private static async Task RunApiAsync(ClaudeTurn turn, string question, List<ClaudeTurn> history, CancellationToken token)
+    private static async Task RunApiAsync(ClaudeTurn turn, string question, List<ClaudeTurn> history, CancellationToken token, AiRequest? request = null)
     {
         var key = ApiKeys.Anthropic.Load() ?? throw new ClaudeException(Loc.F("claude.api.no_key", "Anthropic"), ClaudeFix.ApiKey);
-        var model = SettingsStore.Current.Claude.ApiModel;
+        var model = request?.Model ?? SettingsStore.Current.Claude.ApiModel;
+        var notify = request?.Notify ?? Raise;
         var messages = new List<MessageParam>();
         foreach (var past in history)
         {
@@ -58,8 +59,8 @@ public static partial class ClaudeService
         var parameters = new MessageCreateParams
         {
             Model = model,
-            MaxTokens = ApiMaxTokens,
-            System = SystemPrompt(),
+            MaxTokens = request?.MaxTokens ?? ApiMaxTokens,
+            System = request?.System ?? SystemPrompt(),
             Messages = messages,
             // Réponses courtes dans l'île : peu de réflexion, comme « --effort low » pour Claude Code (Haiku n'a pas ce réglage).
             OutputConfig = model.Contains("haiku", StringComparison.Ordinal) ? null : new OutputConfig { Effort = Effort.Low },
@@ -73,7 +74,7 @@ public static partial class ClaudeService
                 if (streamEvent.TryPickContentBlockDelta(out var delta) && delta.Delta.TryPickText(out var text))
                 {
                     turn.Answer += text.Text;
-                    Raise();
+                    notify();
                 }
             }
         }

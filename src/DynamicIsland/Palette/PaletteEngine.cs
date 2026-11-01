@@ -23,7 +23,8 @@ public sealed record PaletteItem(string Title, string Subtitle, Action Run)
 
 /// <summary>Ce que la palette peut demander à l'île (AskClaude : null sans île affichée).</summary>
 public sealed record PaletteActions(Action<TimeSpan> StartTimer, Action StartPomodoro, Action<string>? AskClaude = null, Action<string>? Surprise = null,
-    Action<bool>? OpenClipboard = null, Action<string, string>? Notice = null, Action? OpenNotes = null);
+    Action<bool>? OpenClipboard = null, Action<string, string>? Notice = null, Action? OpenNotes = null,
+    Action<string, string?>? Translate = null, Action<string>? TranslatePage = null, Action? TranslateClipboard = null, Action? OpenTranslate = null);
 
 /// <summary>
 /// Interprète ce qu'on tape dans la palette : calcul, minuteur, profil, applis, dossiers, raccourcis
@@ -126,6 +127,7 @@ public static partial class PaletteEngine
                            || query.StartsWith("chatgpt ", StringComparison.OrdinalIgnoreCase);
         if (claudeFirst) AddClaude(query, actions, items);
         if (query.StartsWith('?')) return items;
+        AddTranslate(query, actions, items); // « tr … » : avant les calculs (« tr 2+2 » se traduit)
         AddCalculation(query, items);
         AddTimer(query, actions, items);
         AddProfiles(query, items);

@@ -8,11 +8,10 @@ namespace DynamicIsland.Controls;
 
 /// <summary>
 /// Curseur fin (piste de <see cref="Sizes.Bar"/> px, pastille au survol) : clic ou glisser n'importe où,
-/// molette = ±5 %. Marche dans l'île, qui ne prend jamais le focus (souris seulement).
+/// molette = ±<see cref="WheelStep"/> (5 % par défaut). Marche dans l'île, qui ne prend jamais le focus (souris seulement).
 /// </summary>
 public sealed class LineSlider : Grid
 {
-    private const double WheelStep = 0.05;
     private readonly SquircleBorder _fill = new()
     {
         Height = Sizes.Bar,
@@ -67,6 +66,9 @@ public sealed class LineSlider : Grid
             Place();
         }
     }
+
+    /// <summary>Un cran de molette (défaut 5 % ; 2 % pour le volume de l'appli musique).</summary>
+    public double WheelStep { get; set; } = 0.05;
 
     /// <summary>Levé uniquement quand l'utilisateur change la valeur (pas lors d'un réglage par code).</summary>
     public event Action<double>? UserChanged;

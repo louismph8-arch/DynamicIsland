@@ -11,8 +11,12 @@ using DynamicIsland.Settings;
 
 namespace DynamicIsland.Services;
 
-/// <summary>Personne du salon vocal Discord.</summary>
-public sealed record VoiceMember(string Id, string Name, string AvatarUrl, bool Muted, bool Deafened, bool Speaking);
+/// <summary>
+/// Personne du salon vocal Discord. <paramref name="LocalMuted"/> et <paramref name="Volume"/> (0 à 200 %, 100 = normal) sont MES
+/// réglages locaux pour elle (comme le clic droit dans Discord : seulement pour moi, les autres l'entendent toujours).
+/// </summary>
+public sealed record VoiceMember(string Id, string Name, string AvatarUrl, bool Muted, bool Deafened, bool Speaking,
+    bool LocalMuted = false, int Volume = DiscordVoice.DefaultUserVolume);
 
 /// <summary>
 /// Salon vocal Discord dans l'île, par l'API locale officielle de Discord (RPC sur le canal nommé
@@ -30,6 +34,13 @@ public static class DiscordVoice
     private static readonly string[] Scopes = ["rpc", "rpc.voice.read", "rpc.voice.write"];
     private static readonly string[] ChannelEvents = ["VOICE_STATE_CREATE", "VOICE_STATE_UPDATE", "VOICE_STATE_DELETE", "SPEAKING_START", "SPEAKING_STOP"];
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
+    /// <summary>Volume d'une personne dans Discord : 0 à 200 (%), 100 = normal (doc RPC « SET_USER_VOICE_SETTINGS »).</summary>
+    public const int DefaultUserVolume = 100, MaxUserVolume = 200;
+    /// <summary>
+    /// Derniers réglages envoyés pour chaque personne (sourdine locale, volume) : gardés si Discord ne les renvoie pas dans
+    /// ses événements de salon. Écrit sur le thread UI, lu par la session (fil de fond).
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (bool? Mute, int? Volume)> SentUserSettings = new();
 
     private static Dispatcher? _ui;
     private static CancellationTokenSource? _wake;
@@ -53,6 +64,15 @@ public static class DiscordVoice
     public static bool? SelfDeafened { get; private set; }
 
     private static Session? _session;
+
+    /// <summary>Mon identifiant Discord (message READY) : pas de boutons « couper pour moi » sur ma propre ligne.</summary>
+    public static string? SelfId { get; private set; }
+
+    /// <summary>
+    /// Le jeton a le droit « rpc.voice.write » : couper / régler les gens, et mon micro / casque. Faux avec un ancien jeton
+    /// dont le nouvel accord a été refusé (→ bouton « Se reconnecter à Discord », <see cref="ReconnectForWrite"/>).
+    /// </summary>
+    public static bool CanWrite { get; private set; }
 
     /// <summary>État changé (thread UI).</summary>
     public static event Action? Changed;
@@ -83,6 +103,16 @@ public static class DiscordVoice
     {
         _waitForUser = false;
         Wake();
+    }
+
+    /// <summary>
+    /// « Se reconnecter à Discord » (onglet Vocal) : redemande l'accord complet, même si le droit « micro / casque / réglages des
+    /// gens » a été refusé plus tôt dans cette session.
+    /// </summary>
+    public static void ReconnectForWrite()
+    {
+        _writeDeclined = false;
+        Reconnect();
     }
 
     /// <summary>« Oublier l'autorisation » : efface le jeton ; Discord redemandera l'accord.</summary>
@@ -167,6 +197,8 @@ public static class DiscordVoice
     {
         await using var session = await Session.ConnectAsync(clientId, wake);
         _deniedLogged = false;
+        var self = session.SelfId;
+        _ui?.BeginInvoke(() => SelfId = self);
         Publish(Loc.T("discord.connecting"), false, false);
 
         if (!await AuthenticateAsync(session, clientId, wake)) return;
@@ -198,6 +230,13 @@ public static class DiscordVoice
     /// </summary>
     public static async Task<bool> SetVoiceAsync(bool? mute = null, bool? deaf = null)
     {
+        if (IsDemo)
+        {
+            SelfMuted = mute ?? SelfMuted;
+            SelfDeafened = deaf ?? SelfDeafened;
+            Changed?.Invoke();
+            return true;
+        }
         var session = _session;
         if (session == null) return false;
         var args = new JsonObject();
@@ -218,6 +257,75 @@ public static class DiscordVoice
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Commande RPC officielle qui règle une personne POUR MOI SEULEMENT (doc Discord : <c>SET_USER_VOICE_SETTINGS</c>, args
+    /// <c>user_id</c>, <c>mute</c> facultatif, <c>volume</c> facultatif entier de 0 à 200). Calcul pur (--self-test).
+    /// </summary>
+    public static JsonObject UserVoiceCommand(string userId, bool? mute, double? volume)
+    {
+        var args = new JsonObject { ["user_id"] = userId };
+        if (mute is { } m) args["mute"] = m;
+        if (volume is { } v) args["volume"] = ClampUserVolume(v);
+        return new JsonObject { ["cmd"] = "SET_USER_VOICE_SETTINGS", ["args"] = args };
+    }
+
+    /// <summary>Volume d'une personne borné à 0–200 (entier).</summary>
+    public static int ClampUserVolume(double volume) =>
+        double.IsNaN(volume) ? DefaultUserVolume : (int)Math.Round(Math.Clamp(volume, 0, MaxUserVolume));
+
+    /// <summary>
+    /// Couper (<paramref name="mute"/>) ou régler le volume (<paramref name="volume"/>, 0 à 200) d'une personne du salon, pour
+    /// moi seulement, comme le clic droit dans Discord. L'interface change tout de suite ; faux si Discord n'est pas relié, si le
+    /// droit manque ou s'il refuse. Rendus d'exemple : seulement l'interface.
+    /// </summary>
+    public static async Task<bool> SetUserVoiceAsync(string userId, bool? mute = null, double? volume = null)
+    {
+        if (userId.Length == 0 || userId == SelfId || !CanWrite) return false;
+        int? level = volume is { } v ? ClampUserVolume(v) : null;
+        if (IsDemo)
+        {
+            ApplyLocally(userId, mute, level);
+            return true;
+        }
+        var session = _session;
+        if (session == null) return false;
+        var previous = SentUserSettings.TryGetValue(userId, out var known) ? known : (null, null);
+        SentUserSettings[userId] = (mute ?? previous.Mute, level ?? previous.Volume);
+        ApplyLocally(userId, mute, level);
+        try
+        {
+            var reply = await session.QueueAsync(UserVoiceCommand(userId, mute, level)).WaitAsync(TimeSpan.FromSeconds(5));
+            if (reply["evt"]?.GetValue<string>() == "ERROR")
+            {
+                Log.Info($"Discord : réglage d'une personne refusé — {reply["data"]?["message"]}");
+                return false;
+            }
+            // Réponse = { user_id, pan, volume, mute } : ce que Discord a vraiment gardé.
+            var data = reply["data"];
+            bool? keptMute = data?["mute"]?.GetValueKind() is JsonValueKind.True or JsonValueKind.False ? data["mute"]!.GetValue<bool>() : null;
+            int? keptVolume = data?["volume"]?.GetValueKind() == JsonValueKind.Number ? ClampUserVolume(data["volume"]!.GetValue<double>()) : null;
+            if (keptMute != null || keptVolume != null)
+            {
+                var sent = SentUserSettings.TryGetValue(userId, out var now) ? now : (null, null);
+                SentUserSettings[userId] = (keptMute ?? sent.Mute, keptVolume ?? sent.Volume);
+                _ui?.BeginInvoke(() => ApplyLocally(userId, keptMute, keptVolume));
+            }
+            return true;
+        }
+        catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or IOException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Change tout de suite la ligne de la personne (thread UI), sans attendre Discord.</summary>
+    private static void ApplyLocally(string userId, bool? mute, int? volume)
+    {
+        if (!Members.Any(m => m.Id == userId)) return;
+        Members = Members.Select(m => m.Id != userId ? m : m with { LocalMuted = mute ?? m.LocalMuted, Volume = volume ?? m.Volume }).ToList();
+        Changed?.Invoke();
     }
 
     private static void PublishVoiceSettings(JsonNode? data)
@@ -242,7 +350,7 @@ public static class DiscordVoice
         // Discord refuse un nouvel accord après AUTHENTICATE sur la même connexion : un jeton qui n'a pas tous les droits
         // (ancien jeton d'avant le droit « micro / casque ») fait demander l'accord AVANT de s'en servir.
         bool complete = token != null && Scopes.All(token.Scopes.Contains);
-        if (token != null && (complete || _writeDeclined) && await session.TryAuthenticateAsync(token.AccessToken, wake) != null) return true;
+        if (token != null && (complete || _writeDeclined) && Granted(await session.TryAuthenticateAsync(token.AccessToken, wake))) return true;
         if (token != null && !complete) Log.Info("Discord : jeton sans « rpc.voice.write », accord redemandé (micro / casque depuis la télécommande)");
 
         Publish(Loc.T("discord.accept"), false, false);
@@ -253,7 +361,7 @@ public static class DiscordVoice
         {
             _writeDeclined = true; // pas redemandé avant le prochain démarrage d'Opaline
             Log.Info("Discord : droit « micro / casque » refusé, on garde la lecture seule");
-            if (await session.TryAuthenticateAsync(token.AccessToken, wake) != null) return true;
+            if (Granted(await session.TryAuthenticateAsync(token.AccessToken, wake))) return true;
         }
         if (code == null)
         {
@@ -263,13 +371,22 @@ public static class DiscordVoice
         }
 
         var (fresh, exchangeError) = await ExchangeAsync(clientId, code, verifier, wake);
-        if (fresh == null || await session.TryAuthenticateAsync(fresh.AccessToken, wake) == null)
+        if (fresh == null || !Granted(await session.TryAuthenticateAsync(fresh.AccessToken, wake)))
         {
             _waitForUser = true;
             Publish(exchangeError ?? Loc.T("discord.token_refused"), false, true);
             return false;
         }
         TokenStore.Save(clientId, fresh);
+        return true;
+    }
+
+    /// <summary>AUTHENTICATE accepté : on note si le droit d'écriture est là (réglages des gens, micro / casque).</summary>
+    private static bool Granted(HashSet<string>? scopes)
+    {
+        if (scopes == null) return false;
+        bool write = scopes.Contains("rpc.voice.write");
+        _ui?.BeginInvoke(() => CanWrite = write);
         return true;
     }
 
@@ -324,6 +441,7 @@ public static class DiscordVoice
         {
             SelfMuted = null;
             SelfDeafened = null;
+            CanWrite = false;
         }
         if (clearChannel)
         {
@@ -345,17 +463,25 @@ public static class DiscordVoice
     private sealed class DiscordClosedException : Exception;
 
     /// <summary>Mode --snapshot : un salon d'exemple pour le rendu (rien n'est connecté).</summary>
+    /// <summary>Salon d'exemple des rendus (--snapshot) : rien n'est envoyé à Discord.</summary>
+    public static bool IsDemo { get; private set; }
+
     internal static void UseDemo()
     {
         Status = Loc.T("discord.connected");
         IsConnected = true;
+        IsDemo = true;
+        CanWrite = true;
+        SelfId = "1";
+        SelfMuted = false;
+        SelfDeafened = false;
         Channel = Loc.T("discord.sample_channel");
         Members =
         [
             new("1", "Louis", "https://cdn.discordapp.com/embed/avatars/0.png", false, false, true),
-            new("2", "Max", "https://cdn.discordapp.com/embed/avatars/1.png", false, false, false),
-            new("3", "Léa", "https://cdn.discordapp.com/embed/avatars/2.png", true, false, false),
-            new("4", "Sam", "https://cdn.discordapp.com/embed/avatars/3.png", true, true, false),
+            new("2", "Max", "https://cdn.discordapp.com/embed/avatars/1.png", false, false, false, Volume: 150),
+            new("3", "Léa", "https://cdn.discordapp.com/embed/avatars/2.png", true, false, false, LocalMuted: true),
+            new("4", "Sam", "https://cdn.discordapp.com/embed/avatars/3.png", true, true, false, Volume: 80),
         ];
         Changed?.Invoke();
     }
@@ -617,15 +743,22 @@ public static class DiscordVoice
                 ? $"https://cdn.discordapp.com/avatars/{id}/{avatar}.png?size=64"
                 : $"https://cdn.discordapp.com/embed/avatars/{(ulong.TryParse(id, out var n) ? (n >> 22) % 6 : 0)}.png";
             var voice = state["voice_state"];
-            member.Muted = Flag(voice, "self_mute") || Flag(voice, "mute") || Flag(state, "mute");
+            member.Muted = Flag(voice, "self_mute") || Flag(voice, "mute");
             member.Deafened = Flag(voice, "self_deaf") || Flag(voice, "deaf");
+            // Mes réglages locaux pour cette personne (« mute » et « volume » à la racine de l'état vocal RPC) ; absents de
+            // l'événement → ceux que j'ai envoyés, sinon ce qu'on savait déjà.
+            SentUserSettings.TryGetValue(id, out var sent);
+            member.LocalMuted = state["mute"]?.GetValueKind() is JsonValueKind.True or JsonValueKind.False ? state["mute"]!.GetValue<bool>()
+                : sent.Mute ?? member.LocalMuted;
+            member.Volume = state["volume"]?.GetValueKind() == JsonValueKind.Number ? ClampUserVolume(state["volume"]!.GetValue<double>())
+                : sent.Volume ?? member.Volume;
 
             static bool Flag(JsonNode? node, string name) => node?[name]?.GetValueKind() == JsonValueKind.True;
         }
 
         private void PublishMembers() =>
             PublishChannel(_channelId == null ? null : _channelName,
-                _order.Select(id => _members[id]).Select(m => new VoiceMember(m.Id, m.Name, m.AvatarUrl, m.Muted, m.Deafened, m.Speaking)).ToList());
+                _order.Select(id => _members[id]).Select(m => new VoiceMember(m.Id, m.Name, m.AvatarUrl, m.Muted, m.Deafened, m.Speaking, m.LocalMuted, m.Volume)).ToList());
 
         private async Task WriteAsync(int op, JsonNode payload, CancellationToken wake)
         {
@@ -676,6 +809,8 @@ public static class DiscordVoice
             public bool Muted { get; set; }
             public bool Deafened { get; set; }
             public bool Speaking { get; set; }
+            public bool LocalMuted { get; set; }
+            public int Volume { get; set; } = DefaultUserVolume;
         }
     }
 

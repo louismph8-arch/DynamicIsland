@@ -83,11 +83,23 @@ public sealed class OpalPaint
     /// <summary>Lumière à la position (0–1) de la souris dans la fenêtre : orientation de la bordure, reflet du liseré.</summary>
     public void SetLight(double fx, double fy)
     {
-        var (from, to) = OpalPalette.Direction(Opal.IridBaseAngle + (fx - 0.5) * Opal.IridSwing);
+        _fx = fx;
+        _fy = fy;
+        var (from, to) = OpalPalette.Direction(Opal.IridBaseAngle + (fx - 0.5) * Opal.IridSwing + _breathAngle);
         Rim.StartPoint = from;
         Rim.EndPoint = to;
         Rim.GradientStops[1].Offset = Math.Clamp(0.5 + (fy - 0.5) * Opal.IridSlide * 2, 0.15, 0.85);
         TopLine.GradientStops[1].Offset = Math.Clamp(fx, 0.12, 0.88);
+    }
+
+    private double _fx = 0.5, _fy = 0.5, _breathAngle;
+
+    /// <summary>Respiration (O5) : reflets tournés de <paramref name="angle"/> degrés, éclat de la bordure × <paramref name="glow"/>.</summary>
+    public void SetBreath(double angle, double glow)
+    {
+        _breathAngle = angle;
+        Rim.Opacity = Math.Clamp(glow, 0, 1);
+        SetLight(_fx, _fy);
     }
 
     /// <summary>Reflet nacré du balayage : la teinte voisine « après » l'accent, très pâle.</summary>

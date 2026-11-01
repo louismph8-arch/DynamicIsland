@@ -84,7 +84,8 @@ public sealed class IslandTabItem
     /// <summary>Ordre par défaut ; un onglet ajouté plus tard (Mélangeur) se range à la fin des listes déjà enregistrées.</summary>
     public const string Clipboard = "clipboard";
     public const string Notes = "notes";
-    public static readonly string[] All = [Music, Calendar, Control, Mixer, Widgets, Shelf, Voice, Claude, Clocks, Health, Friends, Clipboard, Notes];
+    public const string Translate = "translate";
+    public static readonly string[] All = [Music, Calendar, Control, Mixer, Widgets, Shelf, Voice, Claude, Clocks, Health, Friends, Clipboard, Notes, Translate];
 
     public string Id { get; set; } = "";
     public bool Visible { get; set; } = true;

@@ -25,6 +25,7 @@ public partial class SettingsWindow
         (IslandTabItem.Mixer, Icons.Mixer, "island.mixer"),
         (IslandTabItem.Clipboard, Icons.Clipboard, "island.clipboard"),
         (IslandTabItem.Notes, Icons.Notes, "island.notes"),
+        (IslandTabItem.Translate, Icons.Translate, "island.translate"),
     ];
 
     private void ShowIslandLayout()

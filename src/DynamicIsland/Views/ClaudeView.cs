@@ -257,31 +257,11 @@ public sealed partial class ClaudeView : UserControl
             column.Children.Add(new TextBlock { Text = error, FontSize = TypeRamp.Footnote, Foreground = Paint.Danger, TextWrapping = TextWrapping.Wrap });
             if (turn.Fix != ClaudeFix.None)
             {
-                var fix = turn.Fix switch
-                {
-                    ClaudeFix.Login => TextButton(Loc.T("settings.connecter"), Icons.LogIn),
-                    ClaudeFix.ApiKey => TextButton(Loc.T("claude.view.api_key"), Icons.Settings),
-                    ClaudeFix.Locate => TextButton(Loc.T("claude.view.locate"), Icons.Settings),
-                    ClaudeFix.CodexLogin => TextButton(Loc.T("settings.connecter"), Icons.LogIn),
-                    ClaudeFix.CodexUpdate => TextButton(Loc.T("codex.view.update"), Icons.Download),
-                    ClaudeFix.CodexInstall => TextButton(Loc.T("codex.view.install"), Icons.Download),
-                    _ => TextButton(Loc.T("claude.view.update"), Icons.Download),
-                };
+                var (fixText, fixGlyph) = FixLabel(turn.Fix);
+                var fix = TextButton(fixText, fixGlyph);
                 fix.HorizontalAlignment = HorizontalAlignment.Left;
                 fix.Margin = new Thickness(0, Space.S3, 0, 0);
-                fix.Click += (_, _) =>
-                {
-                    switch (turn.Fix)
-                    {
-                        case ClaudeFix.Login: ClaudeService.OpenLogin(); break;
-                        case ClaudeFix.ApiKey: Settings.SettingsWindow.Open(Settings.SettingsPage.Island); break;
-                        case ClaudeFix.Locate: Settings.SettingsWindow.Open(Settings.SettingsPage.Island); break;
-                        case ClaudeFix.CodexLogin: ClaudeService.OpenCodexLogin(); break;
-                        case ClaudeFix.CodexUpdate: ClaudeService.OpenCodexUpdate(); break;
-                        case ClaudeFix.CodexInstall: ClaudeService.OpenCodexInstall(); break;
-                        default: ClaudeService.OpenUpdate(); break;
-                    }
-                };
+                fix.Click += (_, _) => RunFix(turn.Fix);
                 column.Children.Add(fix);
             }
         }
@@ -305,6 +285,32 @@ public sealed partial class ClaudeView : UserControl
             column.Children.Add(copy);
         }
         return grid;
+    }
+
+    /// <summary>Bouton sous une erreur du moteur (aussi pour l'onglet Traduire) : texte et icône.</summary>
+    internal static (string Text, string Glyph) FixLabel(ClaudeFix fix) => fix switch
+    {
+        ClaudeFix.Login or ClaudeFix.CodexLogin => (Loc.T("settings.connecter"), Icons.LogIn),
+        ClaudeFix.ApiKey => (Loc.T("claude.view.api_key"), Icons.Settings),
+        ClaudeFix.Locate => (Loc.T("claude.view.locate"), Icons.Settings),
+        ClaudeFix.CodexUpdate => (Loc.T("codex.view.update"), Icons.Download),
+        ClaudeFix.CodexInstall => (Loc.T("codex.view.install"), Icons.Download),
+        _ => (Loc.T("claude.view.update"), Icons.Download),
+    };
+
+    /// <summary>Ce que fait ce bouton : se connecter, mettre à jour, ouvrir les paramètres de l'assistant…</summary>
+    internal static void RunFix(ClaudeFix fix)
+    {
+        switch (fix)
+        {
+            case ClaudeFix.Login: ClaudeService.OpenLogin(); break;
+            case ClaudeFix.ApiKey or ClaudeFix.Locate: Settings.SettingsWindow.Open(Settings.SettingsPage.Island); break;
+            case ClaudeFix.CodexLogin: ClaudeService.OpenCodexLogin(); break;
+            case ClaudeFix.CodexUpdate: ClaudeService.OpenCodexUpdate(); break;
+            case ClaudeFix.CodexInstall: ClaudeService.OpenCodexInstall(); break;
+            case ClaudeFix.None: break;
+            default: ClaudeService.OpenUpdate(); break;
+        }
     }
 
     // ------------------------------------------------------------------ mise en forme

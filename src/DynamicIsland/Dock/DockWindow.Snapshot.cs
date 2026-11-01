@@ -62,9 +62,13 @@ public partial class DockWindow
             _glass.SimulateCursor(null);
         }
 
-        // Aperçu des fenêtres (correctif 15c) : deux fenêtres d'exemple, la 2e survolée (un seul cadre, « × » réglable).
+        // Aperçu des fenêtres : trois fenêtres d'exemple (16:9, 4:3, portrait), la dernière survolée (un seul cadre, « × »
+        // réglable), puis une seule fenêtre (la miniature remplit la carte, pas de cadre de carte). Fausses miniatures dessinées.
         if (_pinned.FirstOrDefault(i => !i.IsFolder) is { Pin: { } pin })
+        {
             await PreviewWindow.RenderSnapshotAsync(DockItem.FromPin(pin), Path.Combine(folder, "5c-apercu.png"));
+            await PreviewWindow.RenderSnapshotAsync(DockItem.FromPin(pin), Path.Combine(folder, "5c-apercu-une-fenetre.png"), (1280, 860));
+        }
 
         await SearchWindow.RenderSnapshotAsync(Path.Combine(folder, "6-recherche.png"), "chr");
         if (_pinned.FirstOrDefault(i => i.IsFolder) is { } dockFolder)

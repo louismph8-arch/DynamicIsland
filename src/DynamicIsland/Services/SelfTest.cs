@@ -42,13 +42,16 @@ internal static partial class SelfTest
             Run(lines, "Amis en ligne", () => Friends(lines));
             Run(lines, "Santé du PC (lecture seule)", () => Health(lines));
             Run(lines, "Mélangeur de volume (lecture seule)", () => Mixer(lines));
+            Run(lines, "Musique et vocal dans l'île (position, volume de l'appli, réglages Discord)", () => MediaControls(lines));
             Run(lines, "Presse-papiers et coffre (en mémoire, sans toucher au vrai presse-papiers)", () => ClipboardAndVault(lines));
             Run(lines, "Notes et texte ajouté au presse-papiers (en mémoire / dossier temporaire)", () => NotesAndClipText(lines));
+            Run(lines, "Traduire : adresses Google, consigne, palette, raccourci AltGr (sans aucune vraie traduction)", () => Translate(lines));
             Run(lines, "Thèmes saisonniers", () => Seasons(lines));
             Run(lines, "Verre opalin (refonte O1) : réglage, reflets irisés, grain", () => OpalGlass(lines));
             Run(lines, "Couleurs (refonte O2) : transitions, contraste, opale blanche", () => OpalColors(lines));
             Run(lines, "Mouvement (refonte O3) : cascade, courbes, inclinaison, élastique, accessibilité", () => MotionO3(lines));
             Run(lines, "Typographie et icônes (refonte O4) : police des chiffres, chiffres tabulaires, licence, icône active", () => TypographyO4(lines));
+            Run(lines, "Île réduite (refonte O5) : activités en direct, « +1 », largeur, respiration, batterie", () => LiveO5(lines));
             Run(lines, "Bêta : versions, canal, avis, nouveautés", () => Beta(lines));
             Run(lines, "Automatisations", () => Automations(lines));
             Run(lines, "Ma semaine : statistiques locales", () => Stats(lines));
@@ -57,6 +60,7 @@ internal static partial class SelfTest
             Run(lines, "Priorité 2 : réseau, météo, minuteur", () => Comfort(lines));
             Run(lines, "Priorité 2 : dock (alignement, petites tailles) et icônes du bureau (lecture seule)", () => Dock2(lines));
             Run(lines, "Dock : suivre l'écran de la souris (écrans simulés)", () => DockFollowMouse(lines));
+            Run(lines, "Dock : aperçu des fenêtres (miniature qui remplit la carte, formats et DPI)", () => PreviewThumbnails(lines));
             Run(lines, "Concentration : Ne pas déranger et veilleuse (faux écrans, vrais écrans lus seulement)", () => Focus(lines));
             Run(lines, "Stage Manager (écrans simulés, aucune vraie fenêtre touchée)", () => StageManagerTest(lines));
             Run(lines, "Widgets des potes : lecture, fichiers piégés, gabarits, source web (sans réseau)", () => PluginsPure(lines));

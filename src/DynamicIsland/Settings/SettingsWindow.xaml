@@ -1081,6 +1081,36 @@
           </ui:SquircleBorder>
           <StackPanel x:Name="CodexModelList" Visibility="Collapsed"/>
 
+          <TextBlock x:Name="TranslateGroupTitle" Style="{StaticResource GroupTitle}" Text="{ui:L settings.translate.group}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.translate.target.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.translate.target.description}"/>
+              </StackPanel>
+              <Button x:Name="TranslateTargetButton" Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center"
+                      MinWidth="150" Click="TranslateTarget_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.translate.hotkey.title}"/>
+                <TextBlock x:Name="TranslateHotkeyStatus" Style="{StaticResource CardDescription}" TextWrapping="Wrap"/>
+              </StackPanel>
+              <TextBox x:Name="TranslateHotkeyBox" Grid.Column="1" Style="{StaticResource HexBox}" Width="190" MaxLength="40" IsReadOnly="True"
+                       FontFamily="{StaticResource UiFont}" Cursor="Hand" ToolTip="{ui:L settings.translate.hotkey.tip}"
+                       PreviewKeyDown="HotkeyBox_PreviewKeyDown" GotKeyboardFocus="HotkeyBox_GotKeyboardFocus"
+                       LostKeyboardFocus="HotkeyBox_LostKeyboardFocus"/>
+              <Button Grid.Column="2" Style="{StaticResource SettingsButton}" Margin="{ui:Space s4,0,0,0}" Content="{ui:L settings.par_defaut}" Click="DefaultTranslateHotkey_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.translate.note}"/>
+          </ui:SquircleBorder>
+
           <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.notices.group}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <Grid>

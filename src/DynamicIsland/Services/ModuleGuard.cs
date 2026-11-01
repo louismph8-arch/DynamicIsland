@@ -41,6 +41,7 @@ public static class ModuleGuard
     public const string MixerTab = "tab.mixer";
     public const string ClipboardTab = "tab.clipboard";
     public const string NotesTab = "tab.notes";
+    public const string TranslateTab = "tab.translate";
     /// <summary>L'île elle-même : jamais arrêtée (journal seulement), mais elle n'est plus prise pour un autre module.</summary>
     public const string Island = "island";
 
@@ -58,6 +59,8 @@ public static class ModuleGuard
             "DynamicIsland.Services.SecretEraser", "DynamicIsland.Services.PasswordVault", "DynamicIsland.Services.VaultFile", "DynamicIsland.Vault."]),
         (NotesTab, ["DynamicIsland.Views.NotesView", "DynamicIsland.Services.NotesService", "DynamicIsland.Services.NotesStore",
             "DynamicIsland.Services.NoteText", "DynamicIsland.Services.Note.", "DynamicIsland.Notes."]),
+        (TranslateTab, ["DynamicIsland.Views.TranslateView", "DynamicIsland.Services.TranslateService", "DynamicIsland.Services.BrowserAddress",
+            "DynamicIsland.Services.KeyboardAltGr"]),
         // Zone d'état avant le dock : une erreur dans la corbeille ou Windows Update ne coupe pas tout le dock.
         (Status, ["DynamicIsland.Dock.StatusArea", "DynamicIsland.Dock.DownloadsWindow", "DynamicIsland.Services.KeyboardLayoutService",
             "DynamicIsland.Services.WindowsUpdateService", "DynamicIsland.Services.RecycleBinService", "DynamicIsland.Services.DownloadsService",

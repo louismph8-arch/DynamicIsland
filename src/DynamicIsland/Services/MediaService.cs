@@ -24,6 +24,9 @@ public sealed class MediaService
     private int _propertiesVersion;
     private TimeSpan _position;
     private DateTimeOffset _positionStamp = DateTimeOffset.Now;
+    private TimeSpan _startTime;
+    /// <summary>Après un changement de position demandé par nous : la position publiée par le lecteur est ignorée jusque-là.</summary>
+    private DateTimeOffset _holdUntil = DateTimeOffset.MinValue;
     private bool _demo;
 
     public MediaService(Dispatcher dispatcher)
@@ -46,6 +49,8 @@ public sealed class MediaService
     public bool IsPlaying { get; private set; }
     public bool CanGoPrevious { get; private set; }
     public bool CanGoNext { get; private set; }
+    /// <summary>Le lecteur accepte qu'on change la position (Spotify, YouTube…) : sinon la barre n'est pas interactive.</summary>
+    public bool CanSeek { get; private set; }
     public TimeSpan Duration { get; private set; }
 
     /// <summary>Position interpolée : les applis ne publient la position qu'à chaque événement.</summary>
@@ -96,8 +101,35 @@ public sealed class MediaService
         _position = TimeSpan.FromSeconds(77);
         _positionStamp = DateTimeOffset.Now;
         IsPlaying = true;
-        CanGoPrevious = CanGoNext = true;
+        CanGoPrevious = CanGoNext = CanSeek = true;
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Va à <paramref name="target"/> dans le morceau (barre de progression de l'onglet Musique). La position affichée change tout
+    /// de suite ; celle que publie le lecteur est ignorée pendant <see cref="SeekMath.Hold"/> (sinon la barre sauterait en arrière
+    /// le temps que le lecteur suive). Rien n'est envoyé en mode démo.
+    /// </summary>
+    public async void Seek(TimeSpan target)
+    {
+        if (!CanSeek || Duration <= TimeSpan.Zero) return;
+        target = SeekMath.Clamp(target, Duration);
+        _position = target;
+        _positionStamp = DateTimeOffset.Now;
+        _holdUntil = DateTimeOffset.Now + SeekMath.Hold;
+        Changed?.Invoke();
+        var session = _session;
+        if (session == null || _demo) return;
+        try
+        {
+            if (!await session.TryChangePlaybackPositionAsync((_startTime + target).Ticks))
+                _holdUntil = DateTimeOffset.MinValue; // refusé : on reprend la position du lecteur
+        }
+        catch (Exception ex)
+        {
+            _holdUntil = DateTimeOffset.MinValue;
+            Log.Error("Média : changement de position", ex);
+        }
     }
 
     public async void TogglePlayPause()
@@ -192,12 +224,14 @@ public sealed class MediaService
         _session = session;
         _sessionId = session != null ? SafeId(session) : "";
         _propertiesVersion++;
+        _holdUntil = DateTimeOffset.MinValue;
         AppName = FriendlyAppName(_sessionId);
         IsPlaying = false;
 
         if (session == null)
         {
             Title = Artist = "";
+            CanSeek = false;
             Cover = null;
             Accent = DefaultAccent;
             Duration = TimeSpan.Zero;
@@ -238,6 +272,7 @@ public sealed class MediaService
             IsPlaying = playing;
             CanGoPrevious = info?.Controls.IsPreviousEnabled ?? false;
             CanGoNext = info?.Controls.IsNextEnabled ?? false;
+            CanSeek = info?.Controls.IsPlaybackPositionEnabled ?? false;
         }
         catch (Exception ex)
         {
@@ -256,6 +291,8 @@ public sealed class MediaService
                 return;
             }
             Duration = timeline.EndTime - timeline.StartTime;
+            _startTime = timeline.StartTime;
+            if (!SeekMath.Accept(DateTimeOffset.Now, _holdUntil)) return; // on vient de changer la position nous-mêmes
             _position = timeline.Position - timeline.StartTime;
             var stamp = timeline.LastUpdatedTime;
             var now = DateTimeOffset.Now;

@@ -688,6 +688,7 @@ public partial class SettingsWindow : Window
         bool stageError = stage.Length > 0 && GlobalHotkey.StageError != null;
         StageHotkeyStatus.Text = stageError ? GlobalHotkey.StageError : Loc.T("settings.stage.hotkey.help");
         StageHotkeyStatus.Foreground = stageError ? Paint.Timer : Paint.TextSecondary;
+        ShowTranslate();
     }
 
     private void DefaultNoteHotkey_Click(object sender, RoutedEventArgs e) =>
@@ -737,6 +738,12 @@ public partial class SettingsWindow : Window
             Keyboard.ClearFocus();
             return;
         }
+        if (box == TranslateHotkeyBox && key is Key.Delete or Key.Back && modifiers == ModifierKeys.None)
+        {
+            SettingsStore.Update(s => s.Translate.Hotkey = ""); // aucun raccourci « Traduire »
+            Keyboard.ClearFocus();
+            return;
+        }
         if (box == IslandHotkeyBox && key is Key.Delete or Key.Back && modifiers == ModifierKeys.None)
         {
             SettingsStore.Update(s => s.Island.ToggleHotkey = ""); // aucun raccourci pour l'île
@@ -758,6 +765,7 @@ public partial class SettingsWindow : Window
         else if (box == IslandHotkeyBox) SettingsStore.Update(s => s.Island.ToggleHotkey = gesture);
         else if (box == NoteHotkeyBox) SettingsStore.Update(s => s.Notes.Hotkey = gesture);
         else if (box == StageHotkeyBox) SettingsStore.Update(s => s.Stage.Hotkey = gesture);
+        else if (box == TranslateHotkeyBox) SettingsStore.Update(s => s.Translate.Hotkey = gesture);
         else SettingsStore.Update(s => s.Palette.Hotkey = gesture);
         Keyboard.ClearFocus(); // le nouveau raccourci est enregistré en quittant la case
     }
@@ -834,6 +842,7 @@ public partial class SettingsWindow : Window
             {
                 await window.SnapshotScrolledAsync(window.TimerGroupTitle, Path.Combine(folder, "7-parametres-island-minuteur.png"));
                 await window.SnapshotScrolledAsync(window.AssistantGroupTitle, Path.Combine(folder, "7-parametres-island-assistant.png"));
+                await window.SnapshotScrolledAsync(window.TranslateGroupTitle, Path.Combine(folder, "7-parametres-island-traduire.png"));
             }
             if (page == SettingsPage.Friends)
             {

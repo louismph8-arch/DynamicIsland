@@ -42,6 +42,17 @@ public partial class IslandWindow
         else Expand();
     }
 
+    /// <summary>--perf-bench (O5) : minuteur de 25 min qui tourne dans la pilule (activité en direct), ou arrêté.</summary>
+    internal void BenchTimer(bool on)
+    {
+        if (on) _timer.StartWith(TimeSpan.FromMinutes(25));
+        else _timer.Reset();
+        FinishAnimations();
+    }
+
+    /// <summary>--perf-bench (O5) : bordure qui respire forcée (en --snapshot, la décision normale la coupe toujours).</summary>
+    internal void BenchBreath(bool on) => _opal.SetBreathing(on);
+
     internal void BenchGaming(bool on)
     {
         ApplyGaming(on);
@@ -106,6 +117,7 @@ public partial class IslandWindow
 
         FinishAnimations();
         await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "0-compacte.png"));
+        await SnapshotLiveAsync(folder); // île réduite (O5) : pilule au repos et activités en direct d'exemple
 
         // Salon vocal d'exemple (réglages en lecture seule : on peut activer Discord en mémoire).
         Settings.SettingsStore.Current.Discord.Enabled = true;
@@ -133,7 +145,7 @@ public partial class IslandWindow
             new(Services.DeviceListService.Kind.Mouse, "PRO Wireless", null, null),
             new(Services.DeviceListService.Kind.Storage, "Clé USB (E:)", null, "E:\\"),
         ]);
-        foreach (var (tab, name) in new[] { (Tab.Music, "1-musique"), (Tab.Calendar, "2-calendrier"), (Tab.Control, "3-controles"), (Tab.Widgets, "3b-widgets"), (Tab.Shelf, "3c-etagere"), (Tab.Voice, "3d-vocal"), (Tab.Claude, "3e-claude"), (Tab.Clocks, "3f-horloges"), (Tab.Friends, "3g-amis"), (Tab.Health, "3h-sante"), (Tab.Mixer, "3i-melangeur"), (Tab.Clipboard, "3i-presse-papiers"), (Tab.Notes, "3m-notes") })
+        foreach (var (tab, name) in new[] { (Tab.Music, "1-musique"), (Tab.Calendar, "2-calendrier"), (Tab.Control, "3-controles"), (Tab.Widgets, "3b-widgets"), (Tab.Shelf, "3c-etagere"), (Tab.Voice, "3d-vocal"), (Tab.Claude, "3e-claude"), (Tab.Clocks, "3f-horloges"), (Tab.Friends, "3g-amis"), (Tab.Health, "3h-sante"), (Tab.Mixer, "3i-melangeur"), (Tab.Clipboard, "3i-presse-papiers"), (Tab.Notes, "3m-notes"), (Tab.Translate, "3n-traduire") })
         {
             Expand();
             SelectTab(tab, animate: false);
@@ -141,6 +153,7 @@ public partial class IslandWindow
             if (tab == Tab.Claude) ClaudeTab.ShowSample(); // conversation d'exemple : rien n'est demandé à Claude
             if (tab == Tab.Clipboard) ClipboardTab.ShowSample(vault: false); // historique d'exemple : le vrai presse-papiers n'est pas lu
             if (tab == Tab.Notes) NotesTab.ShowSample(); // notes d'exemple : notes.json n'est jamais lu
+            if (tab == Tab.Translate) TranslateTab.ShowSample(); // traduction d'exemple écrite à la main : aucune requête
             FinishAnimations();
             _opal.HideSweep(); // le balayage de l'ouverture ne tourne pas dans un rendu figé
             await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, name + ".png"));
@@ -207,6 +220,48 @@ public partial class IslandWindow
         FinishAnimations();
         await Palette.PaletteWindow.RenderSnapshotsAsync(this, folder);
         Close(); // l'app se ferme quand toutes les fenêtres de rendu ont fini
+    }
+
+    /// <summary>
+    /// Île réduite (O5) : pilule au repos, avec une batterie d'exemple, puis des activités d'exemple (minuteur, transfert,
+    /// réponse de l'assistant, deux à la fois avec « +1 », musique). Rien n'est lancé : les activités sont posées en mémoire.
+    /// </summary>
+    private async Task SnapshotLiveAsync(string folder)
+    {
+        _liveSample = true; // les vraies sources (musique d'exemple…) ne remettent pas leurs activités pendant ces rendus
+        var timer = new Live.LiveActivity(Live.LiveIds.Timer, Themes.Icons.Timer, 0.4, "14:59",
+            (Views.CalendarTimerView.KindBrush(Services.TimerKind.Timer) as SolidColorBrush)?.Color, Live.LivePriority.Timer);
+        var transfer = new Live.LiveActivity(Live.LiveIds.Transfer, Themes.Icons.Download, 0.62, Loc.F("format.percent", 62), null, Live.LivePriority.Transfer);
+        var assistant = new Live.LiveActivity(Live.LiveIds.Assistant, Themes.Icons.Sparkles, null, "Claude", null, Live.LivePriority.Assistant);
+        var music = new Live.LiveActivity(Live.LiveIds.Music, Themes.Icons.Music, null, "", _media.Accent, Live.LivePriority.Music)
+        {
+            Style = Live.LiveStyle.Music, Breathes = false,
+        };
+        foreach (var (name, items, battery) in new (string, Live.LiveActivity[], int?)[]
+                 {
+                     ("0e-pilule-repos", [], null),
+                     ("0f-pilule-batterie", [], 76),
+                     ("0g-pilule-minuteur", [timer], null),
+                     ("0h-pilule-transfert", [transfer], null),
+                     ("0i-pilule-assistant", [assistant], null),
+                     ("0j-pilule-deux-activites", [transfer, timer], null),
+                     ("0k-pilule-musique", [music], null),
+                 })
+        {
+            Live.LiveActivities.Clear();
+            ShowSampleBattery(battery);
+            foreach (var item in items) Live.LiveActivities.Set(item);
+            RenderPill();
+            FinishAnimations();
+            if (name == "0g-pilule-minuteur") _opal.ShowBreathAt(0.75); // bordure figée au milieu d'une respiration
+            await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, name + ".png"));
+            _opal.ShowBreathAt(0);
+        }
+        _liveSample = false;
+        Live.LiveActivities.Clear();
+        ShowSampleBattery(null);
+        UpdateCompact();
+        FinishAnimations();
     }
 
     private void FinishAnimations()

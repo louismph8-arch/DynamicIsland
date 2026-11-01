@@ -267,9 +267,31 @@ public sealed class RemoteServer : IDisposable
         if (response.Security != null) head.Append($"Content-Security-Policy: {response.Security}\r\n");
         head.Append(keepAlive ? $"Connection: keep-alive\r\nKeep-Alive: timeout={(int)IdleTimeout.TotalSeconds}\r\n\r\n" : "Connection: close\r\n\r\n");
         await stream.WriteAsync(Encoding.ASCII.GetBytes(head.ToString()), token);
-        if (file != null) await file.CopyToAsync(stream, 81920, token);
+        if (file != null) await SendFileAsync(file, stream, token);
         else if (response.Body.Length > 0) await stream.WriteAsync(response.Body, token);
         await stream.FlushAsync(token);
+    }
+
+    /// <summary>Fichier envoyé au téléphone (« Envoyer au téléphone », 7E) : avancement publié pour l'activité de l'île (O5).</summary>
+    private static async Task SendFileAsync(FileStream file, Stream stream, CancellationToken token)
+    {
+        string id = "out:" + Guid.NewGuid().ToString("N");
+        long total = file.Length, sent = 0;
+        var buffer = new byte[81920];
+        try
+        {
+            int read;
+            while ((read = await file.ReadAsync(buffer, token)) > 0)
+            {
+                await stream.WriteAsync(buffer.AsMemory(0, read), token);
+                sent += read;
+                RemoteTransfers.Report(id, incoming: false, sent, total);
+            }
+        }
+        finally
+        {
+            RemoteTransfers.Finish(id);
+        }
     }
 
     private static string Reason(int status) => status switch

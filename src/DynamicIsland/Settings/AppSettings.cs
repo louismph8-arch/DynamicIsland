@@ -29,6 +29,8 @@ public sealed class AppSettings
     public ClipboardSettings Clipboard { get; set; } = new();
     /// <summary>Notes de l'île : seulement des choix (les notes elles-mêmes sont dans notes.json, jamais ici).</summary>
     public NotesSettings Notes { get; set; } = new();
+    /// <summary>Onglet « Traduire » : langue cible et raccourci (aucun texte traduit n'est gardé).</summary>
+    public TranslateSettings Translate { get; set; } = new();
     public AutomationSettings Automations { get; set; } = new();
     public FocusSettings Focus { get; set; } = new();
     /// <summary>« Ma semaine » (7F) : suivi de l'activité, désactivé par défaut.</summary>
@@ -78,6 +80,8 @@ public sealed class AppSettings
         Stage.Normalize();
         Notes ??= new NotesSettings();
         Notes.Normalize();
+        Translate ??= new TranslateSettings();
+        Translate.Normalize();
         Timer.Normalize();
         Automations.Normalize();
         Friends.Normalize();
