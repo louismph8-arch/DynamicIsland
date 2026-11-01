@@ -78,6 +78,12 @@ public sealed class ClipboardHistoryStore
         }
     }
 
+    /// <summary>Le dernier élément (tuile Presse-papiers), sans copier toute la liste ; null si l'historique est vide.</summary>
+    public ClipItem? Top()
+    {
+        lock (_lock) return _items.Count > 0 ? _items[0] : null;
+    }
+
     /// <summary>« https://… » sur une seule ligne = lien.</summary>
     public static bool IsLink(string text) =>
         text.Length < 2048 && !text.Any(char.IsWhiteSpace) && Uri.TryCreate(text, UriKind.Absolute, out var uri)

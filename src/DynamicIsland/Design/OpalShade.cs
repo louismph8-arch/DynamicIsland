@@ -193,10 +193,20 @@ public static class OpalShade
             resources[AppearanceService.DockBrushKey] = Paint.Frozen(Swatch.WithAlpha(state.SurfaceBase, (byte)Math.Max(1, Math.Round(look.DockOpacity * 255))));
             var mid = OpalColor.Mix(state.AccentStart, state.AccentEnd, 0.5);
             resources[AppearanceService.AccentBrushKey] = Paint.Frozen(OpalColor.Readable(mid, reference, OpalColor.IconContrast));
+            // Petit texte d'accent posé sur une tuile : ≥ 4,5, et en opale blanche sur la tuile la plus foncée supposée (une tuile
+            // laisse voir le décor coloré flouté : elle est bien plus foncée que la surface de référence).
+            resources[AppearanceService.AccentTextKey] = Paint.Frozen(AccentText(mid, state.Light, reference));
             resources[AppearanceService.AccentGradientKey] = Paint.Gradient(state.AccentStart, state.AccentEnd);
         }
         OpalTheme.Apply();
         Changed?.Invoke();
+    }
+
+    /// <summary>Accent des petits textes des tuiles (calcul pur, --self-test) : lisible sur la référence et, en clair, sur une tuile foncée.</summary>
+    public static Color AccentText(Color accent, double light, Color reference)
+    {
+        var text = OpalColor.Readable(accent, reference, OpalColor.TextContrast);
+        return light >= 0.5 ? OpalColor.Readable(text, Opal.LightTileWorst, OpalColor.TextContrast) : text;
     }
 
     /// <summary>

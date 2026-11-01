@@ -128,13 +128,23 @@ public static partial class PaletteEngine
         if (claudeFirst) AddClaude(query, actions, items);
         if (query.StartsWith('?')) return items;
         AddTranslate(query, actions, items); // « tr … » : avant les calculs (« tr 2+2 » se traduit)
+        if (query.StartsWith('='))
+        {
+            // « = … » (tuile Calculatrice) : seulement le calcul, ou une astuce tant qu'il n'est pas fini.
+            AddCalculation(query, items);
+            if (items.Count == 0)
+                items.Add(new PaletteItem(Loc.T("palette.calc.hint"), Loc.T("palette.calc.hint.description"), () => { }) { Glyph = Icons.Calculator });
+            return items;
+        }
         AddCalculation(query, items);
         AddTimer(query, actions, items);
         AddProfiles(query, items);
         AddClipboard(query, actions, items);
         AddFocus(query, items);
+        AddCoffee(query, items); // Café de la tuile (O6) : marche / arrêt même sans la tuile
         AddClipText(query, actions, items);
         AddNotes(query, actions, items);
+        AddTodo(query, actions, items); // liste « À faire » de la tuile (O6)
         AddSurprises(query, actions, items);
 
         foreach (var app in AppCatalog.Search(query, 4))
@@ -251,6 +261,7 @@ public static partial class PaletteEngine
     private static void AddCalculation(string query, List<PaletteItem> items)
     {
         if (!Calculator.TryEvaluate(query, out double result)) return;
+        Calculator.Last = (query.Trim().TrimStart('=').TrimEnd('=').Trim(), result);
         var shown = Calculator.Format(result);
         items.Add(new PaletteItem(shown, Loc.F("palette.calc.copy", query), () => CopyToClipboard(Calculator.FormatPlain(result)))
         {

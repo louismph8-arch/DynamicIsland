@@ -39,6 +39,8 @@ public sealed class AppSettings
     public TimerSettings Timer { get; set; } = new();
     /// <summary>Stage Manager (7G) : désactivé par défaut.</summary>
     public StageSettings Stage { get; set; } = new();
+    /// <summary>Tuiles de tous les jours de l'île (O6) : valeur du Compteur, note « À faire ».</summary>
+    public EverydayTileSettings TileData { get; set; } = new();
     /// <summary>Règles par application pour l'île et le dock (priorité 2, point 13).</summary>
     public List<AppRule> AppRules { get; set; } = [];
     /// <summary>Langue de l'interface (6A) : « auto » (celle de Windows), « fr » ou « en ». Appliquée au démarrage.</summary>
@@ -78,6 +80,8 @@ public sealed class AppSettings
         Timer ??= new TimerSettings();
         Stage ??= new StageSettings();
         Stage.Normalize();
+        TileData ??= new EverydayTileSettings();
+        TileData.Normalize();
         Notes ??= new NotesSettings();
         Notes.Normalize();
         Translate ??= new TranslateSettings();
@@ -244,12 +248,21 @@ public sealed class IslandSettings
     public List<IslandTabItem> Tabs { get; set; } = IslandTabItem.Defaults();
     /// <summary>Onglets en colonne à gauche du contenu (sinon en rangée en haut).</summary>
     public bool VerticalTabs { get; set; }
+    /// <summary>Île ouverte en grille de tuiles (refonte O6, défaut) ou en onglets (l'ancien système, gardé comme repli).</summary>
+    public IslandLayout Layout { get; set; } = IslandLayout.Grid;
+    /// <summary>Disposition de la grille (O6) ; absente (réglages d'avant) = construite d'après <see cref="Tabs"/> (onglets cachés = tuiles retirées).</summary>
+    public IslandGrid? Grid { get; set; }
+    /// <summary>Prévu pour O7 : une disposition par profil (id du profil → grille). Pas encore lu ni modifié par l'app.</summary>
+    public Dictionary<string, IslandGrid>? ProfileGrids { get; set; }
     /// <summary>Fixe / Intelligent / Peek, comme le dock (point 13).</summary>
     public IslandMode Mode { get; set; }
     /// <summary>Raccourci « Cacher / afficher l'île » (point 14) ; vide = aucun.</summary>
     public string ToggleHotkey { get; set; } = Services.Hotkeys.DefaultIsland;
 
     public const double MinScale = 0.8, MaxScale = 1.25;
+
+    /// <summary>Grille de l'île, construite d'après les onglets si elle n'existe pas encore (réglages pas encore normalisés).</summary>
+    public IslandGrid EnsureGrid() => Grid ??= IslandGrid.FromTabs(IslandTabItem.NormalizeList(Tabs));
 
     public void Normalize()
     {
@@ -263,6 +276,11 @@ public sealed class IslandSettings
         PomodoroBreakMinutes = Math.Clamp(PomodoroBreakMinutes, 1, 30);
         Scale = double.IsFinite(Scale) ? Math.Clamp(Math.Round(Scale, 2), MinScale, MaxScale) : 1;
         Tabs = IslandTabItem.NormalizeList(Tabs);
+        if (!Enum.IsDefined(Layout)) Layout = IslandLayout.Grid;
+        Grid ??= IslandGrid.FromTabs(Tabs); // migration : réglages d'avant la grille
+        Grid.Normalize();
+        if (ProfileGrids != null)
+            foreach (var grid in ProfileGrids.Values.Where(g => g != null)) grid.Normalize();
         if (!Enum.IsDefined(Mode)) Mode = IslandMode.Fixed;
         ToggleHotkey ??= "";
         if (ToggleHotkey.Length > 0 && !Services.Hotkeys.TryParse(ToggleHotkey, out _, out _)) ToggleHotkey = Services.Hotkeys.DefaultIsland;

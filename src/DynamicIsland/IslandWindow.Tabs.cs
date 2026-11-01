@@ -65,10 +65,18 @@ public partial class IslandWindow
                 index++;
             }
         }
+        bool grid = GridLayout;
         foreach (var (tab, id) in TabIds)
         {
-            bool shown = items.First(i => i.Id == id).Visible && TabHasContent(tab) && !TabStopped(tab);
+            // Mode grille (O6) : l'onglet n'est plus qu'un outil ; il reste ouvrable (palette, dock…) même si sa tuile est retirée.
+            bool shown = (grid || items.First(i => i.Id == id).Visible) && TabHasContent(tab) && !TabStopped(tab);
             buttons[tab].Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (grid)
+        {
+            RefreshGrid(); // tuiles : disposition enregistrée, sans celles qui n'ont rien à montrer
+            if (!_home && buttons[_tab].Visibility != Visibility.Visible) GoHome(animate: _expanded); // outil arrêté : retour à la grille
+            return;
         }
         if (buttons[_tab].Visibility == Visibility.Visible) return;
         var next = items.Select(i => TabIds.First(t => t.Id == i.Id).Tab).FirstOrDefault(t => buttons[t].Visibility == Visibility.Visible, _tab);
@@ -79,7 +87,7 @@ public partial class IslandWindow
     /// <summary>Onglets en rangée (en haut, défilants) ou en colonne (à gauche, icônes seules, nom de l'onglet en titre).</summary>
     private void ApplyTabLayout()
     {
-        bool vertical = SettingsStore.Current.Island.VerticalTabs;
+        bool vertical = VerticalTabs;
         if (_verticalShown == vertical) return;
         _verticalShown = vertical;
         if (vertical)
@@ -120,7 +128,7 @@ public partial class IslandWindow
     /// <summary>En colonne : le nom de l'onglet ouvert s'affiche en haut, à côté de l'heure.</summary>
     private void UpdateTabTitle()
     {
-        bool vertical = SettingsStore.Current.Island.VerticalTabs;
+        bool vertical = VerticalTabs;
         TabTitle.Visibility = vertical ? Visibility.Visible : Visibility.Collapsed;
         var button = TabButtons().First(t => t.Tab == _tab).Button;
         if (vertical) TabTitle.Text = button.Content as string ?? "";

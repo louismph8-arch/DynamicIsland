@@ -207,6 +207,30 @@ public static class WallpaperService
         File.Copy(source, Path.Combine(AppPaths.DataFolder, BackupName + extension), overwrite: true);
     }
 
+    /// <summary>
+    /// Fond du pack Opaline suivant (télécommande, tuile Fond d'écran de l'île) : dessiné à la taille de l'écran hors du fil de
+    /// l'interface, puis donné au profil actif (même chemin que « Mettre en fond du profil » : fond d'origine sauvé avant, donc
+    /// réversible). <paramref name="done"/> (fil de l'interface) reçoit vrai si le fond a été posé.
+    /// </summary>
+    public static WallpaperDesign NextPackWallpaper(Action<bool>? done = null)
+    {
+        var designs = Enum.GetValues<WallpaperDesign>();
+        var next = designs[(Array.IndexOf(designs, SettingsStore.Current.Wallpaper.Design) + 1) % designs.Length];
+        SettingsStore.Update(s => s.Wallpaper.Design = next);
+        var ui = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+        _ = Task.Run(() => WallpaperArt.RenderForScreen(next)).ContinueWith(task =>
+        {
+            bool ok = task.IsCompletedSuccessfully && ProfileService.Active != null;
+            if (task.Exception != null) Log.Error("Fond d'écran suivant", task.Exception);
+            ui.BeginInvoke(() =>
+            {
+                if (ok && ProfileService.Active is { } profile) ProfileService.SetWallpaper(profile, task.Result);
+                done?.Invoke(ok);
+            });
+        }, TaskScheduler.Default);
+        return next;
+    }
+
     /// <summary>Image affichée par Windows (Wallpaper Engine y met une image de son fond animé), null si couleur unie.</summary>
     public static string? CurrentPath()
     {

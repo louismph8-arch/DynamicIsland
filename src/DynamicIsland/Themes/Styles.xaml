@@ -53,6 +53,7 @@
   <SolidColorBrush x:Key="IslandBrush" Color="{x:Static t:Swatch.IslandBase}"/>
   <SolidColorBrush x:Key="DockBrush" Color="{x:Static t:Swatch.IslandBase}"/>
   <SolidColorBrush x:Key="AccentBrush" Color="{x:Static t:Swatch.Lilac}"/>
+  <SolidColorBrush x:Key="AccentTextBrush" Color="{x:Static t:Swatch.Lilac}"/>
   <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,0">
     <GradientStop Color="{x:Static t:Swatch.AccentStart}" Offset="0"/>
     <GradientStop Color="{x:Static t:Swatch.AccentEnd}" Offset="1"/>

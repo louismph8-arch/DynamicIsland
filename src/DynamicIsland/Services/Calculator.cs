@@ -27,7 +27,7 @@ public static partial class Calculator
     public static bool TryEvaluate(string text, out double result)
     {
         result = 0;
-        var input = text.Trim().TrimEnd('=').Trim();
+        var input = text.Trim().TrimStart('=').TrimEnd('=').Trim(); // « = 2+2 » (tuile Calculatrice) comme « 2+2 = »
         if (input.Length == 0 || !input.Any(char.IsDigit) || !HasOperator().IsMatch(input)) return false;
 
         var percentOf = PercentOf().Match(input);
@@ -42,6 +42,9 @@ public static partial class Calculator
         }
         return double.IsFinite(result);
     }
+
+    /// <summary>Dernier calcul affiché dans la palette (tuile Calculatrice de l'île) : en mémoire seulement.</summary>
+    public static (string Expression, double Result)? Last { get; set; }
 
     /// <summary>« 1 234,5 » (espaces fines entre les milliers).</summary>
     public static string Format(double value) =>

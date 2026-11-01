@@ -139,7 +139,9 @@ public partial class MusicView : UserControl
             AppVolumeButton.Content = Icons.VolumeMute;
             AppVolumeButton.ToolTip = null;
             var app = media.AppName.Length > 0 ? media.AppName : Loc.T("music.volume.this_app");
-            AppVolumeMissing.Text = Loc.F("music.volume.missing", app);
+            // Ça joue mais aucune sortie audio du PC n'a de son pour cette appli : lecture sur un autre appareil (Spotify
+            // Connect, téléphone…), pas « en attente du premier son ».
+            AppVolumeMissing.Text = Loc.F(media.IsPlaying ? "music.volume.elsewhere" : "music.volume.missing", app);
             return;
         }
         AppVolumeSlider.Value = muted ? 0 : level;

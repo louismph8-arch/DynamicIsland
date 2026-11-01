@@ -41,6 +41,15 @@ public static class RemoteOutbox
         }
     }
 
+    /// <summary>Fichiers proposés (en mémoire, sans vérifier le disque : tuile Téléphone de l'île, relue chaque seconde).</summary>
+    public static int Count
+    {
+        get
+        {
+            lock (Gate) return Items.Count;
+        }
+    }
+
     public static IReadOnlyList<OutboxItem> Current
     {
         get

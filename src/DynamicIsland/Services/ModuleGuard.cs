@@ -42,12 +42,23 @@ public static class ModuleGuard
     public const string ClipboardTab = "tab.clipboard";
     public const string NotesTab = "tab.notes";
     public const string TranslateTab = "tab.translate";
+    /// <summary>Tuile Café (O6) : empêche la veille ; arrêté = Windows peut de nouveau se mettre en veille.</summary>
+    public const string Coffee = "coffee";
+    /// <summary>Tuiles de tous les jours de la grille (O6, lot A) : minuteur, date, espace disque, compteur, à faire.</summary>
+    public const string EverydayTiles = "tiles.everyday";
+    // Tuiles-outils de la grille (O6, lot B) : une tuile qui plante est cachée pour la session, l'île continue.
+    public const string ToolTiles = "tiles.tools";
+    public const string MemoTile = "tile.memo";
+    public const string ColorTile = "tile.color";
     /// <summary>L'île elle-même : jamais arrêtée (journal seulement), mais elle n'est plus prise pour un autre module.</summary>
     public const string Island = "island";
 
     /// <summary>Préfixes des types de chaque module (espaces de noms ou classes).</summary>
     private static readonly (string Id, string[] Owners)[] Ownership =
     [
+        (MemoTile, ["DynamicIsland.Tiles.Tools.VoiceMemo"]),
+        (ColorTile, ["DynamicIsland.Tiles.Tools.Color"]),
+        (ToolTiles, ["DynamicIsland.Tiles.Tools."]),
         (MusicTab, ["DynamicIsland.Views.MusicView", "DynamicIsland.Services.AppVolumeService"]),
         (CalendarTab, ["DynamicIsland.Views.CalendarTimerView"]),
         (ControlTab, ["DynamicIsland.Views.ControlCenterView", "DynamicIsland.Services.BrightnessService"]),
@@ -61,6 +72,9 @@ public static class ModuleGuard
             "DynamicIsland.Services.NoteText", "DynamicIsland.Services.Note.", "DynamicIsland.Notes."]),
         (TranslateTab, ["DynamicIsland.Views.TranslateView", "DynamicIsland.Services.TranslateService", "DynamicIsland.Services.BrowserAddress",
             "DynamicIsland.Services.KeyboardAltGr"]),
+        // Café avant les autres tuiles de tous les jours (même espace de noms) : il a son propre arrêt (veille rendue à Windows).
+        (Coffee, ["DynamicIsland.Services.KeepAwake", "DynamicIsland.Tiles.Everyday.CoffeeFace"]),
+        (EverydayTiles, ["DynamicIsland.Tiles.Everyday."]),
         // Zone d'état avant le dock : une erreur dans la corbeille ou Windows Update ne coupe pas tout le dock.
         (Status, ["DynamicIsland.Dock.StatusArea", "DynamicIsland.Dock.DownloadsWindow", "DynamicIsland.Services.KeyboardLayoutService",
             "DynamicIsland.Services.WindowsUpdateService", "DynamicIsland.Services.RecycleBinService", "DynamicIsland.Services.DownloadsService",

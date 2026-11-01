@@ -52,6 +52,8 @@ internal static partial class SelfTest
             Run(lines, "Mouvement (refonte O3) : cascade, courbes, inclinaison, élastique, accessibilité", () => MotionO3(lines));
             Run(lines, "Typographie et icônes (refonte O4) : police des chiffres, chiffres tabulaires, licence, icône active", () => TypographyO4(lines));
             Run(lines, "Île réduite (refonte O5) : activités en direct, « +1 », largeur, respiration, batterie", () => LiveO5(lines));
+            Run(lines, "Grille de tuiles (refonte O6) : placement dense, pages, migration, réglages, registre", () => GridO6(lines));
+            Run(lines, "Tuiles-outils (O6, lot B) : calcul « = », QR code, WAV du mémo, couleurs, disposition", () => ToolTilesPure(lines));
             Run(lines, "Bêta : versions, canal, avis, nouveautés", () => Beta(lines));
             Run(lines, "Automatisations", () => Automations(lines));
             Run(lines, "Ma semaine : statistiques locales", () => Stats(lines));
@@ -67,6 +69,11 @@ internal static partial class SelfTest
         });
         Run(lines, "Curseur de souris", () => Cursor(lines)); // dessin WPF : sur le thread de l'interface
         Run(lines, "Widgets des potes : rendu protégé", () => PluginsRender(lines)); // contrôles WPF : thread de l'interface
+        Run(lines, "Grille de tuiles (refonte O6) : vues des tuiles et vues détaillées", () => GridViews(lines)); // contrôles WPF
+        Run(lines, "Tuiles vivantes B (O6) : Moniteur, Amis, Profil", () => LiveTilesBTest(lines)); // contrôles WPF
+        Run(lines, "Tuiles de tous les jours (O6, lot A) : minuteur, café, date, compteur, disques, à faire, palette", () => EverydayTiles(lines)); // Café : fil de l'interface
+        Run(lines, "Tuiles de tous les jours (O6, lot A) : vues S / W / L, rien qui tourne page cachée", () => EverydayTileViews(lines)); // contrôles WPF
+        Run(lines, "Tuiles-outils (O6, lot B) : vues S / W / L, données d'exemple, rien hors de la page visible", () => ToolTileViews(lines)); // contrôles WPF
         Run(lines, "Fenêtres hors écran (double dock) et barre de titre des paramètres", () => DeveloperWindows(lines)); // vraies fenêtres WPF
         lines.Add("");
         lines.Add("== Télécommande : aller-retour HTTP sur 127.0.0.1 (faux état)");

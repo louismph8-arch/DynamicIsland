@@ -49,7 +49,7 @@ public partial class IslandWindow
         if (_morph is { IsOpen: true } morph && previous == _morphTo)
         {
             _morph = null;
-            if (animate && _expanded && tab == _morphFrom)
+            if (!_morphFromHome && animate && _expanded && tab == _morphFrom) // depuis la grille : retour par « ← Nom » (GoHome)
             {
                 morph.Close(() => { });
                 return;
@@ -58,13 +58,13 @@ public partial class IslandWindow
         }
         if (!animate || !slide || !_expanded) return;
         int direction = Math.Sign(TabIndexOf(tab) - TabIndexOf(previous));
-        PageTransition.Play(ViewOf(previous), ViewOf(tab), direction, SettingsStore.Current.Island.VerticalTabs, TabPages);
+        PageTransition.Play(ViewOf(previous), ViewOf(tab), direction, VerticalTabs, TabPages);
     }
 
     /// <summary>« Ouvrir un outil » : la tuile s'agrandit jusqu'à remplir l'île, l'onglet <paramref name="target"/> apparaît dessous.</summary>
     private void OpenTool(Tab target, FrameworkElement tile)
     {
-        if (!_expanded || _tab == target) return;
+        if (!_expanded || _home || _tab == target) return;
         if (TabButtons().First(t => t.Tab == target).Button.Visibility != Visibility.Visible) return;
         _morph?.Finish();
         var from = _tab;
@@ -75,6 +75,7 @@ public partial class IslandWindow
         });
         _morphFrom = from;
         _morphTo = target;
+        _morphFromHome = false;
     }
 
     /// <summary>Molette au bout de la rangée d'onglets : petit rebond élastique (rien à faire défiler de plus).</summary>

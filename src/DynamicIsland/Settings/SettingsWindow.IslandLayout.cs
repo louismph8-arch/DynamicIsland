@@ -36,6 +36,8 @@ public partial class SettingsWindow
         IslandScaleSlider.Value = island.Scale;
         IslandScaleText.Text = Loc.F("format.percent", Math.Round(island.Scale * 100));
         IslandVerticalTabsToggle.IsChecked = island.VerticalTabs;
+        (island.Layout == IslandLayout.Tabs ? IslandTabsLayout : IslandGridLayout).IsChecked = true;
+        IslandVerticalCard.Visibility = island.Layout == IslandLayout.Tabs ? Visibility.Visible : Visibility.Collapsed; // colonne : onglets seulement
         (island.Mode switch
         {
             IslandMode.Smart => IslandSmartMode,
@@ -93,7 +95,14 @@ public partial class SettingsWindow
             toggle.Click += (_, _) =>
             {
                 bool on = toggle.IsChecked == true;
-                SettingsStore.Update(s => s.Island.Tabs.First(i => i.Id == id).Visible = on);
+                SettingsStore.Update(s =>
+                {
+                    s.Island.Tabs.First(i => i.Id == id).Visible = on;
+                    // Grille (O6) : l'onglet caché = sa tuile retirée, réaffiché = sa tuile remise (à la fin de la dernière page).
+                    var grid = s.Island.EnsureGrid();
+                    if (on) grid.Add(id);
+                    else grid.Remove(id);
+                });
                 ShowIslandTabs(); // au moins un onglet reste affiché (Normalize)
             };
             Grid.SetColumn(name, 1);
@@ -126,6 +135,15 @@ public partial class SettingsWindow
     {
         bool on = IslandVerticalTabsToggle.IsChecked == true;
         SettingsStore.Update(s => s.Island.VerticalTabs = on);
+    }
+
+    /// <summary>Grille de tuiles (O6) ou onglets : l'île change tout de suite.</summary>
+    private void IslandLayout_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        var layout = IslandTabsLayout.IsChecked == true ? IslandLayout.Tabs : IslandLayout.Grid;
+        SettingsStore.Update(s => s.Island.Layout = layout);
+        IslandVerticalCard.Visibility = layout == IslandLayout.Tabs ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ------------------------------------------------------------------ mode

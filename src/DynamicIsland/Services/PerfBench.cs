@@ -62,6 +62,12 @@ internal static class PerfBench
         // Mouvement (O3) : île ouverte posée = rien ne doit tourner ; puis ouvertures / fermetures animées en continu.
         island.BenchExpand(true);
         lines.Add("Île ouverte, sans saison, tout posé (O3) : " + await MeasureAsync() + $", mouvements en cours : {Animation.MotionClock.Count}");
+        // Grille de tuiles (O6) : accueil au repos (tuiles de la page visible relues 1 fois/s), puis un outil ouvert (Musique).
+        island.BenchGrid(home: true);
+        lines.Add($"Île ouverte sur la grille de tuiles (O6, {island.BenchGridInfo}), au repos : " + await MeasureAsync() + $", mouvements en cours : {Animation.MotionClock.Count}");
+        island.BenchGrid(home: false);
+        lines.Add("Île ouverte sur un outil (Musique, O6), au repos : " + await MeasureAsync() + $", mouvements en cours : {Animation.MotionClock.Count}");
+        island.BenchGrid(home: true);
         // Bug 1.34.0 « le halo lag sur l'île » : lumière du verre qui suit une souris simulée (images/s effectives, pire image).
         island.BenchOnScreen(true);
         lines.Add("Lumière qui bouge sur l'île ouverte (suivi réel, fenêtre sur l'écran mais invisible) : "

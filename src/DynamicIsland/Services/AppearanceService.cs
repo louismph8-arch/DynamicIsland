@@ -18,6 +18,8 @@ public static class AppearanceService
     public const string DockBrushKey = "DockBrush";
     public const string AccentBrushKey = "AccentBrush";
     public const string AccentGradientKey = "AccentGradientBrush";
+    /// <summary>Accent des petits textes posés sur une tuile (≥ 4,5, aussi en opale blanche) — OpalShade.</summary>
+    public const string AccentTextKey = "AccentTextBrush";
 
     private static AppearanceSettings Settings => SettingsStore.Current.Appearance;
 

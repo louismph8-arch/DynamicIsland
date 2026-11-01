@@ -91,7 +91,41 @@ public sealed class AppVolumeService
     private void Scan(string sourceAppId)
     {
         _enumerator ??= (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-        if (_enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Multimedia, out var device) != 0 || device == null) return;
+        var target = Target.From(sourceAppId);
+        var names = new Dictionary<uint, string>();
+        var playing = new List<(ISimpleAudioVolume Volume, object Session, string Process)>();
+        // Toutes les sorties actives, pas seulement celle par défaut : Spotify (Paramètres → Lecture → « Périphérique de sortie »)
+        // ou un navigateur peuvent jouer sur un autre casque / écran que la sortie par défaut de Windows.
+        if (_enumerator.EnumAudioEndpoints(EDataFlow.Render, DeviceStateActive, out var pointer) == 0 && pointer != IntPtr.Zero)
+        {
+            var devices = (IMMDeviceCollection)Marshal.GetObjectForIUnknown(pointer);
+            Marshal.Release(pointer);
+            try
+            {
+                if (devices.GetCount(out uint count) == 0)
+                    for (uint i = 0; i < count; i++)
+                        if (devices.Item(i, out var device) == 0 && device != null) ScanDevice(device, target, names, playing);
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(devices);
+            }
+        }
+
+        // Identifiant inconnu (Firefox, appli exotique) : une seule appli qui fait du son → c'est elle.
+        if (_matched.Count == 0 && playing.Count > 0 && playing.All(p => p.Process == playing[0].Process))
+        {
+            foreach (var (volume, session, _) in playing) _matched.Add((volume, session));
+            playing.Clear();
+        }
+        foreach (var (_, session, _) in playing) Marshal.ReleaseComObject(session);
+    }
+
+    private const int DeviceStateActive = 0x1;
+
+    private void ScanDevice(IMMDevice device, Target target, Dictionary<uint, string> names,
+        List<(ISimpleAudioVolume Volume, object Session, string Process)> playing)
+    {
         IAudioSessionEnumerator? sessions = null;
         try
         {
@@ -101,9 +135,6 @@ public sealed class AppVolumeService
             Marshal.ReleaseComObject(manager);
             if (hr != 0 || sessions == null || sessions.GetCount(out int count) != 0) return;
 
-            var target = Target.From(sourceAppId);
-            var names = new Dictionary<uint, string>();
-            var playing = new List<(ISimpleAudioVolume Volume, object Session, string Process)>();
             for (int i = 0; i < count; i++)
             {
                 if (sessions.GetSession(i, out var session) != 0) continue;
@@ -127,14 +158,6 @@ public sealed class AppVolumeService
                 }
                 if (!kept) Marshal.ReleaseComObject(session);
             }
-
-            // Identifiant inconnu (Firefox, appli exotique) : une seule appli qui fait du son → c'est elle.
-            if (_matched.Count == 0 && playing.Count > 0 && playing.All(p => p.Process == playing[0].Process))
-            {
-                foreach (var (volume, session, _) in playing) _matched.Add((volume, session));
-                playing.Clear();
-            }
-            foreach (var (_, session, _) in playing) Marshal.ReleaseComObject(session);
         }
         finally
         {

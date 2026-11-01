@@ -35,6 +35,17 @@ public partial class IslandWindow
         FinishAnimations();
     }
 
+    /// <summary>--perf-bench (O6) : île ouverte sur la grille de tuiles (<paramref name="home"/>) ou sur l'outil Musique, tout posé.</summary>
+    internal void BenchGrid(bool home)
+    {
+        if (!_expanded) Expand();
+        if (home) GoHome(animate: false);
+        else SelectTab(Tab.Music, animate: false);
+        FinishAnimations();
+    }
+
+    internal string BenchGridInfo => $"mode {SettingsStore.Current.Island.Layout}, {TileGrid.PageCount} pages, {TileGrid.Faces.Count()} tuiles";
+
     /// <summary>--perf-bench (O3) : ouverture / fermeture animées, comme un survol réel.</summary>
     internal void BenchToggle()
     {
@@ -199,6 +210,9 @@ public partial class IslandWindow
             }
         }
 
+        await SnapshotGridAsync(folder); // grille de tuiles (O6) : pages, survol, outil ouvert, morphing
+        await SnapshotLiveTilesAsync(folder); // tuiles vivantes (O6, lot A) : musique, ciels de la météo, horloge analogique
+        await SnapshotToolTilesAsync(folder); // tuiles-outils (O6, lot B) en S / W / L, loupe de la pipette
         await SnapshotMotionAsync(folder); // mouvement (O3) : cascade à mi-chemin, tuile inclinée / enfoncée
 
         // Minuteur (correctif 19) : éditeur « Perso », puis un minuteur de plus d'une heure (onglet, île réduite).
@@ -272,6 +286,7 @@ public partial class IslandWindow
         _heightLag = 0;
         ApplyGeometry();
         Animation.MotionClock.FinishAll(); // cascade, pages, tuiles, outil (O3)
+        TileGrid.FinishAnimations(); // pages de la grille (O6)
 
         SetFinal(CompactView, _expanded || _gaming ? 0 : 1);
         SetFinal(ExpandedView, _expanded ? 1 : 0);

@@ -25,6 +25,7 @@ public static class LivePriority
     public const int Update = 60;     // installation Windows Update
     public const int Assistant = 50;  // réponse de l'assistant IA en cours
     public const int Voice = 30;      // salon vocal Discord
+    public const int Coffee = 20;     // Café : PC gardé éveillé (tuile O6)
     public const int Music = 10;      // musique qui joue
 }
 
@@ -38,6 +39,7 @@ public static class LiveIds
     public const string Recording = "recording";
     public const string Music = "music";
     public const string Voice = "voice";
+    public const string Coffee = "coffee";
 }
 
 /// <summary>

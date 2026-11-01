@@ -192,7 +192,7 @@ public sealed class AppRemoteBackend : IRemoteBackend
                 ThemeService.SetDarkMode(value == "true");
                 return true;
             case "wallpaper":
-                NextWallpaper();
+                WallpaperService.NextPackWallpaper();
                 return true;
             case "gaming":
                 SettingsStore.Update(s => s.Gaming.Auto = !s.Gaming.Auto);
@@ -409,20 +409,6 @@ public sealed class AppRemoteBackend : IRemoteBackend
             ["last"] = WakeOnLan.Describe(WakeOnLan.LastWake(wake.Description)),
         }
         : null;
-
-    /// <summary>Fond d'écran Opaline suivant (dessiné à la taille de l'écran, donné au profil actif).</summary>
-    private static void NextWallpaper()
-    {
-        var designs = Enum.GetValues<WallpaperDesign>();
-        var next = designs[(Array.IndexOf(designs, SettingsStore.Current.Wallpaper.Design) + 1) % designs.Length];
-        SettingsStore.Update(s => s.Wallpaper.Design = next);
-        var ui = Dispatcher.CurrentDispatcher;
-        _ = Task.Run(() => WallpaperArt.RenderForScreen(next)).ContinueWith(task =>
-        {
-            if (task.IsCompletedSuccessfully && ProfileService.Active is { } profile) ui.BeginInvoke(() => ProfileService.SetWallpaper(profile, task.Result));
-            else if (task.Exception != null) Log.Error("Télécommande : fond d'écran", task.Exception);
-        }, TaskScheduler.Default);
-    }
 
     /// <summary>Un peu plus tard : le téléphone reçoit d'abord sa réponse.</summary>
     private static void Later(Action action)

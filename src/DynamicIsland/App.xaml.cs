@@ -627,6 +627,7 @@ public partial class App : Application
         ModuleGuard.Register(ModuleGuard.Rgb, Services.Rgb.RgbService.Stop); // G HUB reprend l'éclairage
         ModuleGuard.Register(ModuleGuard.Friends, Services.Friends.FriendsService.Stop); // présence effacée du serveur
         ModuleGuard.Register(ModuleGuard.Health, Services.Health.HealthService.Stop);
+        ModuleGuard.Register(ModuleGuard.Coffee, KeepAwake.Stop); // tuile Café (O6) : la veille est rendue à Windows
         ModuleGuard.Register(ModuleGuard.ClipboardTab, () =>
         {
             ClipboardHistory.Stop(); // plus d'écoute du presse-papiers
@@ -1102,6 +1103,14 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Error("Restauration des fenêtres de Stage Manager", ex);
+        }
+        try
+        {
+            KeepAwake.Stop(); // tuile Café (O6) : la veille est rendue à Windows
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Café : arrêt", ex);
         }
     }
 }

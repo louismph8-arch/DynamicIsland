@@ -178,21 +178,23 @@ public partial class IslandWindow : Window
         ClaudeTab.AskRequested += () => Palette.PaletteWindow.Toggle(this, "? "); // la barre de saisie sort de l'île
         ControlTab.HeightChanged += () =>
         {
-            if (_expanded && _tab == Tab.Control) AnimateTo(ExpandedSize(Tab.Control), ExpandedRadius, Springs.Resize);
+            if (_expanded && !_home && _tab == Tab.Control) AnimateTo(ExpandedSize(Tab.Control), ExpandedRadius, Springs.Resize);
         };
         WidgetsTab.HeightChanged += () =>
         {
-            if (_expanded && _tab == Tab.Widgets) AnimateTo(ExpandedSize(Tab.Widgets), ExpandedRadius, Springs.Resize);
+            if (_expanded && !_home && _tab == Tab.Widgets) AnimateTo(ExpandedSize(Tab.Widgets), ExpandedRadius, Springs.Resize);
         };
         // « Ouvrir un outil » (O3) : une tuile CPU / RAM / GPU s'agrandit en onglet Santé.
         WidgetsTab.CanOpenHealth = () => HealthTabButton.Visibility == Visibility.Visible;
         WidgetsTab.HealthRequested += tile => OpenTool(Tab.Health, tile);
         ModuleGuard.ModuleDisabled += _ => HideStoppedTabs();
+        InitializeGrid(); // grille de tuiles (O6)
         FocusService.Changed += UpdateFocusIndicator; // petite lune près de l'heure (7F)
         UpdateFocusIndicator();
         ApplySettings();
 
         SelectTab(Tab.Music, animate: false);
+        if (GridLayout) GoHome(animate: false); // O6 : l'île s'ouvre sur la grille
         InitializeLive(); // activités en direct de la pilule (O5)
         ApplyGeometry();
         UpdateClock();
@@ -227,7 +229,8 @@ public partial class IslandWindow : Window
         ClocksTab.Refresh();
         ApplyScale(); // taille de l'île (point 12)
         ApplyTabLayout(); // rangée ou colonne d'onglets
-        UpdateFriendsTab(); // puis visibilité et ordre de tous les onglets (RefreshTabs)
+        UpdateFriendsTab(); // puis visibilité et ordre de tous les onglets (RefreshTabs) et tuiles de la grille
+        ApplyIslandLayout(); // grille de tuiles ou onglets (O6)
         if (SnapshotFolder == null && IsLoaded)
         {
             if (settings.FollowMouse) _followWatch.Start();
@@ -675,8 +678,11 @@ public partial class IslandWindow : Window
         if (_draggingOut || _hiddenForFullscreen || _gaming || DroppedFiles(e) == null) return;
         _expandDelay.Stop();
         _collapseDelay.Stop();
+        // O6 : grille déjà ouverte sur une page qui accepte des fichiers (tuile Téléphone, transfert activé) → on y reste ; ailleurs
+        // (ou transfert coupé : la tuile refuserait le fichier), l'étagère comme d'habitude.
+        if (_expanded && _home && TileGrid.CurrentPageAcceptsFiles && Services.Remote.RemoteOutbox.Available) return;
         Expand();
-        if (_tab != Tab.Shelf) SelectTab(Tab.Shelf);
+        ShowTool(Tab.Shelf);
         ShelfTab.ShowDropHint(true);
     }
 
@@ -699,6 +705,9 @@ public partial class IslandWindow : Window
         if (_draggingOut || DroppedFiles(e) is not { Length: > 0 } files) return;
         ShelfService.Add(files);
         e.Handled = true;
+        // Lâché sur la grille à côté de la tuile Téléphone : l'étagère s'affiche pour qu'on voie le fichier arriver (jamais rangé en
+        // silence dans une étagère invisible).
+        if (_expanded && _home) ShowTool(Tab.Shelf);
         _collapseDelay.Start();
     }
 
@@ -708,6 +717,7 @@ public partial class IslandWindow : Window
     {
         if (_expanded || _hiddenForFullscreen || _gaming || _moving) return;
         var prepared = System.Diagnostics.Stopwatch.StartNew();
+        if (_returnHome && GridLayout) GoHome(animate: false); // O6 : refermée sur un outil → la grille à la réouverture
         _expanded = true;
         ReassertTopmost();
         if (_noticeVisible)
@@ -730,19 +740,9 @@ public partial class IslandWindow : Window
         }
         CalendarTab.SetShown(true);
         CalendarTab.ShowToday();
-        if (_tab == Tab.Control) ControlTab.Refresh();
-        MusicTab.IsActive = _tab == Tab.Music;
-        WidgetsTab.IsActive = _tab == Tab.Widgets;
-        VoiceTab.IsActive = _tab == Tab.Voice;
-        ClaudeTab.IsActive = _tab == Tab.Claude;
-        ClocksTab.IsActive = _tab == Tab.Clocks;
-        FriendsTab.IsActive = _tab == Tab.Friends;
-        HealthTab.IsActive = _tab == Tab.Health && SnapshotFolder == null;
-        MixerTab.IsActive = _tab == Tab.Mixer && SnapshotFolder == null;
-        ClipboardTab.IsActive = _tab == Tab.Clipboard;
-        NotesTab.IsActive = _tab == Tab.Notes;
-        TranslateTab.IsActive = _tab == Tab.Translate;
-        ControlTab.IsActive = _tab == Tab.Control && SnapshotFolder == null;
+        if (!_home && _tab == Tab.Control) ControlTab.Refresh();
+        if (_home) UpdateGridDate();
+        SyncActive();
         UpdateLiveMotion(); // O5 : égaliseur, arc qui tourne et respiration s'arrêtent, l'île est ouverte
         SeasonLayer.Wake(open: true); // 7A : les particules ne bougent que quand on regarde l'île
 
@@ -753,7 +753,7 @@ public partial class IslandWindow : Window
         ScaleExpanded(1, Motion.Scale);
         var opened = ExpandedSize(_tab);
         MorphTo(opened); // O3 : la pilule « coule » en île (largeur d'abord, puis hauteur, coins qui se détendent)
-        Cascade.Play(ViewOf(_tab), reverse: false); // … et le contenu arrive élément par élément
+        Cascade.Play(CurrentView, reverse: false); // … et le contenu (onglet, ou tuiles de la grille) arrive élément par élément
         _opal.PlaySweep(opened); // balayage nacré (O1) : un reflet traverse l'île qui s'ouvre
         if (SnapshotFolder == null) WatchOpening(prepared);
     }
@@ -788,22 +788,12 @@ public partial class IslandWindow : Window
         if (!_expanded) return;
         _expanded = false;
         CalendarTab.SetShown(false); // O5 : la pilule a son propre anneau
-        MusicTab.IsActive = false;
-        WidgetsTab.IsActive = false;
-        VoiceTab.IsActive = false;
-        ClaudeTab.IsActive = false;
-        ClocksTab.IsActive = false;
-        FriendsTab.IsActive = false;
-        HealthTab.IsActive = false;
-        MixerTab.IsActive = false;
-        ClipboardTab.IsActive = false;
-        NotesTab.IsActive = false;
-        TranslateTab.IsActive = false;
-        ControlTab.IsActive = false;
+        SyncActive(); // tout s'arrête (onglets, tuiles)
+        _returnHome = GridLayout && !_home; // O6 : la prochaine ouverture repart de la grille
         SeasonLayer.Wake(open: false); // encore un moment, puis elles se figent
         _morph?.Finish(); // outil ouvert depuis une tuile : il reste affiché, sans retour animé
         _morph = null;
-        Cascade.Play(ViewOf(_tab), reverse: true); // O3 : l'inverse de l'ouverture, plus rapide
+        Cascade.Play(CurrentView, reverse: true); // O3 : l'inverse de l'ouverture, plus rapide
 
         CompactView.IsHitTestVisible = true;
         ExpandedView.IsHitTestVisible = false;
@@ -820,13 +810,14 @@ public partial class IslandWindow : Window
     /// </summary>
     private Size ExpandedSize(Tab tab)
     {
+        if (GridLayout) return GridExpandedSize(tab); // O6 : grille, ou outil avec « ← Nom »
         var size = SizeFor(tab);
         var any = new Size(double.PositiveInfinity, double.PositiveInfinity);
         // Le nom de l'onglet actif vient d'apparaître (déclencheur du modèle) : on force une mesure fraîche de toute la rangée.
         InvalidateMeasureTree(TabStrip);
         TabStrip.Measure(any);
         HeaderRight.Measure(any);
-        if (SettingsStore.Current.Island.VerticalTabs)
+        if (VerticalTabs)
         {
             // Colonne d'onglets à gauche (point 12) : l'île s'élargit de sa largeur ; trop d'onglets → elle défile.
             double column = TabStrip.DesiredSize.Width + Space.S4 + IslandShape.TabScrollBar;
@@ -893,7 +884,10 @@ public partial class IslandWindow : Window
     private void SelectTab(Tab tab, bool animate = true, bool slide = true)
     {
         var previous = _tab;
+        bool fromGrid = _home; // O6 : on quitte la grille pour un outil (MorphOpen depuis la tuile, ou simple fondu)
         _tab = tab;
+        _home = false;
+        _returnHome = false;
         _syncingTabs = true;
         MusicTabButton.IsChecked = tab == Tab.Music;
         CalendarTabButton.IsChecked = tab == Tab.Calendar;
@@ -911,39 +905,41 @@ public partial class IslandWindow : Window
         TranslateTabButton.IsChecked = tab == Tab.Translate;
         _syncingTabs = false;
         UpdateTabTitle();
+        UpdateGridHeader(); // O6 : « ← Nom de l'outil »
 
-        foreach (var (view, viewTab) in new (FrameworkElement, Tab)[]
-                 { (MusicTab, Tab.Music), (CalendarTab, Tab.Calendar), (ControlTab, Tab.Control), (WidgetsTab, Tab.Widgets), (ShelfTab, Tab.Shelf), (VoiceTab, Tab.Voice), (ClaudeTab, Tab.Claude), (ClocksTab, Tab.Clocks), (FriendsTab, Tab.Friends), (HealthTab, Tab.Health), (MixerTab, Tab.Mixer), (ClipboardTab, Tab.Clipboard), (NotesTab, Tab.Notes), (TranslateTab, Tab.Translate) })
+        ShowPages(animate); // la vue de l'onglet (et la grille s'efface)
+        if (fromGrid)
         {
-            bool visible = viewTab == tab;
-            view.IsHitTestVisible = visible;
-            if (animate)
-            {
-                Fade(view, visible ? 1 : 0, visible ? Motion.Medium : Motion.Fast, visible ? Motion.Delay : TimeSpan.Zero);
-            }
-            else
-            {
-                view.BeginAnimation(OpacityProperty, null);
-                view.Opacity = visible ? 1 : 0;
-                PageTransition.Stop(view);
-            }
+            // Depuis la grille : pas de glissement d'onglet à onglet (la tuile s'agrandit, ou un simple fondu).
+            if (!animate) TileGrid.FinishAnimations();
         }
-        if (previous != tab) TurnPage(previous, tab, animate, slide);
+        else if (previous != tab) TurnPage(previous, tab, animate, slide);
 
         if (tab == Tab.Control) ControlTab.Refresh();
-        ControlTab.IsActive = _expanded && tab == Tab.Control && SnapshotFolder == null; // appareils relus onglet ouvert seulement
-        MusicTab.IsActive = _expanded && tab == Tab.Music;
-        WidgetsTab.IsActive = _expanded && tab == Tab.Widgets;
-        VoiceTab.IsActive = _expanded && tab == Tab.Voice;
-        ClaudeTab.IsActive = _expanded && tab == Tab.Claude;
-        ClocksTab.IsActive = _expanded && tab == Tab.Clocks;
-        FriendsTab.IsActive = _expanded && tab == Tab.Friends;
-        HealthTab.IsActive = _expanded && tab == Tab.Health && SnapshotFolder == null; // rendus : valeurs d'exemple
-        MixerTab.IsActive = _expanded && tab == Tab.Mixer && SnapshotFolder == null; // rendus : applis d'exemple, aucun volume lu
-        ClipboardTab.IsActive = _expanded && tab == Tab.Clipboard;
-        NotesTab.IsActive = _expanded && tab == Tab.Notes;
-        TranslateTab.IsActive = _expanded && tab == Tab.Translate;
+        SyncActive();
         if (_expanded) AnimateTo(ExpandedSize(tab), ExpandedRadius, Springs.Resize);
+    }
+
+    /// <summary>
+    /// Ce qui est montré tourne, le reste s'arrête : l'onglet / l'outil ouvert (île ouverte), ou la grille (O6 : seules les tuiles
+    /// de sa page visible sont relues).
+    /// </summary>
+    private void SyncActive()
+    {
+        bool On(Tab tab) => _expanded && !_home && _tab == tab;
+        ControlTab.IsActive = On(Tab.Control) && SnapshotFolder == null; // appareils relus onglet ouvert seulement
+        MusicTab.IsActive = On(Tab.Music);
+        WidgetsTab.IsActive = On(Tab.Widgets);
+        VoiceTab.IsActive = On(Tab.Voice);
+        ClaudeTab.IsActive = On(Tab.Claude);
+        ClocksTab.IsActive = On(Tab.Clocks);
+        FriendsTab.IsActive = On(Tab.Friends);
+        HealthTab.IsActive = On(Tab.Health) && SnapshotFolder == null; // rendus : valeurs d'exemple
+        MixerTab.IsActive = On(Tab.Mixer) && SnapshotFolder == null; // rendus : applis d'exemple, aucun volume lu
+        ClipboardTab.IsActive = On(Tab.Clipboard);
+        NotesTab.IsActive = On(Tab.Notes);
+        TranslateTab.IsActive = On(Tab.Translate);
+        TileGrid.IsActive = _expanded && _home;
     }
 
     /// <summary>Module de chaque onglet : arrêté après une erreur → onglet caché pour la session (correctif urgent 1).</summary>
@@ -995,7 +991,7 @@ public partial class IslandWindow : Window
     public void OpenMixer()
     {
         if (MixerTabButton.Visibility != Visibility.Visible) return;
-        if (_tab != Tab.Mixer) SelectTab(Tab.Mixer, animate: _expanded);
+        ShowTool(Tab.Mixer);
         Expand();
         if (!_expanded) return;
         _claudePinnedUntil = DateTime.UtcNow + MixerPinTime; // même mécanisme que la réponse de Claude
@@ -1006,7 +1002,7 @@ public partial class IslandWindow : Window
 
     private void OpenClaude()
     {
-        if (_tab != Tab.Claude) SelectTab(Tab.Claude, animate: _expanded);
+        ShowTool(Tab.Claude);
         Expand();
     }
 

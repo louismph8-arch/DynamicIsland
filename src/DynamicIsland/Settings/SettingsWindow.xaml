@@ -727,6 +727,11 @@
               </StackPanel>
             </StackPanel>
           </ui:SquircleBorder>
+          <!-- Refonte O6 : grille de tuiles (défaut) ou l'ancienne rangée d'onglets (repli) -->
+          <RadioButton x:Name="IslandGridLayout" Style="{StaticResource OptionCard}" GroupName="IslandLayout" Checked="IslandLayout_Checked"
+                       Content="{ui:L settings.island.layout_mode.grid}" Tag="{ui:L settings.island.layout_mode.grid_desc}"/>
+          <RadioButton x:Name="IslandTabsLayout" Style="{StaticResource OptionCard}" GroupName="IslandLayout" Checked="IslandLayout_Checked"
+                       Content="{ui:L settings.island.layout_mode.tabs}" Tag="{ui:L settings.island.layout_mode.tabs_desc}" Margin="{ui:Space 0,0,0,s5}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <StackPanel>
               <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.island.tabs.title}"/>
@@ -734,7 +739,7 @@
               <StackPanel x:Name="IslandTabsList" Margin="{ui:Space 0,s4,0,0}"/>
             </StackPanel>
           </ui:SquircleBorder>
-          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+          <ui:SquircleBorder x:Name="IslandVerticalCard" Style="{StaticResource SettingCard}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <StackPanel>

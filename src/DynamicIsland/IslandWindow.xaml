@@ -5,6 +5,7 @@
         xmlns:ui="clr-namespace:DynamicIsland.Controls"
         xmlns:views="clr-namespace:DynamicIsland.Views"
         xmlns:a="clr-namespace:DynamicIsland.Animation"
+        xmlns:tiles="clr-namespace:DynamicIsland.Tiles"
         Title="Dynamic Island"
         Width="600" Height="340" Left="0" Top="0"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
@@ -219,6 +220,19 @@
                              Content="{ui:L island.translate}" Checked="Tab_Checked"/>
               </StackPanel>
               </ScrollViewer>
+              <!-- Grille de tuiles (O6) : la date au repos, « ← Nom » quand un outil est ouvert (retour à la grille) -->
+              <Grid x:Name="GridHeader" VerticalAlignment="Center" Visibility="Collapsed">
+                <TextBlock x:Name="GridDate" VerticalAlignment="Center" Margin="{ui:Space s2,0,0,0}" FontSize="{x:Static t:TypeRamp.Callout}" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Paint.TextSecondary}" TextTrimming="CharacterEllipsis"/>
+                <Button x:Name="BackButton" Style="{StaticResource ChipButton}" HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed"
+                        Click="BackButton_Click" ToolTip="{ui:L tiles.back}">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{x:Static t:Icons.ChevronLeft}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}" VerticalAlignment="Center"
+                               Margin="{ui:Space -s1,0,0,0}"/>
+                    <TextBlock x:Name="BackTitle" VerticalAlignment="Center" Margin="{ui:Space s2,0,s1,0}"/>
+                  </StackPanel>
+                </Button>
+              </Grid>
               <TextBlock x:Name="TabTitle" VerticalAlignment="Center" Visibility="Collapsed" Margin="{ui:Space s2,0,0,0}"
                          FontSize="{x:Static t:TypeRamp.Callout}" FontWeight="SemiBold"/>
               <StackPanel x:Name="HeaderRight" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Margin="{ui:Space s4,0,s2,0}">
@@ -248,6 +262,8 @@
                 <views:ClipboardView x:Name="ClipboardTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:NotesView x:Name="NotesTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:TranslateView x:Name="TranslateTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <!-- Grille de tuiles (O6) : l'accueil de l'île ; les onglets ci-dessus deviennent les vues détaillées (outils) -->
+                <tiles:TileGridView x:Name="TileGrid" HorizontalAlignment="Center" VerticalAlignment="Top" Opacity="0" IsHitTestVisible="False"/>
               </Grid>
             </Grid>
           </Grid>

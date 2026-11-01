@@ -7,7 +7,7 @@ public partial class IslandWindow
     public void OpenNotes()
     {
         if (TabStopped(Tab.Notes) || NotesTabButton.Visibility != System.Windows.Visibility.Visible) return;
-        if (_tab != Tab.Notes) SelectTab(Tab.Notes, animate: _expanded);
+        ShowTool(Tab.Notes); // O6 : outil ouvert même si la grille est affichée
         Expand();
     }
 }

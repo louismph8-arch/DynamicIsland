@@ -139,6 +139,16 @@ public sealed class NotesStore
 
     public bool IsFull => Count >= MaxNotes;
 
+    /// <summary>Copie de la note modifiée le plus récemment (tuile Notes) ; <paramref name="except"/> = sauf celle-là s'il y en a d'autres.</summary>
+    public Note? Latest(string? except = null)
+    {
+        lock (_lock)
+        {
+            var notes = _notes.Count > 1 && except != null ? _notes.Where(n => n.Id != except) : _notes;
+            return notes.MaxBy(n => n.Modified)?.Clone();
+        }
+    }
+
     public Note? Get(string id)
     {
         lock (_lock) return _notes.FirstOrDefault(n => n.Id == id)?.Clone();

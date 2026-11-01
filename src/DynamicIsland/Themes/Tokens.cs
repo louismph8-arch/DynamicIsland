@@ -91,6 +91,8 @@ public enum InkRole
     FolderTile, ActiveBorder, Badge, Window, Preview, Sidebar, SidebarOverMica,
     /// <summary>Texte orange des boutons « doux » (Démarrer le minuteur…) : plus foncé en clair pour rester lisible.</summary>
     TimerText,
+    /// <summary>Texte rouge d'alerte (disque presque plein…) : rouge foncé en clair, lisible sur une tuile posée sur un décor coloré.</summary>
+    DangerText,
 }
 
 /// <summary>Les deux palettes du thème (refonte O2) : mêmes rôles, valeurs sombres (d'origine) et claires (« opale blanche »).</summary>
@@ -136,6 +138,7 @@ public static class InkPalette
         [InkRole.Sidebar] = Swatch.Raised,
         [InkRole.SidebarOverMica] = Swatch.WithAlpha(Swatch.Raised, 0x55),
         [InkRole.TimerText] = Swatch.Orange,
+        [InkRole.DangerText] = Swatch.Red,
     });
 
     public static readonly Color[] Light = Build(new()
@@ -173,6 +176,8 @@ public static class InkPalette
         [InkRole.Sidebar] = Color.FromRgb(0xE9, 0xE9, 0xEE),
         [InkRole.SidebarOverMica] = Swatch.WhiteA(0x66),
         [InkRole.TimerText] = Color.FromRgb(0xA0, 0x46, 0x06),
+        // ≥ 4,5 jusque sur une tuile assez foncée (luminance ≈ 0,47, voir Opal.LightTileWorst) : 4,7 mesuré
+        [InkRole.DangerText] = Color.FromRgb(0x8A, 0x16, 0x10),
     });
 
     private static Color Ink(byte alpha) => Swatch.WithAlpha(LightInk, alpha);
@@ -947,6 +952,230 @@ public static class IslandShape
     public const double SnapDistance = 16;       // aimantation au bord de l'écran / au centre
 }
 
+/// <summary>
+/// Grille de tuiles de l'île (refonte O6) : cases carrées de <see cref="Cell"/> DIP séparées de <see cref="Gap"/>, 4 colonnes ×
+/// 2 lignes par page ; S = 1 case, W = 2 × 1, L = 2 × 2. L'île entière (grille comprise) suit le réglage « Taille de l'île ».
+/// </summary>
+public static class TileGridShape
+{
+    public const int Columns = 4;
+    public const int Rows = 2;
+    public const double Cell = 92;               // côté d'une case (tuile S)
+    public const double Gap = 8;                 // entre deux tuiles
+    public const double Footer = 18;             // rangée du bas : nom de la tuile survolée (centre), points des pages (droite)
+    public const double Header = 32;             // = hauteur minimale de l'en-tête de l'île ouverte (date / « ← Nom », heure)
+    public const double Dot = 6;                 // point d'une page
+    public const double DotActive = 16;          // point de la page affichée (pilule)
+    public const double DotGap = 5;
+    public const double DotHit = 14;             // zone cliquable d'un point
+    public const double SwipeZone = 96;          // largeur de la zone des points où l'on peut glisser pour changer de page
+    public const double SwipeThreshold = 24;     // glisser de plus que ça (DIP) = page suivante / précédente
+    public const double Art = 96;                // pochette d'une tuile L
+    public const double ArtSmall = 22;           // pochette d'une tuile W (à droite)
+    public const double LineMaxHeight = 30;      // ligne d'information d'une tuile L : 2 lignes au plus
+    public static readonly Thickness Padding = new(10);
+    public static readonly Thickness PaddingSmall = new(8, 9, 8, 8); // tuile S : un peu plus de place pour le nom
+    public const double LineHeight = 1.33;      // hauteur d'une ligne de texte, en fois la taille de la police
+    public static double PageWidth => Columns * (Cell + Gap);
+    public static double PageHeight => Rows * (Cell + Gap);
+    /// <summary>Île ouverte sur la grille : marges de la vue ouverte (s8, s5 / s8), en-tête, page, rangée du bas.</summary>
+    public static Size Island => new(PageWidth + 2 * Space.S8, Space.S5 + Header + Space.S4 + PageHeight + Footer + Space.S8);
+}
+
+/// <summary>
+/// Tuiles vivantes de la grille (O6, lot « vivantes A ») : Musique (pochette floutée + visualiseur), Météo (ciel animé),
+/// Horloge analogique. Les animations tournent à <see cref="Frame"/> (≤ 30 i/s), seulement page visible et île ouverte.
+/// </summary>
+public static class LiveTiles
+{
+    /// <summary>Intervalle des animations (0,94 × 1/30 s : la minuterie de Windows arrondit à 15,6 ms → 30 i/s au plus).</summary>
+    public static readonly TimeSpan Frame = TimeSpan.FromSeconds(0.94 / Motion.DecorativeFrameRate);
+    public static readonly Thickness Padding = new(10);
+    public static readonly Thickness PaddingLarge = new(12);
+    public static readonly Thickness PaddingSmall = new(9);
+
+    // Texte posé sur une image (pochette floutée, ciel) : blanc, avec un voile sombre dessous (lisible dans les deux thèmes)
+    public static readonly Brush OnArt = Paint.Frozen(Swatch.White);
+    public static readonly Brush OnArtSecondary = Paint.Frozen(Swatch.WhiteA(0xC8));
+    public static readonly Brush OnArtTertiary = Paint.Frozen(Swatch.WhiteA(0x99));
+    /// <summary>Voile du haut vers le bas (alpha 0–255) : léger en haut, plus dense là où sont les textes.</summary>
+    public const byte ScrimTop = 0x26;
+    public const byte ScrimBottom = 0x9E;
+    public static readonly Color ScrimColor = Swatch.Black;
+
+    // Musique
+    public const double CoverBlur = 9;             // rayon du flou (pixels de la copie réduite à Opal.BlurWidth)
+    public const double CoverVibrancy = 1.4;       // couleurs un peu plus vives sous le voile
+    public const double CoverL = 64;               // pochette nette d'une tuile L
+    public const double CoverW = 48;               // … d'une tuile W
+    public const double CoverS = 30;               // … d'une tuile S
+    public static readonly Brush CoverRim = Paint.Frozen(Swatch.WhiteA(0x24));
+    public const int Bars = 5;                     // barres du visualiseur
+    public const double BarWidth = 3;
+    public const double BarGap = 2;
+    public const double BarHeight = 16;            // hauteur maximale d'une barre (L, W)
+    public const double BarHeightSmall = 12;       // … en S
+    public const double BarRest = 0.18;            // hauteur au repos (part de la hauteur maximale)
+    public static readonly double[] BarPause = [0.32, 0.55, 0.42, 0.62, 0.36]; // morceau en pause : barres figées
+    public const double ControlButton = 26;        // précédent / suivant
+    public const double ControlButtonSmall = 24;   // … en W
+    public const double PlayButton = 32;           // lecture / pause (L)
+    public const double PlayButtonSmall = 28;      // … en W
+    public const double EmptyChip = 48;            // état vide : pastille de l'icône (L)
+
+    // Météo : grands chiffres (police des chiffres, fins)
+    public const double TempS = 30;
+    public const double TempW = 34;
+    public const double TempL = 46;
+    public const int RainDrops = 26;               // tuile L (W : 70 %, S : 45 %) — jamais plus de 40 particules
+    public const int SnowFlakes = 22;
+    public const int Stars = 18;
+    public const int MaxParticles = 40;
+    public const double RainSpeed = 150;           // DIP / s
+    public const double RainLength = 9;
+    public const double RainSlant = 0.22;          // décalage horizontal par DIP de chute
+    public const double SnowSpeed = 16;
+    public const double SnowSway = 4;              // balancement des flocons (DIP)
+    public const double CloudDrift = 5;            // DIP / s
+    public const double SunSpin = 5;               // rayons du soleil : degrés / s
+    public const double SunBreath = 0.04;          // le halo grossit / rapetisse de 4 %
+    public const int SunRays = 12;
+    public static readonly TimeSpan FlashEvery = TimeSpan.FromSeconds(9);   // orage : un éclair toutes les 9 s environ
+    public static readonly TimeSpan FlashLength = TimeSpan.FromMilliseconds(260);
+    public const double FlashOpacity = 0.32;
+
+    // Couleurs du ciel (haut, bas) : assez profondes pour un texte blanc
+    public static readonly (Color Top, Color Bottom) SkyClear = (Color.FromRgb(0x1A, 0x5C, 0xC2), Color.FromRgb(0x3F, 0x8C, 0xDB));
+    public static readonly (Color Top, Color Bottom) SkyGolden = (Color.FromRgb(0x33, 0x47, 0x9E), Color.FromRgb(0xD9, 0x7C, 0x55));
+    public static readonly (Color Top, Color Bottom) SkyCloudy = (Color.FromRgb(0x44, 0x57, 0x73), Color.FromRgb(0x74, 0x85, 0x9C));
+    public static readonly (Color Top, Color Bottom) SkyRain = (Color.FromRgb(0x2E, 0x3D, 0x52), Color.FromRgb(0x4E, 0x5E, 0x74));
+    public static readonly (Color Top, Color Bottom) SkyStorm = (Color.FromRgb(0x1A, 0x1D, 0x2E), Color.FromRgb(0x36, 0x3A, 0x52));
+    public static readonly (Color Top, Color Bottom) SkySnow = (Color.FromRgb(0x52, 0x68, 0x88), Color.FromRgb(0x8C, 0x9F, 0xB9));
+    public static readonly (Color Top, Color Bottom) SkyFog = (Color.FromRgb(0x56, 0x61, 0x6E), Color.FromRgb(0x86, 0x91, 0x9D));
+    public static readonly (Color Top, Color Bottom) SkyNight = (Color.FromRgb(0x08, 0x0E, 0x29), Color.FromRgb(0x1F, 0x2B, 0x58));
+    public static readonly (Color Top, Color Bottom) SkyNightCloudy = (Color.FromRgb(0x10, 0x14, 0x1F), Color.FromRgb(0x25, 0x2C, 0x3D));
+    public static readonly Color SunCore = Color.FromRgb(0xFF, 0xD8, 0x6E);
+    public static readonly Color SunCenter = Color.FromRgb(0xFF, 0xF2, 0xC4);   // reflet du soleil (haut gauche)
+    public const double SunRadius = 20;            // tuile L (W : 15, S : 12)
+    public const double SunRadiusW = 15;
+    public const double SunRadiusS = 12;
+    public const double RayWidth = 1.8;
+    public const double RayWidthSmall = 1.4;
+    public const double RainWidth = 1.2;
+    public static readonly Color SunGlow = Color.FromArgb(0x70, 0xFF, 0xC2, 0x5A);
+    public static readonly Color SunRay = Color.FromArgb(0x66, 0xFF, 0xE3, 0x9E);
+    public static readonly Color Moon = Color.FromRgb(0xF1, 0xEE, 0xE2);
+    public static readonly Color MoonGlow = Color.FromArgb(0x30, 0xD8, 0xE2, 0xFF);
+    public static readonly Color Star = Swatch.White;
+    public static readonly Color CloudDay = Swatch.WhiteA(0xE0);
+    public static readonly Color CloudGrey = Color.FromArgb(0xC8, 0xB4, 0xBE, 0xCE);
+    public static readonly Color CloudNight = Color.FromArgb(0x5C, 0xA8, 0xB4, 0xCC);
+    public static readonly Color CloudStorm = Color.FromArgb(0xD0, 0x5A, 0x60, 0x78);
+    public static readonly Color Rain = Color.FromArgb(0xA0, 0xCF, 0xE3, 0xFF);
+    public static readonly Color Snow = Swatch.WhiteA(0xE8);
+    public static readonly Color Bolt = Color.FromRgb(0xFF, 0xF1, 0xA8);
+    public static readonly Color FogBand = Swatch.WhiteA(0x3A);
+    public const double CloudFar = 0.55;           // nuage lointain (derrière le soleil)
+    public const double CloudSmallTile = 0.68;     // tuiles S et W : nuages plus voilés derrière la température
+    public const int GoldenMorningUntil = 9;       // avant 9 h et après 17 h (de jour) : ciel doré
+    public const int GoldenEveningFrom = 17;
+
+    // Horloge analogique (proportions du rayon du cadran)
+    public const double DialInset = 4;             // marge entre la tuile et le cadran
+    public const double HourHand = 0.5;
+    public const double MinuteHand = 0.74;
+    public const double SecondHand = 0.84;
+    public const double SecondTail = 0.18;         // contrepoids de la trotteuse
+    public const double HourWidth = 3.6;
+    public const double MinuteWidth = 2.4;
+    public const double SecondWidth = 1.2;
+    public const double HubSize = 7;               // axe des aiguilles
+    public const double HubSecond = 3;             // axe de la trotteuse (accent)
+    public const double TickMajor = 0.1;           // longueur des repères des heures
+    public const double TickMinor = 0.045;         // … des minutes (tuile L)
+    public const double TickMajorWidth = 1.6;
+    public const double TickMinorWidth = 1;
+    public const double Numbers = 0.72;            // rayon où sont posés les chiffres (tuile L)
+    public const double DateOffset = 0.36;         // date sous l'axe (tuile L)
+    public const double SmallDial = 0.72;          // tuile S : traits plus fins
+    public const double TickQuarter = 1.35;        // repères de 12, 3, 6 et 9 h : plus longs
+    public const double SecondMinScale = 0.85;     // la trotteuse ne s'amincit presque pas en S (elle resterait invisible)
+}
+
+/// <summary>Tuiles de tous les jours de la grille (O6, lot A) : minuteur, café, date, disques, compteur, notes et « À faire ».</summary>
+public static class EverydayTileShape
+{
+    // Minuteur : anneau de progression (bouton marche / pause en son centre)
+    public const double RingSmall = 30;          // tuile S : en haut à droite
+    public const double RingWide = 56;           // tuile W : à gauche
+    public const double RingLarge = 88;          // tuile L : au centre, le temps dedans
+    public const double RingStrokeSmall = 3;
+    public const double RingStroke = 4.5;
+    public const double RingStrokeLarge = 6;
+    public const double PresetHeight = 22;       // pastilles 5 / 10 / 25 / Pomodoro
+    public const double PresetMinWidth = 24;
+    public const double PresetGap = 3;
+    // Café
+    public const double CupLarge = 48;           // tasse de la tuile L
+    public const double SteamHeight = 14;        // hauteur de la fumée au-dessus de la tasse
+    public const double SteamRise = 7;           // la fumée monte de tant en un cycle
+    public const double SteamStroke = 1.6;
+    public const double SteamMaxOpacity = 0.55;
+    public static readonly TimeSpan SteamCycle = TimeSpan.FromSeconds(2.4);
+    // Date
+    public const double DayHero = 44;            // grand numéro du jour (W, L)
+    public const double MonthCellHeight = 15;    // mini-mois de la tuile L
+    public const double TodayDot = 15;           // pastille du jour dans le mini-mois
+    public const double TodayDotOpacity = 0.5;
+    public const double MonthLabel = 9;          // initiales des jours du mini-mois
+    // Compteur
+    public const double CounterLarge = 58;       // chiffre de la tuile L
+    public const double CounterBump = 1.08;      // le chiffre sursaute à chaque clic
+    // Disques
+    public const double DiskBar = 4;
+    public const double DiskRowGap = 4;
+    // Listes (notes, à faire)
+    public const double TaskRowHeight = 18;
+    public const double MiniButton = 22;         // « + » en haut à droite d'une tuile
+}
+
+/// <summary>
+/// Tuiles-outils de la grille (O6, lot B : fond d'écran, micro, capture, couleur, calculatrice, QR code, mémo vocal, téléphone,
+/// paramètres) et loupe du sélecteur de couleur.
+/// </summary>
+public static class ToolTileShape
+{
+    public const double Button = 52;              // gros bouton rond d'une tuile W (micro, mémo)
+    public const double ButtonLarge = 84;         // … d'une tuile L
+    public const double StopRatio = 0.34;         // carré « arrêter » du mémo, en part du bouton
+    public const double SwatchSmall = 22;         // dernière couleur (tuile S)
+    public const double SwatchLarge = 40;         // dernière couleur (tuile W)
+    public const double SwatchHero = 56;          // dernière couleur (tuile L)
+    public const double HistorySwatch = 14;       // couleurs d'avant (W, L)
+    public const double HistoryGap = 4;
+    public const int History = 5;                 // couleurs d'avant montrées (W, L)
+    public const int HistoryKept = 10;            // couleurs gardées en mémoire
+    public const double Qr = 72;                  // QR code d'une tuile W
+    public const double QrLarge = 116;            // … d'une tuile L
+    public const double QrPadding = 4;            // marge blanche autour du QR (la norme veut un fond clair)
+    public const int QrModule = 4;                // pixels par module de l'image (agrandie sans flou)
+    public const int ThumbWidth = 384;            // miniature du fond d'écran (pixels, décodée une fois)
+    public static readonly Color ScrimBottom = Color.FromArgb(0xA0, 0, 0, 0);
+    public static readonly Color ScrimTop = Color.FromArgb(0x00, 0, 0, 0);
+    public static readonly Color ThumbChip = Color.FromArgb(0x55, 0, 0, 0); // pastille de l'icône posée sur la miniature
+    public static readonly Color OnImageText = Color.FromArgb(0xD9, 0xFF, 0xFF, 0xFF); // ligne d'info posée sur la miniature
+    public const double ScrimStart = 0.35;
+    public const double DropDash = 3;             // pointillés de la zone de dépôt (tuile Téléphone), en épaisseurs de trait        // le voile commence à ce point de la hauteur
+    // Loupe du sélecteur de couleur.
+    public const int LoupePixels = 13;            // pixels de l'écran montrés (côté, impair : un pixel au centre)
+    public const double LoupeCell = 9;            // DIP par pixel agrandi
+    public static double Loupe => LoupePixels * LoupeCell;
+    public const double LoupeOffset = 26;         // écart entre la souris et la loupe
+    public static readonly Color LoupeRim = Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF);
+    public static readonly Color LoupeShade = Color.FromArgb(0x8C, 0, 0, 0);
+    public const double LoupeRimWidth = 2;
+}
+
 /// <summary>Géométrie du dock pour des icônes de <see cref="ReferenceIcon"/> px : tout suit la taille choisie.</summary>
 public static class DockShape
 {
@@ -1296,6 +1525,20 @@ public static class Icons
     public const string Mouse = "\uE28E"; // mouse
     public const string FileDown = "\uE318"; // file-down
     public const string Clock = "\uE087"; // clock
+    public const string AnalogClock = "\uE250"; // clock-3 (tuile Horloge analogique, O6)
+    // Tuiles de tous les jours (O6, lot A)
+    public const string Coffee = "\uE096"; // coffee
+    public const string CalendarDays = "\uE2B9"; // calendar-days
+    public const string Counter = "\uE4DA"; // tally-5
+    public const string ListTodo = "\uE4C3"; // list-todo
+    public const string Always = "\uE1E7"; // infinity
+    public const string Pomodoro = "\uE3C6"; // brain
+    // Tuiles-outils de la grille (O6, lot B) : codes lus dans lucide.ttf (tables post + cmap).
+    public const string Pipette = "\uE13B"; // pipette (s\u00E9lecteur de couleur)
+    public const string QrCode = "\uE1DF"; // qr-code
+    public const string Capture = "\uE257"; // scan (capture d'\u00E9cran)
+    public const string Record = "\uE345"; // circle-dot (m\u00E9mo vocal)
+    public const string NextImage = "\uE145"; // refresh-cw (fond suivant)
 
     /// <summary>Icônes proposées pour un profil : nom Lucide (enregistré) → clé du libellé (fichiers de langue).</summary>
     public static readonly (string Name, string Label)[] ProfileChoices =
@@ -1486,6 +1729,11 @@ public static class Opal
     // Application à l'app (O1, suite) : île, dock, palette, cartes, tuiles, menus
     public const double CoveredSmoke = 0.86;   // voile quand une fenêtre (pas le bureau) est derrière l'île : pas de flou du fond
     public const double PanelSmokeMin = 0.80;  // surfaces sans flou du fond (palette, cartes) : jamais plus transparentes
+    /// <summary>
+    /// Opale blanche : fond le plus foncé supposé pour une TUILE (verre clair posé sur un décor coloré flouté, mesuré ≈ #BFB3D7) ;
+    /// le texte d'accent des tuiles est rendu lisible dessus (≥ 4,5), pas seulement sur la surface de référence.
+    /// </summary>
+    public static readonly Color LightTileWorst = Color.FromRgb(0xB4, 0xB0, 0xC0);
     public const double TileLift = 0.035;      // une tuile est un peu plus laiteuse que la surface qui la porte
     public const double TileHoverLift = 0.05;  // + au survol
     public const double TileTint = 0.55;       // part de la teinte d'accent de la surface reprise par une tuile
@@ -1536,4 +1784,47 @@ public static class Opal
     public static readonly Brush Plate = Paint.Frozen(Color.FromArgb(0xB8, 0x12, 0x12, 0x16));
 
     private static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+}
+
+/// <summary>
+/// Tuiles vivantes du lot B (refonte O6) : Moniteur (anneaux CPU / RAM / GPU qui respirent), Amis (avatars + anneau de statut),
+/// Profil (pastilles des profils). Tailles en DIP, à l'intérieur d'une case de <see cref="TileGridShape.Cell"/>.
+/// </summary>
+public static class LiveTileShape
+{
+    // Moniteur
+    public const double RingS = 32;               // anneau d'une tuile S (2 côte à côte)
+    public const double RingStrokeS = 3.5;
+    public const double RingW = 44;               // tuile W : 2 anneaux + leur nom à droite
+    public const double RingStrokeW = 4;
+    public const double RingL = 50;               // tuile L : 3 anneaux (CPU, RAM, GPU)
+    public const double RingStrokeL = 4.5;
+    public const double RingBreath = 0.14;        // la « respiration » : ± 14 % de l'épaisseur du trait
+    public const double RingGlowExtra = 5;        // lueur : trait plus large sous l'anneau…
+    public const double RingGlowMin = 0.07;       // … dont l'opacité respire entre ces deux valeurs
+    public const double RingGlowMax = 0.2;
+    public const double Alert = 0.85;             // au-delà : anneau rouge
+    public static readonly TimeSpan Frame = TimeSpan.FromMilliseconds(40); // ≈ 25 images/s (≤ 30), seulement page visible et île ouverte
+    public static readonly TimeSpan SampleEvery = TimeSpan.FromSeconds(2); // mesures (comme l'onglet Santé)
+    public static readonly SpringSpec Gauge = new(170, 0.82); // l'anneau suit la valeur
+
+    // Amis
+    public const double AvatarS = 30;
+    public const double AvatarW = 32;
+    public const double AvatarL = 24;
+    public const double AvatarRing = 2;           // anneau de statut
+    public const double AvatarInset = 2;          // espace entre l'anneau et la pastille
+    public const double AvatarBadge = 15;         // mini manette « en jeu »
+    public const double AvatarGap = 4;            // entre deux avatars (tuile W)
+    public const int AvatarsW = 4;
+    public const int RowsL = 4;
+    public static readonly Brush Online = Paint.Frozen(Swatch.Green);
+
+    // Profil
+    public const double Pastille = 28;
+    public const double PastilleGap = 8;
+    public const int PastillesW = 5;
+    public const double ProfileDot = 5;           // un point par profil (tuile S)
+    public const double ProfileDotActive = 12;
+    public const double PopFrom = 0.78;           // la pastille choisie « saute » de 78 % à 100 %
 }

@@ -13,7 +13,7 @@ public partial class IslandWindow
     {
         if (TabStopped(Tab.Clipboard)) return;
         ClipboardTab.ShowVault(vault);
-        if (_tab != Tab.Clipboard) SelectTab(Tab.Clipboard, animate: _expanded);
+        ShowTool(Tab.Clipboard); // O6 : outil ouvert même si la grille est affichée
         Expand();
     }
 

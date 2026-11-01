@@ -20,7 +20,7 @@ public partial class IslandWindow
     public void OpenTranslate()
     {
         if (!TranslateAvailable) return;
-        if (_tab != Tab.Translate) SelectTab(Tab.Translate, animate: _expanded);
+        ShowTool(Tab.Translate);
         Expand();
     }
 
@@ -61,7 +61,7 @@ public partial class IslandWindow
         if (problem == null && string.IsNullOrWhiteSpace(text)) problem = Loc.T("translate.error.clipboard_empty");
         if (problem != null)
         {
-            if (_expanded && _tab == Tab.Translate) TranslateTab.ShowStatus(problem);
+            if (_expanded && !_home && _tab == Tab.Translate) TranslateTab.ShowStatus(problem);
             else ShowNotice(Icons.Translate, problem, OpenTranslate, TimeSpan.FromSeconds(3));
             return;
         }
@@ -80,7 +80,7 @@ public partial class IslandWindow
     {
         if (!_translateAsked || TranslateService.IsBusy || TranslateService.Current is not { Done: true }) return;
         _translateAsked = false;
-        if (_expanded && _tab == Tab.Translate)
+        if (_expanded && !_home && _tab == Tab.Translate)
         {
             if (_claudePinnedUntil == DateTime.MaxValue) _claudePinnedUntil = DateTime.UtcNow + ClaudeReadTime;
             if (!IsCursorOverIsland()) _collapseDelay.Start();
