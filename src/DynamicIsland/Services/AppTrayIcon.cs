@@ -146,6 +146,13 @@ public sealed class AppTrayIcon : IDisposable
         }
         if (!_safeMode)
         {
+            menu.Items.Add(Views.FocusMenu.Submenu()); // Ne pas déranger (7F) : durées, arrêt
+            if (!ModuleGuard.IsDisabled(ModuleGuard.NotesTab))
+            {
+                var note = new MenuItem { Header = Loc.T("tray.new_note") };
+                note.Click += (_, _) => Notes.NoteEditorWindow.Open(null);
+                menu.Items.Add(note);
+            }
             var feedback = new MenuItem { Header = Loc.T("tray.feedback") };
             feedback.Click += (_, _) => Feedback.FeedbackWindow.Open();
             menu.Items.Add(feedback);

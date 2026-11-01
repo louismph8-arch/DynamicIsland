@@ -9,8 +9,8 @@ using DynamicIsland.Themes;
 namespace DynamicIsland.Settings;
 
 /// <summary>
-/// Page « Connecté » → amis en ligne (6D-4) : interrupteur, serveur (adresse + guide Cloudflare + code du serveur à copier),
-/// mon code et l'invitation, pseudo, options, ajout d'un ami, amis / demandes reçues / demandes envoyées, quitter.
+/// Page « Amis » (6D-4, page à part depuis le correctif 23) : interrupteur, serveur (adresse + guide Cloudflare + code du serveur à copier),
+/// mon code et l'invitation, pseudo, options, ajout d'un ami, demandes, amis (annonces coupées, bloquer, retirer), bloqués, quitter.
 /// </summary>
 public partial class SettingsWindow
 {
@@ -35,6 +35,7 @@ public partial class SettingsWindow
         FriendsInvisibleToggle.IsChecked = friends.Invisible;
         FriendsShareGameToggle.IsChecked = friends.ShareGame;
         FriendsNotifyToggle.IsChecked = friends.Notify;
+        FriendsMessagesToggle.IsChecked = friends.Messages;
         if (!FriendsServerBox.IsKeyboardFocused) FriendsServerBox.Text = friends.Server;
         if (!FriendsNameBox.IsKeyboardFocused) FriendsNameBox.Text = friends.Name;
         _loading = loading;
@@ -52,34 +53,58 @@ public partial class SettingsWindow
         });
         bool connected = status == FriendsService.State.Connected;
         FriendsGuideText.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
-        FriendsMeCard.Visibility = FriendsListCard.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
+        FriendsConnectedPanel.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
         FriendsCodeText.Text = Loc.F("settings.friends.code", FriendsService.MyCode ?? "—");
-        ShowFriendList(FriendsService.Lists);
+        ShowFriendList(FriendsService.Lists, FriendsService.IsMuted);
     }
 
-    private void ShowFriendList(FriendLists lists)
+    /// <summary>Demandes reçues / envoyées, amis (annonces coupées ou non), bloqués : chacun avec ses boutons.</summary>
+    private void ShowFriendList(FriendLists lists, Func<string, bool> muted)
     {
-        FriendsList.Children.Clear();
+        FriendsRequestsList.Children.Clear();
         foreach (var request in lists.Incoming)
-            FriendsList.Children.Add(FriendRow(request, Loc.T("settings.friends.incoming"), Swatch.Orange,
+            FriendsRequestsList.Children.Add(FriendRow(request, Loc.T("settings.friends.incoming"), Swatch.Orange,
                 (Loc.T("settings.friends.accept"), () => FriendsService.AddAsync(request.Code)),
-                (Loc.T("settings.friends.refuse"), () => FriendsService.RemoveAsync(request.Code))));
+                (Loc.T("settings.friends.refuse"), () => FriendsService.RemoveAsync(request.Code)),
+                (Loc.T("settings.friends.block"), () => ConfirmBlockAsync(request))));
+        foreach (var pending in lists.Outgoing)
+            FriendsRequestsList.Children.Add(FriendRow(pending, Loc.T("settings.friends.outgoing"), null,
+                (Loc.T("settings.friends.cancel"), () => FriendsService.RemoveAsync(pending.Code))));
+        FriendsRequestsGroup.Visibility = FriendsRequestsList.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        FriendsList.Children.Clear();
         foreach (var friend in lists.Friends.OrderBy(f => f.Online ? 0 : 1).ThenBy(f => f.Display))
         {
-            var status = friend.Status switch
-            {
-                "game" => friend.Game is { Length: > 0 } game ? Loc.F("friends.status.game", game) : Loc.T("friends.status.game_hidden"),
-                "online" => Loc.T("friends.status.online"),
-                _ => Loc.T("friends.status.offline"),
-            };
+            bool quiet = muted(friend.Code);
+            var status = FriendsService.StatusText(friend, since: true);
+            if (quiet) status = Loc.F("settings.friends.muted.status", status);
             FriendsList.Children.Add(FriendRow(friend, status, friend.Online ? Swatch.Green : (Color?)null,
+                (Loc.T(quiet ? "settings.friends.unmute" : "settings.friends.mute"), () =>
+                {
+                    FriendsService.SetMuted(friend.Code, !quiet);
+                    return Task.CompletedTask;
+                }),
+                (Loc.T("settings.friends.block"), () => ConfirmBlockAsync(friend)),
                 (Loc.T("settings.friends.remove"), () => ConfirmRemoveAsync(friend))));
         }
-        foreach (var pending in lists.Outgoing)
-            FriendsList.Children.Add(FriendRow(pending, Loc.T("settings.friends.outgoing"), null,
-                (Loc.T("settings.friends.cancel"), () => FriendsService.RemoveAsync(pending.Code))));
         if (FriendsList.Children.Count == 0)
             FriendsList.Children.Add(new TextBlock { Text = Loc.T("settings.friends.empty"), Style = (Style)FindResource("CardDescription"), TextWrapping = TextWrapping.Wrap });
+
+        FriendsBlockedList.Children.Clear();
+        foreach (var blocked in lists.Blocked)
+            FriendsBlockedList.Children.Add(FriendRow(blocked, Loc.T("settings.friends.blocked"), null,
+                (Loc.T("settings.friends.unblock"), async () =>
+                {
+                    if (await FriendsService.UnblockAsync(blocked.Code) is { } problem) ShowFriendsMessage(FriendsMessageText, problem);
+                })));
+        FriendsBlockedGroup.Visibility = FriendsBlockedList.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async Task ConfirmBlockAsync(Friend friend)
+    {
+        if (MessageBox.Show(this, Loc.F("friends.block.confirm", friend.Display), AppInfo.Name, MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning, MessageBoxResult.Cancel) != MessageBoxResult.OK) return;
+        if (await FriendsService.BlockAsync(friend) is { } problem) ShowFriendsMessage(FriendsMessageText, problem);
     }
 
     private Grid FriendRow(Friend friend, string status, Color? dot, params (string Label, Func<Task> Action)[] buttons)
@@ -145,6 +170,7 @@ public partial class SettingsWindow
             s.Friends.Invisible = FriendsInvisibleToggle.IsChecked == true;
             s.Friends.ShareGame = FriendsShareGameToggle.IsChecked == true;
             s.Friends.Notify = FriendsNotifyToggle.IsChecked == true;
+            s.Friends.Messages = FriendsMessagesToggle.IsChecked == true;
         });
     }
 
@@ -253,19 +279,24 @@ public partial class SettingsWindow
     {
         _loading = true;
         FriendsToggle.IsChecked = true;
-        FriendsShareGameToggle.IsChecked = FriendsNotifyToggle.IsChecked = true;
+        FriendsShareGameToggle.IsChecked = FriendsNotifyToggle.IsChecked = FriendsMessagesToggle.IsChecked = true;
         FriendsServerBox.Text = "https://opaline-amis.exemple.workers.dev";
         FriendsNameBox.Text = "Louis";
         _loading = false;
-        FriendsPanel.Visibility = FriendsMeCard.Visibility = FriendsListCard.Visibility = Visibility.Visible;
+        FriendsPanel.Visibility = FriendsConnectedPanel.Visibility = Visibility.Visible;
         FriendsGuideText.Visibility = Visibility.Collapsed;
         FriendsServerStatus.Text = Loc.T("settings.friends.status.connected");
         FriendsCodeText.Text = Loc.F("settings.friends.code", "K7QM-2XPA");
-        ShowFriendList(SampleFriends);
+        ShowFriendList(SampleFriends, code => code == "SAMM2222");
     }
 
+    private static readonly DateTimeOffset SampleSince = new(DateTime.Today.AddHours(14).AddMinutes(32));
+
     internal static readonly FriendLists SampleFriends = new(
-        [new Friend("MAXX2345", "Max", "game", "Valorant"), new Friend("LEAA6789", "Léa", "online", null), new Friend("SAMM2222", "Sam", "offline", null)],
+        [new Friend("MAXX2345", "Max", "game", "Valorant", SampleSince), new Friend("LEAA6789", "Léa", "online", null, SampleSince.AddMinutes(-50)),
+         new Friend("SAMM2222", "Sam", "offline", null)],
         [new Friend("NOAH3456", "Noah", "offline", null)],
-        [new Friend("JULE4567", "", "offline", null)]);
+        [new Friend("JULE4567", "", "offline", null)],
+        [new Friend("TROL7777", "Troll", "offline", null)],
+        Extended: true);
 }

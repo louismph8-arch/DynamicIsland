@@ -11,16 +11,29 @@ et à quoi tu joues. Un seul serveur suffit pour tout ton groupe d'amis.
 - Seuls « en ligne », « en jeu » et (si tu le choisis) le nom du jeu sont partagés. La présence s'efface d'elle-même
   10 minutes après les dernières nouvelles ; le mode **invisible** l'efface tout de suite.
 - Pas d'adresse IP, pas d'historique. « Quitter les amis en ligne » efface ton code, ton pseudo et tes liens d'amis.
+- **Bloquer** (version 3) : la personne ne voit plus ta présence, ne peut plus te redemander en ami (pour elle, ton code
+  « n'existe pas ») et ne peut plus t'envoyer de message. Débloquer (ou rajouter son code) annule le blocage.
+- **Messages rapides** (version 3) : seulement entre amis mutuels, choisis dans une liste fermée (« On joue ? », « Tu es
+  dispo ? », « Rejoins-moi ! », « Plus tard ! ») — jamais de texte libre. Seul l'identifiant du message est gardé, 10 au plus
+  en attente par personne, effacés dès qu'ils sont lus (ou après 24 h) ; 20 envois par heure au plus.
+
+## Mettre à jour le serveur (version 3)
+
+Le blocage, les messages rapides et « joue à … depuis … » demandent la version 3 du serveur. Une seule personne (celle qui a
+créé le serveur) le fait : Cloudflare → **Workers & Pages** → ton Worker → **Edit code** → efface tout, colle le nouveau
+`worker.js` (Opaline : Paramètres → Amis → « Copier le code du serveur ») → **Deploy**. La base est mise à jour toute seule,
+rien n'est perdu (amis, pseudos, codes). Les anciennes versions d'Opaline continuent de marcher avec la version 3 ; avec un
+serveur plus ancien, Opaline cache simplement les boutons « Bloquer » et « Message ».
 
 ## Créer le serveur (une seule fois, ≈ 5 minutes)
 
 1. Crée un compte gratuit sur <https://dash.cloudflare.com/>.
 2. **Storage & Databases → D1 → Create database**, nom : `opaline-amis`.
 3. **Workers & Pages → Create → Worker** → **Deploy** (le « Hello World »), puis **Edit code** : efface tout, colle le
-   contenu de [`worker.js`](worker.js) (Opaline le copie pour toi : Paramètres → Connecté → Amis en ligne → « Copier le
+   contenu de [`worker.js`](worker.js) (Opaline le copie pour toi : Paramètres → Amis → « Copier le
    code du serveur ») → **Deploy**.
 4. Dans ce Worker : **Settings → Bindings → Add → D1 database** : nom de variable `DB`, base `opaline-amis` → **Deploy**.
-5. Copie l'adresse du Worker (`https://….workers.dev`), colle-la dans Opaline (Paramètres → Connecté → Amis en ligne) et
+5. Copie l'adresse du Worker (`https://….workers.dev`), colle-la dans Opaline (Paramètres → Amis) et
    **Enregistrer**. Donne la même adresse à tes amis (« Copier l'invitation » envoie l'adresse et ton code).
 
 ### Recevoir les avis et les bugs dans Discord (facultatif)
@@ -45,6 +58,6 @@ Le serveur crée ses tables tout seul. Les offres gratuites de Cloudflare (Worke
 Avec Node.js 22.5 ou plus récent (SQLite intégré, rien à télécharger) :
 
 ```bash
-node test-local.mjs            # scénario complet : deux PC, demande d'ami, présence, invisible, retrait, oubli
+node test-local.mjs            # scénario complet : deux PC, demande d'ami, présence, invisible, messages, blocage, retrait, oubli
 node test-local.mjs --serve 8799   # serveur d'essai sur http://127.0.0.1:8799 (adresse à coller dans Opaline)
 ```

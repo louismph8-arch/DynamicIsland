@@ -1,0 +1,38 @@
+// Modèle de widget Opaline. Modifie-le, enregistre, puis Paramètres → Widgets → « Installer un widget… ».
+// Les lignes qui commencent par // sont des commentaires (ignorés). Doc complète : widgets.md, dans ce dossier.
+// Template of an Opaline widget. Edit it, save, then Settings → Widgets → "Install a widget…". Docs: widgets.md.
+{
+  "format": 1,                                  // toujours 1
+  "id": "mon-widget",                           // identifiant unique : minuscules, chiffres et tirets
+  "name": "Mon widget",
+  "author": "Moi",
+  "version": "1.0",
+  "description": "Processeur et mémoire en anneaux, le jour et l'heure dessous.",
+  "size": { "width": 260, "height": 170 },      // taille de base (on peut l'agrandir sur le bureau)
+  "background": "card",                         // "card" = carte de l'île, "none" = transparent
+  "root": {
+    "type": "stack",                            // pile verticale ("direction": "horizontal" pour une rangée)
+    "gap": 10,
+    "children": [
+      {
+        "type": "stack",
+        "direction": "horizontal",
+        "gap": 8,
+        "children": [
+          { "type": "icon", "name": "cpu", "size": "l", "color": "accent" },       // nom d'icône de lucide.dev
+          { "type": "text", "text": "Mon PC", "size": "headline", "weight": "semibold" }
+        ]
+      },
+      {
+        "type": "grid",                         // grille : les éléments se rangent en colonnes
+        "columns": 2,
+        "gap": 8,
+        "children": [
+          { "type": "ring", "value": "cpu", "size": 56, "thickness": 6, "text": "{cpu}", "align": "center" },
+          { "type": "ring", "value": "ram", "size": 56, "thickness": 6, "color": "#34C759", "text": "{ram}", "align": "center" }
+        ]
+      },
+      { "type": "text", "text": "{date:dddd} · {time:HH:mm}", "size": "footnote", "color": "secondary" }
+    ]
+  }
+}

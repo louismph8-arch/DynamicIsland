@@ -168,7 +168,7 @@ internal static partial class SelfTest
 
         var defaults = StatusItem.Defaults();
         var old = StatusItem.NormalizeList([new() { Id = StatusItem.Keyboard }, new() { Id = StatusItem.Updates }, new() { Id = StatusItem.Trash }, new() { Id = StatusItem.Downloads }]);
-        Check(lines, defaults[^1] is { Id: StatusItem.Desktop, Visible: false } && old[^1] is { Id: StatusItem.Desktop, Visible: false } && old.Take(4).All(i => i.Visible),
+        Check(lines, defaults.First(i => i.Id == StatusItem.Desktop) is { Visible: false } && old[4] is { Id: StatusItem.Desktop, Visible: false } && old.Take(4).All(i => i.Visible),
             "zone d'état : la flèche des icônes du bureau arrive à la fin, cachée tant qu'on ne la demande pas");
 
         var (view, host) = DesktopIconsService.Locate();

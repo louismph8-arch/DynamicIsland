@@ -25,6 +25,12 @@ public static class ModuleGuard
     public const string Friends = "friends";
     public const string Health = "health";
     public const string Automations = "automations";
+    public const string Stats = "stats";
+    public const string NightLight = "nightlight";
+    /// <summary>Stage Manager (7G) : arrêté = fenêtres rendues, colonnes fermées.</summary>
+    public const string Stage = "stage";
+    /// <summary>Widgets des potes (7H) : fichiers d'inconnus, donc isolés du reste (le module s'arrête seul, jamais l'app).</summary>
+    public const string Plugins = "plugins";
     // Onglets de l'île (correctif urgent 1) : un onglet qui plante est caché pour la session, l'île continue.
     public const string MusicTab = "tab.music";
     public const string CalendarTab = "tab.calendar";
@@ -32,6 +38,9 @@ public static class ModuleGuard
     public const string WidgetsTab = "tab.widgets";
     public const string ShelfTab = "tab.shelf";
     public const string ClocksTab = "tab.clocks";
+    public const string MixerTab = "tab.mixer";
+    public const string ClipboardTab = "tab.clipboard";
+    public const string NotesTab = "tab.notes";
     /// <summary>L'île elle-même : jamais arrêtée (journal seulement), mais elle n'est plus prise pour un autre module.</summary>
     public const string Island = "island";
 
@@ -44,6 +53,11 @@ public static class ModuleGuard
         (WidgetsTab, ["DynamicIsland.Views.WidgetsView"]),
         (ShelfTab, ["DynamicIsland.Views.ShelfView"]),
         (ClocksTab, ["DynamicIsland.Views.WorldClockView"]),
+        (MixerTab, ["DynamicIsland.Views.MixerView", "DynamicIsland.Services.AudioMixerService"]),
+        (ClipboardTab, ["DynamicIsland.Views.ClipboardView", "DynamicIsland.Services.ClipboardHistory", "DynamicIsland.Services.SecureClipboard",
+            "DynamicIsland.Services.SecretEraser", "DynamicIsland.Services.PasswordVault", "DynamicIsland.Services.VaultFile", "DynamicIsland.Vault."]),
+        (NotesTab, ["DynamicIsland.Views.NotesView", "DynamicIsland.Services.NotesService", "DynamicIsland.Services.NotesStore",
+            "DynamicIsland.Services.NoteText", "DynamicIsland.Services.Note.", "DynamicIsland.Notes."]),
         // Zone d'état avant le dock : une erreur dans la corbeille ou Windows Update ne coupe pas tout le dock.
         (Status, ["DynamicIsland.Dock.StatusArea", "DynamicIsland.Dock.DownloadsWindow", "DynamicIsland.Services.KeyboardLayoutService",
             "DynamicIsland.Services.WindowsUpdateService", "DynamicIsland.Services.RecycleBinService", "DynamicIsland.Services.DownloadsService",
@@ -51,6 +65,7 @@ public static class ModuleGuard
         (Dock, ["DynamicIsland.Dock.", "DynamicIsland.Services.TrayIconHost"]),
         (Notices, ["DynamicIsland.Services.DeviceNotifier", "DynamicIsland.Services.DownloadNotifier"]),
         (MenuBar, ["DynamicIsland.MenuBar."]),
+        (Plugins, ["DynamicIsland.Plugins."]),
         (Widgets, ["DynamicIsland.DesktopWidgets."]),
         (Wallpapers, ["DynamicIsland.Services.AnimatedWallpaper", "DynamicIsland.Services.DynamicWallpaperService", "DynamicIsland.Controls.AnimatedAuroraEffect",
             "DynamicIsland.Services.WallpaperGuard"]),
@@ -64,7 +79,10 @@ public static class ModuleGuard
         (Rgb, ["DynamicIsland.Services.Rgb."]),
         (Friends, ["DynamicIsland.Services.Friends.", "DynamicIsland.Views.FriendsView"]),
         (Health, ["DynamicIsland.Services.Health.", "DynamicIsland.Views.HealthView"]),
+        (NightLight, ["DynamicIsland.Services.NightLight."]),
         (Automations, ["DynamicIsland.Services.Automations.", "DynamicIsland.Automations.", "DynamicIsland.Services.AudioOutputService"]),
+        (Stats, ["DynamicIsland.Services.Stats."]),
+        (Stage, ["DynamicIsland.Stage."]),
         // En dernier : une erreur DANS l'île appelée depuis la palette n'arrête plus la palette (premier cadre = l'île).
         (Island, ["DynamicIsland.IslandWindow"]),
     ];

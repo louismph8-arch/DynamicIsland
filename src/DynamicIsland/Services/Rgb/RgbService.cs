@@ -6,7 +6,8 @@ using DynamicIsland.Settings;
 namespace DynamicIsland.Services.Rgb;
 
 /// <summary>
-/// Éclairage RGB (6D-2, module « rgb », désactivé par défaut) : les appareils Logitech (par G HUB) et ceux d'OpenRGB
+/// Éclairage RGB (6D-2, module « rgb », désactivé par défaut) : les appareils Logitech (par G HUB), Razer (Synapse / Chroma),
+/// Corsair (iCUE), SteelSeries (GG) et ceux d'OpenRGB
 /// prennent la couleur d'accent d'Opaline — donc celle du profil actif —, ou la couleur de la pochette quand de la musique
 /// joue (option). Pendant une partie, l'éclairage est rendu à G HUB / OpenRGB (option, active par défaut). Coupé, G HUB
 /// reprend ses effets. Les appareils sont pilotés sur un fil à part, un appel à la fois, avec un fondu court.
@@ -20,6 +21,13 @@ public static class RgbService
 
     private static readonly LogitechLighting Logitech = new();
     private static readonly OpenRgbClient OpenRgb = new();
+    // Razer, Corsair, SteelSeries (point 26) : chacune isolée, essayée seulement si son logiciel tourne.
+    private static readonly RazerChroma Razer = new();
+    private static readonly CorsairIcue Corsair = new();
+    private static readonly SteelSeriesGameSense SteelSeries = new();
+    private static readonly IRgbBackend[] Brands = [Razer, Corsair, SteelSeries];
+    private static readonly TimeSpan HeartbeatEvery = TimeSpan.FromSeconds(5);
+    private static System.Threading.Timer? _heartbeat;
     private static readonly object Gate = new();
     private static Task _queue = Task.CompletedTask;
     private static Func<MediaService?> _media = () => null;
@@ -36,6 +44,9 @@ public static class RgbService
     public static LogitechState LogitechStatus { get; private set; }
     /// <summary>Appareils OpenRGB (-1 : OpenRGB introuvable).</summary>
     public static int OpenRgbDevices { get; private set; } = -1;
+    public static RgbBrandState RazerStatus => Razer.State;
+    public static RgbBrandState CorsairStatus => Corsair.State;
+    public static RgbBrandState SteelSeriesStatus => SteelSeries.State;
     /// <summary>Couleur en ce moment sur les appareils (null : rien n'est piloté).</summary>
     public static Color? Current { get; private set; }
     /// <summary>En pause pendant une partie.</summary>
@@ -53,7 +64,9 @@ public static class RgbService
         _retry = new DispatcherTimer { Interval = RetryEvery };
         _retry.Tick += (_, _) =>
         {
-            if (_active && (LogitechStatus == LogitechState.NotResponding || OpenRgbDevices < 0)) Retry();
+            if (!_active) return;
+            if (LogitechStatus == LogitechState.NotResponding || OpenRgbDevices < 0) Retry();
+            else if (Brands.Any(b => !b.IsConnected)) Enqueue(StartBrands);
         };
         Apply();
     }
@@ -67,6 +80,8 @@ public static class RgbService
         if (_watchedMedia != null) _watchedMedia.Changed -= Apply;
         _watchedMedia = null;
         _retry?.Stop();
+        _heartbeat?.Dispose();
+        _heartbeat = null;
         _active = false;
         _wanted = null;
         Enqueue(Release);
@@ -94,8 +109,17 @@ public static class RgbService
         _active = active;
         _wanted = color;
         Paused = paused;
-        if (active) _retry?.Start();
-        else _retry?.Stop();
+        if (active)
+        {
+            _retry?.Start();
+            _heartbeat ??= new System.Threading.Timer(_ => Enqueue(Heartbeats), null, HeartbeatEvery, HeartbeatEvery);
+        }
+        else
+        {
+            _retry?.Stop();
+            _heartbeat?.Dispose();
+            _heartbeat = null;
+        }
 
         if (!active)
         {
@@ -109,6 +133,10 @@ public static class RgbService
                 LogitechStatus = LogitechLighting.SdkPath == null ? LogitechState.NotInstalled
                     : Logitech.Start() ? LogitechState.Connected : LogitechState.NotResponding;
             if (!OpenRgb.IsConnected) OpenRgbDevices = OpenRgb.Start() ? OpenRgb.Devices.Count : -1;
+            Each(brand =>
+            {
+                if (!brand.IsConnected) brand.Start();
+            });
             Fade(color!.Value);
             Publish(color);
         });
@@ -145,6 +173,10 @@ public static class RgbService
             byte r = Mix(from.R, target.R), g = Mix(from.G, target.G), b = Mix(from.B, target.B);
             if (Logitech.IsRunning && !Logitech.SetColor(r, g, b)) LogitechStatus = LogitechState.NotResponding;
             if (OpenRgb.IsConnected && !OpenRgb.SetColor(r, g, b)) OpenRgbDevices = -1;
+            Each(brand =>
+            {
+                if (brand.IsConnected) brand.SetColor(r, g, b);
+            });
             if (!first) Thread.Sleep(30);
         }
         _shown = target;
@@ -154,11 +186,65 @@ public static class RgbService
     {
         Logitech.Stop();
         OpenRgb.Stop();
+        Each(brand => brand.Stop());
         _lit = false;
         LogitechStatus = LogitechState.Off;
         OpenRgbDevices = -1;
         Publish(null);
     }
+
+    /// <summary>Nouvel essai des marques pas encore connectées (fil des appareils) ; celles qui arrivent prennent la couleur.</summary>
+    private static void StartBrands()
+    {
+        if (!_active || !_lit) return;
+        var before = Brands.Select(b => b.State).ToArray();
+        Each(brand =>
+        {
+            if (brand.IsConnected) return;
+            brand.Start();
+            if (brand.IsConnected) brand.SetColor(_shown.R, _shown.G, _shown.B);
+        });
+        if (!before.SequenceEqual(Brands.Select(b => b.State))) Notify();
+    }
+
+    /// <summary>Battements de cœur (Razer, SteelSeries : sinon la session meurt après 15 s) ; une session perdue est notée.</summary>
+    private static void Heartbeats()
+    {
+        if (!_active) return;
+        bool lost = false;
+        Each(brand =>
+        {
+            if (brand.IsConnected && !brand.Heartbeat()) lost = true;
+        });
+        if (lost) Notify();
+    }
+
+    /// <summary>Chaque marque à part : une erreur chez l'une est notée, la marque est arrêtée, les autres continuent.</summary>
+    private static void Each(Action<IRgbBackend> work)
+    {
+        foreach (var brand in Brands)
+        {
+            try
+            {
+                work(brand);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("RVB : " + brand.Name, ex);
+                try
+                {
+                    brand.Stop();
+                }
+                catch (Exception stop)
+                {
+                    Log.Error("RVB : arrêt de " + brand.Name, stop);
+                }
+            }
+        }
+    }
+
+    /// <summary>État d'une marque changé, couleur inchangée.</summary>
+    private static void Notify() => Application.Current?.Dispatcher.BeginInvoke(() => Changed?.Invoke());
 
     private static void Publish(Color? color) => Application.Current?.Dispatcher.BeginInvoke(() =>
     {

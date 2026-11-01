@@ -24,7 +24,7 @@ public partial class IslandWindow
         (Tab.Music, IslandTabItem.Music), (Tab.Calendar, IslandTabItem.Calendar), (Tab.Control, IslandTabItem.Control),
         (Tab.Widgets, IslandTabItem.Widgets), (Tab.Shelf, IslandTabItem.Shelf), (Tab.Voice, IslandTabItem.Voice),
         (Tab.Claude, IslandTabItem.Claude), (Tab.Clocks, IslandTabItem.Clocks), (Tab.Health, IslandTabItem.Health),
-        (Tab.Friends, IslandTabItem.Friends),
+        (Tab.Friends, IslandTabItem.Friends), (Tab.Mixer, IslandTabItem.Mixer), (Tab.Clipboard, IslandTabItem.Clipboard), (Tab.Notes, IslandTabItem.Notes),
     ];
 
     private static string IdOf(Tab tab) => TabIds.First(t => t.Tab == tab).Id;
@@ -47,6 +47,7 @@ public partial class IslandWindow
     {
         var items = SettingsStore.Current.Island.Tabs;
         var buttons = TabButtons().ToDictionary(t => t.Tab, t => t.Button);
+        ClaudeTabButton.Content = Services.ClaudeService.AssistantName; // « ChatGPT » avec la clé OpenAI
         string order = string.Join(",", items.Select(i => i.Id));
         if (order != _tabOrder)
         {
@@ -124,6 +125,14 @@ public partial class IslandWindow
         if (vertical) TabTitle.Text = button.Content as string ?? "";
         // Trop d'onglets : celui qu'on ouvre défile jusqu'à être visible en entier (après la mise en page : son nom vient d'apparaître).
         Dispatcher.BeginInvoke(() => button.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
+        // Encore une fois quand le ressort a fini d'élargir l'île : le dernier onglet (« Presse-papiers ») restait coupé.
+        var settle = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        settle.Tick += (_, _) =>
+        {
+            settle.Stop();
+            if (button.IsChecked == true) button.BringIntoView();
+        };
+        settle.Start();
     }
 
     /// <summary>Taille de l'île : le contenu est mis à l'échelle et la fenêtre (transparente) suit, puis l'île revient à sa place.</summary>

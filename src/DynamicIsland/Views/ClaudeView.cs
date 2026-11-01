@@ -21,9 +21,11 @@ public sealed partial class ClaudeView : UserControl
     private readonly StackPanel _messages = new();
     private readonly ScrollViewer _scroller;
     private readonly StackPanel _empty = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _emptyTitle = new() { FontSize = TypeRamp.Headline, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, Space.S4, 0, Space.S2) };
     private readonly TextBlock _emptyHint = new() { FontSize = TypeRamp.Footnote, Foreground = Paint.TextSecondary, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center };
     private readonly TextBlock _cliText = new() { FontSize = TypeRamp.Footnote, Foreground = Paint.TextTertiary, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, Space.S3, 0, 0) };
     private readonly Button _loginButton;
+    private ClaudeEngine? _checkedEngine;
     private readonly TextBlock _modelText = new() { FontSize = TypeRamp.Caption, Foreground = Paint.TextTertiary, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Button _ask, _stop, _newChat;
     private readonly DispatcherTimer _dots = new() { Interval = TimeSpan.FromMilliseconds(400) };
@@ -56,7 +58,11 @@ public sealed partial class ClaudeView : UserControl
         };
 
         _loginButton = TextButton(Loc.T("settings.connecter"), Icons.LogIn);
-        _loginButton.Click += (_, _) => ClaudeService.OpenLogin();
+        _loginButton.Click += (_, _) =>
+        {
+            if (Codex) ClaudeService.OpenCodexLogin();
+            else ClaudeService.OpenLogin();
+        };
         _loginButton.Visibility = Visibility.Collapsed;
         _loginButton.HorizontalAlignment = HorizontalAlignment.Center;
         _loginButton.Margin = new Thickness(0, Space.S3, 0, 0);
@@ -65,7 +71,7 @@ public sealed partial class ClaudeView : UserControl
             Text = Icons.Sparkles, FontFamily = FontStack.Icons, FontSize = IconSize.Huge, HorizontalAlignment = HorizontalAlignment.Center,
         });
         ((TextBlock)_empty.Children[0]).SetResourceReference(TextBlock.ForegroundProperty, AppearanceService.AccentGradientKey);
-        _empty.Children.Add(new TextBlock { Text = Loc.T("claude.view.empty"), FontSize = TypeRamp.Headline, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, Space.S4, 0, Space.S2) });
+        _empty.Children.Add(_emptyTitle);
         _empty.Children.Add(_emptyHint);
         _empty.Children.Add(_cliText);
         _empty.Children.Add(_loginButton);
@@ -103,7 +109,7 @@ public sealed partial class ClaudeView : UserControl
         _dots.Tick += (_, _) =>
         {
             _dotCount = (_dotCount + 1) % 4;
-            if (_liveAnswer is { } text && Last is { Done: false, Answer.Length: 0 }) text.Text = Loc.T("claude.view.thinking") + new string('.', _dotCount);
+            if (_liveAnswer is { } text && Last is { Done: false, Answer.Length: 0 }) text.Text = Thinking();
         };
         ClaudeService.Changed += () =>
         {
@@ -126,11 +132,34 @@ public sealed partial class ClaudeView : UserControl
         }
     }
 
+    /// <summary>Moteur Codex : l'assistant s'appelle ChatGPT (textes de l'onglet).</summary>
+    private static bool Codex => SettingsStore.Current.Claude.Engine == ClaudeEngine.Codex;
+
     private IReadOnlyList<ClaudeTurn> Turns => _sample ?? ClaudeService.Turns;
     private ClaudeTurn? Last => Turns.Count > 0 ? Turns[^1] : null;
 
+    private string Thinking() => Loc.F("claude.view.thinking", ClaudeService.AssistantName) + new string('.', _dotCount);
+
+    /// <summary>Claude Code : installé, connecté ? Clé API : enregistrée ou non (rien n'est envoyé).</summary>
     private async Task CheckCliAsync()
     {
+        var engine = SettingsStore.Current.Claude.Engine;
+        _checkedEngine = engine;
+        if (engine == ClaudeEngine.Codex)
+        {
+            _cliText.Text = Loc.T("codex.view.checking");
+            var codex = await ClaudeService.CodexCheckAsync();
+            _cliText.Text = codex.LoggedIn ? codex.Description + " " + Loc.T("codex.view.plan_note") : codex.Description;
+            _loginButton.Visibility = codex.Installed && !codex.LoggedIn ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
+        if (ApiKeys.For(engine) is { } keys)
+        {
+            var provider = engine == ClaudeEngine.OpenAi ? "OpenAI" : "Anthropic";
+            _loginButton.Visibility = Visibility.Collapsed;
+            _cliText.Text = keys.Exists ? Loc.F("claude.view.api_note", provider) : Loc.F("claude.api.no_key", provider);
+            return;
+        }
         _cliText.Text = Loc.T("claude.view.checking");
         var status = await ClaudeService.CheckAsync();
         _cliText.Text = status.LoggedIn ? status.Description + " " + Loc.T("claude.view.plan_note") : status.Description;
@@ -172,8 +201,17 @@ public sealed partial class ClaudeView : UserControl
 
     private void ShowModel()
     {
-        var model = ClaudeService.ModelName(SettingsStore.Current.Claude.Model);
-        _modelText.Text = Loc.F("claude.view.model", model);
+        var engine = SettingsStore.Current.Claude.Engine;
+        var model = ClaudeService.ModelName(ClaudeService.CurrentModel);
+        _modelText.Text = engine switch
+        {
+            ClaudeEngine.ClaudeCode => Loc.F("claude.view.model", model),
+            ClaudeEngine.Codex => Loc.F("codex.view.model", ClaudeService.CodexModelName(SettingsStore.Current.Claude.CodexModel)),
+            _ => Loc.F("claude.view.model_api", model, engine == ClaudeEngine.OpenAi ? "OpenAI" : "Anthropic"),
+        };
+        _emptyTitle.Text = Loc.F("claude.view.empty", ClaudeService.AssistantName);
+        // Moteur changé dans les paramètres : l'état affiché (installé, connecté, clé) est celui du nouveau.
+        if (_checkedEngine is { } checkedEngine && checkedEngine != engine && _active && _sample == null && Turns.Count == 0) _ = CheckCliAsync();
     }
 
     private void AddTurn(ClaudeTurn turn, bool last)
@@ -208,7 +246,7 @@ public sealed partial class ClaudeView : UserControl
         if (turn.Answer.Length > 0) Markdown(turn.Answer, text.Inlines);
         else if (!turn.Done)
         {
-            text.Text = Loc.T("claude.view.thinking") + new string('.', _dotCount);
+            text.Text = Thinking();
             text.Foreground = Paint.TextSecondary;
         }
         if (turn.Answer.Length > 0 || !turn.Done) column.Children.Add(text);
@@ -223,15 +261,24 @@ public sealed partial class ClaudeView : UserControl
                 {
                     ClaudeFix.Login => TextButton(Loc.T("settings.connecter"), Icons.LogIn),
                     ClaudeFix.ApiKey => TextButton(Loc.T("claude.view.api_key"), Icons.Settings),
+                    ClaudeFix.CodexLogin => TextButton(Loc.T("settings.connecter"), Icons.LogIn),
+                    ClaudeFix.CodexUpdate => TextButton(Loc.T("codex.view.update"), Icons.Download),
+                    ClaudeFix.CodexInstall => TextButton(Loc.T("codex.view.install"), Icons.Download),
                     _ => TextButton(Loc.T("claude.view.update"), Icons.Download),
                 };
                 fix.HorizontalAlignment = HorizontalAlignment.Left;
                 fix.Margin = new Thickness(0, Space.S3, 0, 0);
                 fix.Click += (_, _) =>
                 {
-                    if (turn.Fix == ClaudeFix.Login) ClaudeService.OpenLogin();
-                    else if (turn.Fix == ClaudeFix.ApiKey) Settings.SettingsWindow.Open(Settings.SettingsPage.Island);
-                    else ClaudeService.OpenUpdate();
+                    switch (turn.Fix)
+                    {
+                        case ClaudeFix.Login: ClaudeService.OpenLogin(); break;
+                        case ClaudeFix.ApiKey: Settings.SettingsWindow.Open(Settings.SettingsPage.Island); break;
+                        case ClaudeFix.CodexLogin: ClaudeService.OpenCodexLogin(); break;
+                        case ClaudeFix.CodexUpdate: ClaudeService.OpenCodexUpdate(); break;
+                        case ClaudeFix.CodexInstall: ClaudeService.OpenCodexInstall(); break;
+                        default: ClaudeService.OpenUpdate(); break;
+                    }
                 };
                 column.Children.Add(fix);
             }
@@ -264,7 +311,7 @@ public sealed partial class ClaudeView : UserControl
     private static partial Regex InlineMarks();
 
     /// <summary>Markdown léger : **gras**, `code`, titres → gras, puces « - » → « • », blocs ``` en police à chasse fixe.</summary>
-    private static void Markdown(string source, InlineCollection inlines)
+    internal static void Markdown(string source, InlineCollection inlines) // aussi pour l'aperçu des notes (NotesView)
     {
         bool code = false;
         var lines = source.Replace("\r", "").Split('\n');

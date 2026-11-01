@@ -83,7 +83,7 @@ public sealed class FeedbackWindow : CardWindow
         _openConnected.HorizontalAlignment = HorizontalAlignment.Left;
         _openConnected.Click += (_, _) =>
         {
-            SettingsWindow.Open(SettingsPage.Connected);
+            SettingsWindow.Open(SettingsPage.Friends);
             CloseAnimated();
         };
 

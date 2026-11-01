@@ -31,6 +31,7 @@ public partial class SettingsWindow
         (VolumeHudToggle, s => s.Island.VolumeHud, null),
         (FollowMouseToggle, s => s.Island.FollowMouse, null),
         (DiscordToggle, s => s.Discord.Enabled, ModuleGuard.Discord),
+        (DiscordJoinToggle, s => s.Discord.JoinNotices, null),
         (ClaudeToggle, s => s.Claude.Enabled, ModuleGuard.Claude),
         (WeatherToggle, s => s.Widgets.Weather, null),
         (CpuToggle, s => s.Widgets.Cpu, null),
@@ -53,6 +54,7 @@ public partial class SettingsWindow
         (CloseRedOption, s => s.Dock.CloseColor == Dock.PreviewCloseColor.Red, ModuleGuard.Dock),
         (CloseAccentOption, s => s.Dock.CloseColor == Dock.PreviewCloseColor.Accent, ModuleGuard.Dock),
         (MinimizeEffectToggle, s => s.Dock.MinimizeEffect, ModuleGuard.Dock),
+        (DockFollowToggle, s => s.Dock.FollowMouse, ModuleGuard.Dock),
         (HarmonizedIconsToggle, s => s.Dock.HarmonizedIcons, ModuleGuard.Dock),
         (TintIconsToggle, s => s.Dock.TintIcons, ModuleGuard.Dock),
         (BarBlurToggle, s => s.Appearance.DockBlur, ModuleGuard.Dock),
@@ -80,6 +82,9 @@ public partial class SettingsWindow
         (EnforceWallpaperToggle, s => s.Wallpaper.Enforce, ModuleGuard.Wallpapers),
         (AnimatedWallpaperToggle, s => s.Wallpaper.Animated, ModuleGuard.Wallpapers),
         (AnimatedAllScreensToggle, s => s.Wallpaper.AnimatedAllScreens, ModuleGuard.Wallpapers),
+        // Stage Manager (7G) : aussi allumé / coupé depuis l'île, la palette ou son raccourci.
+        (StageModeToggle, s => s.Stage.Enabled, ModuleGuard.Stage),
+        (StageFillToggle, s => s.Stage.FillStage, null),
     ];
     private (ToggleButton Toggle, Func<AppSettings, bool> Read, string? Module)[]? _toggleChecks;
 

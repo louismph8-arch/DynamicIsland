@@ -16,6 +16,8 @@ public sealed class AppSettings
     public UpdateSettings Updates { get; set; } = new();
     public WallpaperSettings Wallpaper { get; set; } = new();
     public DesktopWidgetSettings DesktopWidgets { get; set; } = new();
+    /// <summary>Widgets des potes (7H) : où chacun s'affiche et le site web autorisé (les fichiers sont dans Widgets\).</summary>
+    public PluginSettings Plugins { get; set; } = new();
     public MenuBarSettings MenuBar { get; set; } = new();
     public DiscordSettings Discord { get; set; } = new();
     public ClaudeSettings Claude { get; set; } = new();
@@ -23,10 +25,18 @@ public sealed class AppSettings
     public RgbSettings Rgb { get; set; } = new();
     public FriendsSettings Friends { get; set; } = new();
     public HealthSettings Health { get; set; } = new();
+    /// <summary>Presse-papiers de l'île : historique + coffre de mots de passe (le coffre lui-même n'est JAMAIS ici).</summary>
+    public ClipboardSettings Clipboard { get; set; } = new();
+    /// <summary>Notes de l'île : seulement des choix (les notes elles-mêmes sont dans notes.json, jamais ici).</summary>
+    public NotesSettings Notes { get; set; } = new();
     public AutomationSettings Automations { get; set; } = new();
     public FocusSettings Focus { get; set; } = new();
+    /// <summary>« Ma semaine » (7F) : suivi de l'activité, désactivé par défaut.</summary>
+    public StatsSettings Stats { get; set; } = new();
     /// <summary>Minuteur de l'île (correctif 19) : son de fin, volume, dernière durée « Perso ».</summary>
     public TimerSettings Timer { get; set; } = new();
+    /// <summary>Stage Manager (7G) : désactivé par défaut.</summary>
+    public StageSettings Stage { get; set; } = new();
     /// <summary>Règles par application pour l'île et le dock (priorité 2, point 13).</summary>
     public List<AppRule> AppRules { get; set; } = [];
     /// <summary>Langue de l'interface (6A) : « auto » (celle de Windows), « fr » ou « en ». Appliquée au démarrage.</summary>
@@ -50,6 +60,8 @@ public sealed class AppSettings
         Updates ??= new UpdateSettings();
         Wallpaper ??= new WallpaperSettings();
         DesktopWidgets ??= new DesktopWidgetSettings();
+        Plugins ??= new PluginSettings();
+        Plugins.Normalize();
         MenuBar ??= new MenuBarSettings();
         Discord ??= new DiscordSettings();
         Claude ??= new ClaudeSettings();
@@ -59,7 +71,13 @@ public sealed class AppSettings
         Health ??= new HealthSettings();
         Automations ??= new AutomationSettings();
         Focus ??= new FocusSettings();
+        Stats ??= new StatsSettings();
+        Focus.Normalize();
         Timer ??= new TimerSettings();
+        Stage ??= new StageSettings();
+        Stage.Normalize();
+        Notes ??= new NotesSettings();
+        Notes.Normalize();
         Timer.Normalize();
         Automations.Normalize();
         Friends.Normalize();
@@ -226,29 +244,43 @@ public sealed class IslandSettings
     }
 }
 
-/// <summary>Mini Claude dans l'île (5J), par Claude Code installé sur le PC (abonnement de l'utilisateur, aucune clé).</summary>
-/// <summary>Moteur du mini Claude : Claude Code (abonnement) ou la clé API Anthropic (6D-3, payée à l'usage).</summary>
+/// <summary>
+/// Moteur du mini assistant : Claude Code (abonnement, par défaut), la clé API Anthropic (6D-3, payée à l'usage) ou la clé API
+/// OpenAI (ChatGPT, priorité 3 n° 27). « ApiKey » garde son nom d'origine : les réglages déjà enregistrés restent valables.
+/// </summary>
 public enum ClaudeEngine
 {
     ClaudeCode,
     ApiKey,
+    OpenAi,
+    /// <summary>L'abonnement ChatGPT de l'utilisateur par l'outil officiel d'OpenAI « codex » (aucune clé).</summary>
+    Codex,
 }
 
+/// <summary>Mini assistant dans l'île (5J), par Claude Code installé sur le PC ou par une clé API.</summary>
 public sealed class ClaudeSettings
 {
-    /// <summary>Onglet « Claude » de l'île et ligne « Demander à Claude » de la palette.</summary>
+    /// <summary>Onglet « Claude » / « ChatGPT » de l'île et ligne « Demander à … » de la palette.</summary>
     public bool Enabled { get; set; } = true;
     /// <summary>Modèle demandé à Claude Code (choix de l'utilisateur : Opus 5.5).</summary>
     public string Model { get; set; } = Services.ClaudeService.DefaultModel;
     public ClaudeEngine Engine { get; set; } = ClaudeEngine.ClaudeCode;
     /// <summary>Modèle avec la clé API (choix de l'utilisateur par défaut : Sonnet 5.5). La clé elle-même n'est jamais ici.</summary>
     public string ApiModel { get; set; } = Services.ClaudeService.ApiDefaultModel;
+    /// <summary>Modèle avec la clé OpenAI. La clé elle-même n'est jamais ici.</summary>
+    public string OpenAiModel { get; set; } = Services.ClaudeService.OpenAiDefaultModel;
+    /// <summary>Modèle demandé à Codex ; vide = le modèle par défaut de la version de Codex installée.</summary>
+    public string CodexModel { get; set; } = "";
 
     public void Normalize()
     {
+        if (!Services.ClaudeService.OpenAiModels.Any(m => m.Id == OpenAiModel)) OpenAiModel = Services.ClaudeService.OpenAiDefaultModel;
         if (!Services.ClaudeService.Models.Any(m => m.Id == Model)) Model = Services.ClaudeService.DefaultModel;
         if (!Services.ClaudeService.Models.Any(m => m.Id == ApiModel)) ApiModel = Services.ClaudeService.ApiDefaultModel;
         if (!Enum.IsDefined(Engine)) Engine = ClaudeEngine.ClaudeCode;
+        // Liste des modèles de Codex variable (selon le compte et la version) : on garde le nom tel quel, sans espaces.
+        CodexModel = (CodexModel ?? "").Trim();
+        if (CodexModel.Length > 80 || CodexModel.Any(char.IsWhiteSpace)) CodexModel = "";
     }
 }
 
@@ -317,6 +349,8 @@ public sealed class DiscordSettings
     /// potes n'ont rien à saisir, il suffit de les ajouter comme testeurs de l'appli sur le portail.
     /// </summary>
     public string ClientId { get; set; } = DefaultClientId;
+    /// <summary>Annonce dans l'île quand quelqu'un rejoint mon salon vocal (correctif 25).</summary>
+    public bool JoinNotices { get; set; } = true;
 
     public const string DefaultClientId = "1563653856645349517";
 }
@@ -435,6 +469,37 @@ public sealed class DesktopWidgetPlacement
     public double Scale { get; set; } = 1;
 }
 
+/// <summary>
+/// Onglet « Presse-papiers » de l'île (voir Services/ClipboardHistory, Services/PasswordVault). Seulement des choix : ni
+/// l'historique ni le coffre ne sont rangés dans settings.json (fichiers chiffrés à part).
+/// </summary>
+public sealed class ClipboardSettings
+{
+    /// <summary>Historique des éléments copiés (texte, liens, images), sans durée : on le vide soi-même.</summary>
+    public bool History { get; set; } = true;
+    /// <summary>Historique gardé après un redémarrage (fichier chiffré DPAPI) : activé par défaut (demande de l'utilisateur).</summary>
+    public bool Persist { get; set; } = true;
+    /// <summary>Un mot de passe copié depuis le coffre est effacé du presse-papiers après 30 s (s'il y est encore) : option.</summary>
+    public bool AutoClear { get; set; }
+    /// <summary>Mot de passe copié par un gestionnaire (formats « sensibles ») : l'île propose de le garder dans le coffre.</summary>
+    public bool OfferSecrets { get; set; } = true;
+}
+
+/// <summary>Notes (voir Services/NotesService) : raccourci « Nouvelle note » et chiffrement du fichier.</summary>
+public sealed class NotesSettings
+{
+    /// <summary>Raccourci global « Nouvelle note » ; vide = aucun (désactivé par défaut).</summary>
+    public string Hotkey { get; set; } = "";
+    /// <summary>Notes chiffrées par Windows (DPAPI, ce compte seulement) : notes.bin au lieu de notes.json.</summary>
+    public bool Encrypt { get; set; }
+
+    public void Normalize()
+    {
+        Hotkey ??= "";
+        if (Hotkey.Length > 0 && !Services.Hotkeys.TryParse(Hotkey, out _, out _)) Hotkey = "";
+    }
+}
+
 /// <summary>Santé du PC (6E, voir Services/Health).</summary>
 public sealed class HealthSettings
 {
@@ -458,13 +523,32 @@ public sealed class FriendsSettings
     public bool ShareGame { get; set; } = true;
     /// <summary>Annonce dans l'île quand un ami se connecte ou lance un jeu.</summary>
     public bool Notify { get; set; } = true;
+    /// <summary>Messages rapides des amis (« On joue ? »…) annoncés dans l'île (correctif 24).</summary>
+    public bool Messages { get; set; } = true;
+    /// <summary>Codes d'ami (8 caractères, sans tiret) dont on ne veut plus d'annonces ni de messages dans l'île.</summary>
+    public List<string> Muted { get; set; } = [];
+    /// <summary>
+    /// Personnes bloquées (code + pseudo vu au moment du blocage). Le serveur (version 3) les bloque aussi de son côté ; avec un
+    /// serveur plus ancien, elles sont seulement retirées et cachées ici.
+    /// </summary>
+    public List<BlockedFriend> Blocked { get; set; } = [];
 
     public void Normalize()
     {
         Server = (Server ?? "").Trim().TrimEnd('/');
         Name = (Name ?? "").Trim();
         if (Name.Length > 32) Name = Name[..32];
+        Muted = (Muted ?? []).Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.Trim().ToUpperInvariant().Replace("-", "")).Distinct().Take(200).ToList();
+        Blocked = (Blocked ?? []).Where(b => b != null && !string.IsNullOrWhiteSpace(b.Code))
+            .Select(b => new BlockedFriend { Code = b.Code.Trim().ToUpperInvariant().Replace("-", ""), Name = (b.Name ?? "").Trim() })
+            .DistinctBy(b => b.Code).Take(200).ToList();
     }
+}
+
+public sealed class BlockedFriend
+{
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
 }
 
 /// <summary>Éclairage RGB (6D-2, voir Services/Rgb) : désactivé par défaut.</summary>

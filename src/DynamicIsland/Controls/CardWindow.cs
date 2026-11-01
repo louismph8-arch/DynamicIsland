@@ -130,6 +130,41 @@ public abstract class CardWindow : Window
         move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(CardShape.Rise, 0, Motion.Page) { BeginTime = begin, EasingFunction = EaseOut });
     }
 
+    /// <summary>
+    /// Fenêtre redimensionnable (éditeur de note) : un petit coin en bas à droite de la carte (la fenêtre transparente n'a pas
+    /// de bord que Windows saurait tirer).
+    /// </summary>
+    protected void EnableResize(double minWidth, double minHeight)
+    {
+        MinWidth = minWidth;
+        MinHeight = Math.Min(minHeight, Height);
+        var glyph = new FrameworkElementFactory(typeof(TextBlock));
+        glyph.SetValue(TextBlock.TextProperty, Icons.ResizeGrip);
+        glyph.SetValue(TextBlock.FontFamilyProperty, FontStack.Icons);
+        glyph.SetValue(TextBlock.FontSizeProperty, IconSize.S);
+        glyph.SetValue(TextBlock.ForegroundProperty, Paint.TextTertiary);
+        glyph.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        glyph.SetValue(VerticalAlignmentProperty, VerticalAlignment.Center);
+        var area = new FrameworkElementFactory(typeof(Border));
+        area.SetValue(Border.BackgroundProperty, Paint.HitTarget);
+        area.AppendChild(glyph);
+        var grip = new System.Windows.Controls.Primitives.Thumb
+        {
+            Width = CardShape.Grip, Height = CardShape.Grip, Cursor = Cursors.SizeNWSE, ToolTip = Loc.T("card.resize"),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, Space.S3, Space.S3),
+            Template = new ControlTemplate(typeof(System.Windows.Controls.Primitives.Thumb)) { VisualTree = area },
+        };
+        grip.DragDelta += (_, e) =>
+        {
+            Width = Math.Max(MinWidth, Width + e.HorizontalChange);
+            Height = Math.Max(MinHeight, Math.Min(SystemParameters.WorkArea.Height, Height + e.VerticalChange));
+        };
+        var layout = (Grid)Card.Child;
+        Grid.SetRowSpan(grip, 2);
+        layout.Children.Add(grip);
+    }
+
     // ------------------------------------------------------------------ petits éléments
 
     protected static TextBlock Heading(string text, double size = TypeRamp.LargeTitle) => new()

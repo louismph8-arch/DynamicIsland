@@ -39,6 +39,9 @@ public partial class IslandWindow : Window
         Clocks,
         Health,
         Friends,
+        Mixer,
+        Clipboard,
+        Notes,
     }
 
     /// <summary>Arrondis selon le réglage « Arrondi des coins » (100 % = pilule).</summary>
@@ -172,7 +175,13 @@ public partial class IslandWindow : Window
         {
             if (_expanded && _tab == Tab.Control) AnimateTo(ExpandedSize(Tab.Control), ExpandedRadius, Springs.Resize);
         };
+        WidgetsTab.HeightChanged += () =>
+        {
+            if (_expanded && _tab == Tab.Widgets) AnimateTo(ExpandedSize(Tab.Widgets), ExpandedRadius, Springs.Resize);
+        };
         ModuleGuard.ModuleDisabled += _ => HideStoppedTabs();
+        FocusService.Changed += UpdateFocusIndicator; // petite lune près de l'heure (7F)
+        UpdateFocusIndicator();
         ApplySettings();
 
         SelectTab(Tab.Music, animate: false);
@@ -713,6 +722,9 @@ public partial class IslandWindow : Window
         ClocksTab.IsActive = _tab == Tab.Clocks;
         FriendsTab.IsActive = _tab == Tab.Friends;
         HealthTab.IsActive = _tab == Tab.Health && SnapshotFolder == null;
+        MixerTab.IsActive = _tab == Tab.Mixer && SnapshotFolder == null;
+        ClipboardTab.IsActive = _tab == Tab.Clipboard;
+        NotesTab.IsActive = _tab == Tab.Notes;
         ControlTab.IsActive = _tab == Tab.Control && SnapshotFolder == null;
         SetBarsRunning(false);
         SeasonLayer.Wake(open: true); // 7A : les particules ne bougent que quand on regarde l'île
@@ -736,6 +748,9 @@ public partial class IslandWindow : Window
         ClocksTab.IsActive = false;
         FriendsTab.IsActive = false;
         HealthTab.IsActive = false;
+        MixerTab.IsActive = false;
+        ClipboardTab.IsActive = false;
+        NotesTab.IsActive = false;
         ControlTab.IsActive = false;
         SeasonLayer.Wake(open: false); // encore un moment, puis elles se figent
 
@@ -784,9 +799,13 @@ public partial class IslandWindow : Window
     {
         Tab.Calendar => IslandShape.Calendar,
         Tab.Control => new Size(IslandShape.Control.Width, IslandShape.Control.Height + (ControlTab.HasDevices ? IslandShape.DevicesRow : 0)), // + profils, appareils
-        Tab.Widgets or Tab.Shelf or Tab.Voice or Tab.Clocks or Tab.Friends => IslandShape.Panel,
+        Tab.Widgets => new Size(IslandShape.Panel.Width, IslandShape.Panel.Height + (WidgetsTab.HasPlugins ? PluginShape.IslandRow : 0)), // + widgets des potes
+        Tab.Shelf or Tab.Voice or Tab.Clocks or Tab.Friends => IslandShape.Panel,
         Tab.Claude => IslandShape.Claude,
         Tab.Health => IslandShape.Health,
+        Tab.Mixer => IslandShape.Mixer,
+        Tab.Clipboard => IslandShape.Clipboard,
+        Tab.Notes => IslandShape.Notes,
         _ => IslandShape.Music,
     };
 
@@ -813,6 +832,9 @@ public partial class IslandWindow : Window
         else if (sender == ClocksTabButton) SelectTab(Tab.Clocks);
         else if (sender == FriendsTabButton) SelectTab(Tab.Friends);
         else if (sender == HealthTabButton) SelectTab(Tab.Health);
+        else if (sender == MixerTabButton) SelectTab(Tab.Mixer);
+        else if (sender == ClipboardTabButton) SelectTab(Tab.Clipboard);
+        else if (sender == NotesTabButton) SelectTab(Tab.Notes);
     }
 
     private void SelectTab(Tab tab, bool animate = true)
@@ -829,11 +851,14 @@ public partial class IslandWindow : Window
         ClocksTabButton.IsChecked = tab == Tab.Clocks;
         FriendsTabButton.IsChecked = tab == Tab.Friends;
         HealthTabButton.IsChecked = tab == Tab.Health;
+        MixerTabButton.IsChecked = tab == Tab.Mixer;
+        ClipboardTabButton.IsChecked = tab == Tab.Clipboard;
+        NotesTabButton.IsChecked = tab == Tab.Notes;
         _syncingTabs = false;
         UpdateTabTitle();
 
         foreach (var (view, viewTab) in new (FrameworkElement, Tab)[]
-                 { (MusicTab, Tab.Music), (CalendarTab, Tab.Calendar), (ControlTab, Tab.Control), (WidgetsTab, Tab.Widgets), (ShelfTab, Tab.Shelf), (VoiceTab, Tab.Voice), (ClaudeTab, Tab.Claude), (ClocksTab, Tab.Clocks), (FriendsTab, Tab.Friends), (HealthTab, Tab.Health) })
+                 { (MusicTab, Tab.Music), (CalendarTab, Tab.Calendar), (ControlTab, Tab.Control), (WidgetsTab, Tab.Widgets), (ShelfTab, Tab.Shelf), (VoiceTab, Tab.Voice), (ClaudeTab, Tab.Claude), (ClocksTab, Tab.Clocks), (FriendsTab, Tab.Friends), (HealthTab, Tab.Health), (MixerTab, Tab.Mixer), (ClipboardTab, Tab.Clipboard), (NotesTab, Tab.Notes) })
         {
             bool visible = viewTab == tab;
             view.IsHitTestVisible = visible;
@@ -857,6 +882,9 @@ public partial class IslandWindow : Window
         ClocksTab.IsActive = _expanded && tab == Tab.Clocks;
         FriendsTab.IsActive = _expanded && tab == Tab.Friends;
         HealthTab.IsActive = _expanded && tab == Tab.Health && SnapshotFolder == null; // rendus : valeurs d'exemple
+        MixerTab.IsActive = _expanded && tab == Tab.Mixer && SnapshotFolder == null; // rendus : applis d'exemple, aucun volume lu
+        ClipboardTab.IsActive = _expanded && tab == Tab.Clipboard;
+        NotesTab.IsActive = _expanded && tab == Tab.Notes;
         if (_expanded) AnimateTo(ExpandedSize(tab), ExpandedRadius, Springs.Resize);
     }
 
@@ -866,7 +894,7 @@ public partial class IslandWindow : Window
         [Tab.Music] = ModuleGuard.MusicTab, [Tab.Calendar] = ModuleGuard.CalendarTab, [Tab.Control] = ModuleGuard.ControlTab,
         [Tab.Widgets] = ModuleGuard.WidgetsTab, [Tab.Shelf] = ModuleGuard.ShelfTab, [Tab.Voice] = ModuleGuard.Discord,
         [Tab.Claude] = ModuleGuard.Claude, [Tab.Clocks] = ModuleGuard.ClocksTab, [Tab.Health] = ModuleGuard.Health,
-        [Tab.Friends] = ModuleGuard.Friends,
+        [Tab.Friends] = ModuleGuard.Friends, [Tab.Mixer] = ModuleGuard.MixerTab, [Tab.Clipboard] = ModuleGuard.ClipboardTab, [Tab.Notes] = ModuleGuard.NotesTab,
     };
 
     private static bool TabStopped(Tab tab) => TabModules.TryGetValue(tab, out var module) && ModuleGuard.IsDisabled(module);
@@ -875,7 +903,7 @@ public partial class IslandWindow : Window
     [
         (MusicTabButton, Tab.Music), (CalendarTabButton, Tab.Calendar), (ControlTabButton, Tab.Control), (WidgetsTabButton, Tab.Widgets),
         (ShelfTabButton, Tab.Shelf), (VoiceTabButton, Tab.Voice), (ClaudeTabButton, Tab.Claude), (ClocksTabButton, Tab.Clocks),
-        (HealthTabButton, Tab.Health), (FriendsTabButton, Tab.Friends),
+        (HealthTabButton, Tab.Health), (FriendsTabButton, Tab.Friends), (MixerTabButton, Tab.Mixer), (ClipboardTabButton, Tab.Clipboard), (NotesTabButton, Tab.Notes),
     ];
 
     /// <summary>Onglets dont le module s'est arrêté : cachés ; l'onglet ouvert passe au premier qui marche encore.</summary>
@@ -900,6 +928,22 @@ public partial class IslandWindow : Window
         OpenClaude();
     }
 
+    /// <summary>
+    /// Case « Mélangeur » du dock (point 22) : l'île s'ouvre sur l'onglet Mélangeur et reste ouverte quelques secondes (la souris
+    /// est encore sur le dock), puis se referme comme d'habitude si on ne vient pas dessus. Onglet caché ou arrêté : rien.
+    /// </summary>
+    public void OpenMixer()
+    {
+        if (MixerTabButton.Visibility != Visibility.Visible) return;
+        if (_tab != Tab.Mixer) SelectTab(Tab.Mixer, animate: _expanded);
+        Expand();
+        if (!_expanded) return;
+        _claudePinnedUntil = DateTime.UtcNow + MixerPinTime; // même mécanisme que la réponse de Claude
+        _collapseDelay.Start();
+    }
+
+    private static readonly TimeSpan MixerPinTime = TimeSpan.FromSeconds(5);
+
     private void OpenClaude()
     {
         if (_tab != Tab.Claude) SelectTab(Tab.Claude, animate: _expanded);
@@ -919,7 +963,7 @@ public partial class IslandWindow : Window
         else
         {
             _claudePinnedUntil = DateTime.MinValue;
-            ShowNotice(Icons.Sparkles, Loc.T("claude.answered"), OpenClaude);
+            ShowNotice(Icons.Sparkles, Loc.F("claude.answered", ClaudeService.AssistantName), OpenClaude);
         }
     }
 
@@ -1073,6 +1117,13 @@ public partial class IslandWindow : Window
     }
 
     /// <summary>Points vert (webcam) / orange (micro) dans l'île réduite et dans l'en-tête de l'île ouverte.</summary>
+    /// <summary>« Ne pas déranger » actif : petite lune devant l'heure (île réduite et ouverte).</summary>
+    private void UpdateFocusIndicator()
+    {
+        var visibility = FocusService.DoNotDisturb ? Visibility.Visible : Visibility.Collapsed;
+        FocusMoon.Visibility = ExpandedFocusMoon.Visibility = visibility;
+    }
+
     private void UpdatePrivacyDots()
     {
         if (_cloaked) return; // 7A : île invisible (jeu, plein écran) : pas de lecture du registre ni des processus

@@ -22,6 +22,9 @@ public partial class SettingsWindow
         (IslandTabItem.Shelf, Icons.Shelf, "island.etagere"), (IslandTabItem.Voice, Icons.Voice, "island.vocal"),
         (IslandTabItem.Claude, Icons.Sparkles, ""), (IslandTabItem.Clocks, Icons.Clock, "island.clocks"),
         (IslandTabItem.Health, Icons.Health, "island.health"), (IslandTabItem.Friends, Icons.Friends, "island.friends"),
+        (IslandTabItem.Mixer, Icons.Mixer, "island.mixer"),
+        (IslandTabItem.Clipboard, Icons.Clipboard, "island.clipboard"),
+        (IslandTabItem.Notes, Icons.Notes, "island.notes"),
     ];
 
     private void ShowIslandLayout()
@@ -82,7 +85,7 @@ public partial class SettingsWindow
                 Text = info.Glyph, FontFamily = FontStack.Icons, FontSize = IconSize.M, Width = Sizes.Choice,
                 VerticalAlignment = VerticalAlignment.Center, Foreground = Paint.TextSecondary,
             };
-            var name = new TextBlock { Text = info.Label.Length > 0 ? Loc.T(info.Label) : "Claude", VerticalAlignment = VerticalAlignment.Center };
+            var name = new TextBlock { Text = info.Label.Length > 0 ? Loc.T(info.Label) : ClaudeService.AssistantName, VerticalAlignment = VerticalAlignment.Center };
             var up = MoveButton(Icons.ArrowUp, Loc.T("settings.island.tabs.up"), index > 0, () => MoveIslandTab(id, -1));
             var down = MoveButton(Icons.ArrowDown, Loc.T("settings.island.tabs.down"), index < items.Count - 1, () => MoveIslandTab(id, 1));
             var toggle = new CheckBox { Style = (Style)FindResource("SwitchToggle"), IsChecked = item.Visible, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(Space.S4, 0, 0, 0) };
@@ -174,6 +177,7 @@ public partial class SettingsWindow
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var name = new TextBlock { Text = rule.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = rule.Process + ".exe" };
             var island = BehaviorButton(Loc.F("settings.rules.island", BehaviorText(rule.Island)), choice =>
                 SettingsStore.Update(s => s.AppRules.First(r => r.Process == process).Island = choice));
@@ -189,14 +193,18 @@ public partial class SettingsWindow
                 SettingsStore.Update(s => s.AppRules.RemoveAll(r => r.Process == process));
                 ShowAppRules();
             };
+            var stage = StageRuleButton(rule.StageIgnore, ignore => SettingsStore.Update(s => s.AppRules.First(r => r.Process == process).StageIgnore = ignore));
             island.Margin = new Thickness(Space.S3, 0, 0, 0);
             dock.Margin = new Thickness(Space.S3, 0, 0, 0);
+            stage.Margin = new Thickness(Space.S3, 0, 0, 0);
             Grid.SetColumn(island, 1);
             Grid.SetColumn(dock, 2);
-            Grid.SetColumn(remove, 3);
+            Grid.SetColumn(stage, 3);
+            Grid.SetColumn(remove, 4);
             row.Children.Add(name);
             row.Children.Add(island);
             row.Children.Add(dock);
+            row.Children.Add(stage);
             row.Children.Add(remove);
             AppRulesList.Children.Add(row);
         }
@@ -212,6 +220,33 @@ public partial class SettingsWindow
             foreach (var choice in new[] { AppBehavior.Default, AppBehavior.Hide, AppBehavior.Show })
             {
                 var item = new MenuItem { Header = BehaviorText(choice) };
+                item.Click += (_, _) =>
+                {
+                    pick(choice);
+                    ShowAppRules();
+                };
+                menu.Items.Add(item);
+            }
+            menu.IsOpen = true;
+        };
+        return button;
+    }
+
+    /// <summary>Bouton « Stage : géré ▾ » (7G) : menu Géré / Ignorer (ses fenêtres ne sont jamais réduites ni déplacées).</summary>
+    private Button StageRuleButton(bool ignored, Action<bool> pick)
+    {
+        string Text(bool ignore) => Loc.T(ignore ? "settings.rules.stage.ignore" : "settings.rules.stage.managed");
+        var button = new Button
+        {
+            Style = (Style)FindResource("SettingsButton"), Content = Loc.F("settings.rules.stage_label", Text(ignored)) + "  ▾",
+            VerticalAlignment = VerticalAlignment.Center, ToolTip = Loc.T("settings.rules.stage.tooltip"),
+        };
+        button.Click += (_, _) =>
+        {
+            var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Bottom };
+            foreach (var choice in new[] { false, true })
+            {
+                var item = new MenuItem { Header = Text(choice), IsCheckable = true, IsChecked = choice == ignored };
                 item.Click += (_, _) =>
                 {
                     pick(choice);

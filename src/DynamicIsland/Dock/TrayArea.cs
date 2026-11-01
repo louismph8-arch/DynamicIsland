@@ -6,7 +6,9 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using DynamicIsland.Controls;
+using DynamicIsland.Settings;
 using DynamicIsland.Themes;
 using static DynamicIsland.Interop.DockNative;
 using static DynamicIsland.Interop.NativeMethods;
@@ -16,7 +18,8 @@ namespace DynamicIsland.Dock;
 
 /// <summary>
 /// Icônes d'arrière-plan (zone de notification) à droite du dock, sur deux lignes (une seule si la barre est trop fine).
-/// Survol, clics gauche/droit/double-clic sont transmis à l'appli propriétaire de l'icône.
+/// Survol, clics gauche/droit/double-clic sont transmis à l'appli propriétaire de l'icône. Une petite flèche en tête de zone
+/// les replie ou les déplie (réglage <c>Dock.TrayCollapsed</c>, partagé avec la flèche des icônes du bureau).
 /// </summary>
 public sealed class TrayArea : WrapPanel
 {
@@ -26,6 +29,9 @@ public sealed class TrayArea : WrapPanel
     private ObservableCollection<NotifyIcon>? _icons;
     private double _cell = DockShape.TrayCell;
     private int _rows = 2;
+    private readonly SquircleBorder _toggle;
+    private readonly RotateTransform _toggleTurn = new();
+    private bool _collapsed = SettingsStore.Current.Dock.TrayCollapsed;
 
     public TrayArea()
     {
@@ -33,6 +39,67 @@ public sealed class TrayArea : WrapPanel
         Height = _rows * _cell;
         Width = 0;
         VerticalAlignment = VerticalAlignment.Bottom;
+        _toggle = CreateToggle();
+        SettingsStore.Changed += () =>
+        {
+            bool collapsed = SettingsStore.Current.Dock.TrayCollapsed;
+            if (collapsed == _collapsed) return;
+            _collapsed = collapsed;
+            TurnToggle(animate: true);
+            Rebuild();
+        };
+        TurnToggle(animate: false);
+    }
+
+    /// <summary>Flèche en tête de zone (toute la hauteur d'une colonne) : vers la droite = icônes affichées, vers la gauche = repliées.</summary>
+    private SquircleBorder CreateToggle()
+    {
+        var glyph = new TextBlock
+        {
+            Text = Icons.ChevronRight,
+            FontFamily = FontStack.Icons,
+            FontSize = DockShape.TrayIcon,
+            Foreground = Paint.TextSecondary,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            RenderTransform = _toggleTurn,
+        };
+        var toggle = new SquircleBorder { CornerRadius = Corners.XS, Background = IdleBrush, Child = glyph };
+        toggle.MouseEnter += (_, _) =>
+        {
+            toggle.Background = HoverBrush;
+            HoverStarted?.Invoke(toggle, Loc.T(_collapsed ? "tray.expand" : "tray.collapse"));
+        };
+        toggle.MouseLeave += (_, _) =>
+        {
+            toggle.Background = IdleBrush;
+            HoverEnded?.Invoke(toggle);
+        };
+        toggle.MouseDown += (_, e) => e.Handled = true; // pas de déplacement du dock depuis la flèche
+        toggle.MouseUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (e.ChangedButton != MouseButton.Left) return;
+            HoverEnded?.Invoke(toggle);
+            SettingsStore.Update(s => s.Dock.TrayCollapsed = !s.Dock.TrayCollapsed);
+        };
+        return toggle;
+    }
+
+    private void TurnToggle(bool animate)
+    {
+        double angle = _collapsed ? 180 : 0;
+        if (!animate)
+        {
+            _toggleTurn.BeginAnimation(RotateTransform.AngleProperty, null);
+            _toggleTurn.Angle = angle;
+            return;
+        }
+        _toggleTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(angle, new Duration(Motion.Scale))
+        {
+            EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut },
+        });
     }
 
     /// <summary>
@@ -55,10 +122,20 @@ public sealed class TrayArea : WrapPanel
         _cell = cell;
         Height = rows * cell;
         foreach (var child in Children.OfType<FrameworkElement>()) child.Width = child.Height = cell;
+        SizeToggle();
         UpdateWidth();
     }
 
-    private void UpdateWidth() => Width = (Children.Count + _rows - 1) / _rows * _cell;
+    /// <summary>La flèche occupe une colonne entière (pleine hauteur), les icônes remplissent les colonnes suivantes.</summary>
+    private void SizeToggle()
+    {
+        _toggle.Width = _cell;
+        _toggle.Height = _rows * _cell;
+    }
+
+    private int IconCount => Children.Count - (Children.Contains(_toggle) ? 1 : 0);
+
+    private void UpdateWidth() => Width = (Children.Contains(_toggle) ? _cell : 0) + (IconCount + _rows - 1) / _rows * _cell;
 
     /// <summary>Survol d'une icône (élément à viser pour l'étiquette, nom de l'appli).</summary>
     public event Action<FrameworkElement, string>? HoverStarted;
@@ -67,6 +144,7 @@ public sealed class TrayArea : WrapPanel
     /// <summary>Le nombre d'icônes visibles a changé (le dock doit se remettre en page).</summary>
     public event Action? CountChanged;
 
+    /// <summary>Cases affichées (flèche comprise) : 0 = rien à droite du dock, pas de séparateur.</summary>
     public int VisibleCount => Children.Count;
 
     public void Attach(ObservableCollection<NotifyIcon> icons)
@@ -104,8 +182,14 @@ public sealed class TrayArea : WrapPanel
     {
         int before = Children.Count;
         Children.Clear();
-        if (_icons != null)
-            foreach (var icon in _icons.Where(i => !i.IsHidden)) Children.Add(CreateCell(icon));
+        var shown = _icons?.Where(i => !i.IsHidden).ToList() ?? [];
+        if (shown.Count > 0)
+        {
+            SizeToggle();
+            Children.Add(_toggle);
+            if (!_collapsed)
+                foreach (var icon in shown) Children.Add(CreateCell(icon));
+        }
 
         UpdateWidth();
         if (Children.Count != before) CountChanged?.Invoke();

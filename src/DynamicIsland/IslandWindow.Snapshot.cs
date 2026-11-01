@@ -85,9 +85,11 @@ public partial class IslandWindow
         ApplyGaming(false);
 
         ShowSampleClocks();
+        WidgetsTab.UseSampleData = true; // widgets des potes d'exemple en bas de l'onglet Widgets (7H) : rien n'est mesuré ni demandé
         FriendsTabButton.Visibility = Visibility.Visible; // amis d'exemple (rien n'est envoyé)
         FriendsTab.ShowSample(Settings.SettingsWindow.SampleFriends.Friends);
         HealthTab.ShowSample();
+        MixerTab.ShowSample(); // applis d'exemple : aucun volume n'est lu ni réglé
         ControlTab.ShowDevices( // appareils d'exemple (correctif urgent 8)
         [
             new(Services.DeviceListService.Kind.Headset, "PRO X 2 LIGHTSPEED", 80, null),
@@ -95,14 +97,36 @@ public partial class IslandWindow
             new(Services.DeviceListService.Kind.Mouse, "PRO Wireless", null, null),
             new(Services.DeviceListService.Kind.Storage, "Clé USB (E:)", null, "E:\\"),
         ]);
-        foreach (var (tab, name) in new[] { (Tab.Music, "1-musique"), (Tab.Calendar, "2-calendrier"), (Tab.Control, "3-controles"), (Tab.Widgets, "3b-widgets"), (Tab.Shelf, "3c-etagere"), (Tab.Voice, "3d-vocal"), (Tab.Claude, "3e-claude"), (Tab.Clocks, "3f-horloges"), (Tab.Friends, "3g-amis"), (Tab.Health, "3h-sante") })
+        foreach (var (tab, name) in new[] { (Tab.Music, "1-musique"), (Tab.Calendar, "2-calendrier"), (Tab.Control, "3-controles"), (Tab.Widgets, "3b-widgets"), (Tab.Shelf, "3c-etagere"), (Tab.Voice, "3d-vocal"), (Tab.Claude, "3e-claude"), (Tab.Clocks, "3f-horloges"), (Tab.Friends, "3g-amis"), (Tab.Health, "3h-sante"), (Tab.Mixer, "3i-melangeur"), (Tab.Clipboard, "3i-presse-papiers"), (Tab.Notes, "3m-notes") })
         {
             Expand();
             SelectTab(tab, animate: false);
             if (tab == Tab.Widgets) await Task.Delay(2500); // météo (réseau) + 2 mesures pour les pourcentages
             if (tab == Tab.Claude) ClaudeTab.ShowSample(); // conversation d'exemple : rien n'est demandé à Claude
+            if (tab == Tab.Clipboard) ClipboardTab.ShowSample(vault: false); // historique d'exemple : le vrai presse-papiers n'est pas lu
+            if (tab == Tab.Notes) NotesTab.ShowSample(); // notes d'exemple : notes.json n'est jamais lu
             FinishAnimations();
             await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, name + ".png"));
+            if (tab == Tab.Clipboard)
+            {
+                ClipboardTab.ShowSample(vault: true); // coffre d'exemple : le vrai coffre n'est jamais ouvert
+                FinishAnimations();
+                await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "3i-coffre.png"));
+            }
+            if (tab == Tab.Control)
+            {
+                // Concentration (7F) : Ne pas déranger et veilleuse allumés pour l'exemple (rien n'est changé dans Windows).
+                ControlTab.ShowFocusSample();
+                FocusMoon.Visibility = ExpandedFocusMoon.Visibility = Visibility.Visible;
+                FinishAnimations();
+                await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "3-controles-concentration.png"));
+                Collapse();
+                FinishAnimations();
+                await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "0c-ne-pas-deranger.png"));
+                ControlTab.RefreshFocus();
+                ControlTab.RefreshNightLight();
+                UpdateFocusIndicator();
+            }
             if (tab == Tab.Music)
             {
                 // Verre liquide : lumière (curseur simulé) en haut à droite de l'île.
@@ -155,6 +179,10 @@ public partial class IslandWindow
         ExpandedScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         ExpandedScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         ExpandedScale.ScaleX = ExpandedScale.ScaleY = _expanded ? 1 : 0.92;
+        // Onglet ouvert visible en entier dans la rangée (comme après le ressort dans l'app).
+        UpdateLayout();
+        TabButtons().First(t => t.Tab == _tab).Button.BringIntoView();
+        UpdateLayout();
 
         static void SetFinal(UIElement element, double opacity)
         {

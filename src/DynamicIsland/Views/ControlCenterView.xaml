@@ -13,7 +13,7 @@
     </Grid.RowDefinitions>
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*"/>
-      <ColumnDefinition Width="112"/>
+      <ColumnDefinition Width="{x:Static t:IslandShape.ControlTilesColumn}"/>
     </Grid.ColumnDefinitions>
 
     <StackPanel VerticalAlignment="Center" Margin="{ui:Space 0,0,s6,0}">
@@ -21,18 +21,61 @@
       <controls:FillSlider x:Name="BrightnessSlider" Label="Luminosité" Icon="{x:Static t:Icons.Brightness}" Margin="{ui:Space 0,s6,0,0}"/>
     </StackPanel>
 
-    <ToggleButton x:Name="DarkToggle" Grid.Column="1" Style="{StaticResource TileToggle}" Click="DarkToggle_Click">
-      <Grid>
-        <Grid.RowDefinitions>
-          <RowDefinition Height="*"/>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        <TextBlock Text="{x:Static t:Icons.DarkMode}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XXL}" VerticalAlignment="Top"/>
-        <TextBlock Grid.Row="1" Text="{ui:L controls.mode_sombre}" FontSize="{x:Static t:TypeRamp.Callout}" FontWeight="SemiBold"/>
-        <TextBlock x:Name="DarkStateText" Grid.Row="2" FontSize="{x:Static t:TypeRamp.Caption}" Opacity="{x:Static t:Interaction.SecondaryTextOpacity}" Margin="{ui:Space 0,px,0,0}"/>
+    <!-- Tuiles : mode sombre et veilleuse (petites), « Ne pas déranger » (large, avec le temps restant) — 7F -->
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions>
+        <RowDefinition/>
+        <RowDefinition/>
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition/>
+        <ColumnDefinition/>
+      </Grid.ColumnDefinitions>
+
+      <ToggleButton x:Name="DarkToggle" Style="{StaticResource TileToggle}" Margin="{ui:Space 0,0,s2,s2}" Click="DarkToggle_Click">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="{x:Static t:Icons.DarkMode}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.L}"/>
+          <TextBlock Text="{ui:L controls.mode_sombre}" FontSize="{x:Static t:TypeRamp.Footnote}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="{ui:Space 0,s2,0,0}"/>
+        </StackPanel>
+      </ToggleButton>
+
+      <ToggleButton x:Name="NightToggle" Grid.Column="1" Style="{StaticResource TileToggle}" Margin="{ui:Space s2,0,0,s2}"
+                    Click="NightToggle_Click" MouseRightButtonUp="NightToggle_RightClick">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="{x:Static t:Icons.NightLight}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.L}"/>
+          <TextBlock Text="{ui:L controls.nightlight}" FontSize="{x:Static t:TypeRamp.Footnote}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="{ui:Space 0,s2,0,0}"/>
+        </StackPanel>
+      </ToggleButton>
+
+      <!-- « Ne pas déranger » (large) + « Stage Manager » (7G, icône seule à droite) -->
+      <Grid Grid.Row="1" Grid.ColumnSpan="2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+      <ToggleButton x:Name="StageToggle" Grid.Column="1" Style="{StaticResource TileToggle}" Margin="{ui:Space s2,s2,0,0}"
+                    Width="{x:Static t:StageShape.ControlTile}" Click="StageToggle_Click" MouseRightButtonUp="StageToggle_RightClick">
+        <TextBlock Text="{x:Static t:Icons.Stage}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </ToggleButton>
+      <ToggleButton x:Name="FocusToggle" Style="{StaticResource TileToggle}" Margin="{ui:Space 0,s2,s2,0}"
+                    Click="FocusToggle_Click" MouseRightButtonUp="FocusToggle_RightClick">
+        <Grid VerticalAlignment="Center">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition/>
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}"
+                     VerticalAlignment="Center" Margin="{ui:Space 0,0,s5,0}"/>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Text="{ui:L controls.dnd}" FontSize="{x:Static t:TypeRamp.Footnote}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="FocusStateText" FontSize="{x:Static t:TypeRamp.Caption}" Opacity="{x:Static t:Interaction.SecondaryTextOpacity}"
+                       TextTrimming="CharacterEllipsis" Margin="{ui:Space 0,px,0,0}"/>
+          </StackPanel>
+        </Grid>
+      </ToggleButton>
       </Grid>
-    </ToggleButton>
+    </Grid>
 
     <!-- Profils : un clic change les apps du dock, la couleur d'accent et le fond d'écran -->
     <ScrollViewer Grid.Row="1" Grid.ColumnSpan="2" Margin="{ui:Space 0,s6,0,0}" VerticalAlignment="Top"

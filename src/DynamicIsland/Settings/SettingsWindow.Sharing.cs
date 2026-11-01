@@ -16,6 +16,11 @@ public partial class SettingsWindow
     /// <summary>Double-clic sur un thème (ou « Importer… ») : aperçu puis confirmation.</summary>
     public static void OpenImport(string path)
     {
+        if (DynamicIsland.Plugins.PluginStore.IsWidgetFile(path))
+        {
+            OpenWidgetImport(path); // widget des potes (7H) : aperçu dans la page Widgets
+            return;
+        }
         Open(SettingsPage.Sharing);
         _instance?.PreviewImport(path);
     }

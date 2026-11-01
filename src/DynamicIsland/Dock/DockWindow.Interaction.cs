@@ -409,7 +409,11 @@ public partial class DockWindow
             foreach (var monitor in monitors)
             {
                 var name = ScreenInfo.SettingName(monitor);
-                var entry = MenuEntry(monitor.Label, () => MoveDock(name, _settings.Edge, 0));
+                var entry = MenuEntry(monitor.Label, () =>
+                {
+                    StopFollowing(); // écran choisi à la main : le dock y va (et y revient quand il suit la souris)
+                    MoveDock(name, _settings.Edge, 0);
+                });
                 entry.IsChecked = _screen.Handle == monitor.Handle;
                 place.Items.Add(entry);
             }
@@ -424,6 +428,9 @@ public partial class DockWindow
         if (!IsBar && (_settings.Offset != 0 || _settings.Alignment != DockAlignment.Center))
             place.Items.Add(MenuEntry(Loc.T("dock.position.center"), () => MoveDock(_settings.Screen, _settings.Edge, 0, DockAlignment.Center)));
         place.Items.Add(new Separator());
+        var follow = MenuEntry(Loc.T("dock.position.follow"), () => SettingsStore.Update(s => s.Dock.FollowMouse = !s.Dock.FollowMouse));
+        follow.IsChecked = _settings.FollowMouse;
+        if (monitors.Count > 1) place.Items.Add(follow);
         var locked = MenuEntry(Loc.T("island.verrouiller_position"), () => SettingsStore.Update(s => s.Dock.LockPosition = !s.Dock.LockPosition));
         locked.IsChecked = _settings.LockPosition;
         place.Items.Add(locked);
@@ -484,7 +491,7 @@ public partial class DockWindow
         if (_live == null)
         {
             if (Math.Abs(cursor.X - press.X) < MoveThreshold && Math.Abs(cursor.Y - press.Y) < MoveThreshold) return true;
-            _live = (_settings.Screen, _settings.Edge, _settings.Offset, _settings.Alignment);
+            _live = (PlaceScreen, _settings.Edge, _settings.Offset, _settings.Alignment); // écran suivi compris
             _moveReleased = false;
             _previewDelay.Stop();
             HidePreview();
@@ -529,6 +536,7 @@ public partial class DockWindow
         // Dock flottant poussé contre un côté : il y reste posé (aligné à gauche / à droite), sinon centré avec son décalage.
         var side = IsBar ? _settings.Alignment : SnapSide(place.Offset, FloatingRoom());
         _live = null;
+        _follow = null; // déplacé à la main : cette place devient celle des réglages
         DockRoot.Opacity = 1;
         bool samePlace = place.Screen == _settings.Screen && place.Edge == _settings.Edge;
         MoveDock(place.Screen, place.Edge, side == DockAlignment.Center ? place.Offset : 0, side); // → OnSettingsChanged : nouvelle réservation si écran / bord changé

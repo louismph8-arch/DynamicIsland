@@ -26,7 +26,9 @@ public enum SettingsPage
     Profiles,
     Sharing,
     Connected,
+    Friends,
     Automations,
+    Week,
     About,
 }
 
@@ -66,12 +68,19 @@ public partial class SettingsWindow : Window
         RemoteControl.Changed += OnRemoteChanged;
         Services.Rgb.RgbService.Changed += ShowRgb;
         Services.Friends.FriendsService.Changed += OnFriendsChanged;
+        Services.NightLight.NightLightService.Changed += ShowFocus;
+        FocusService.Changed += ShowFocus;
+        DynamicIsland.Plugins.PluginStore.Changed += ShowPlugins; // widget des potes installé ou retiré
         Closed += (_, _) =>
         {
+            DynamicIsland.Plugins.PluginStore.Changed -= ShowPlugins;
+            Services.NightLight.NightLightService.Changed -= ShowFocus;
+            FocusService.Changed -= ShowFocus;
             RemoteControl.Changed -= OnRemoteChanged;
             Services.Rgb.RgbService.Changed -= ShowRgb;
             Services.Friends.FriendsService.Changed -= OnFriendsChanged;
             WatchFriends(false);
+            WatchWeek(false);
             ClosePairingOnExit();
             DiscordVoice.Changed -= ShowDiscordState;
             SettingsStore.Changed -= OnStoreChanged;
@@ -88,8 +97,11 @@ public partial class SettingsWindow : Window
         ShowAutoColors(); // couleurs du fond d'écran lues en arrière-plan, coordonnées de la ville trouvées…
         ShowWallpaperChoice();
         ShowPlacement(); // île ou dock déplacés en les faisant glisser
+        ShowFocus(); // veilleuse allumée depuis l'île, Ne pas déranger depuis la palette…
         if (ProfilesPage.Visibility == Visibility.Visible) LoadProfiles();
         if (AutomationsPage.Visibility == Visibility.Visible && _sampleRules == null) LoadAutomations(); // règle activée ailleurs, Ne pas déranger…
+        if (WeekPage.Visibility == Visibility.Visible) LoadWeek(); // suivi activé ou coupé ailleurs
+        if (WidgetsPage.Visibility == Visibility.Visible) ShowPlugins(); // widget des potes retiré du bureau par son menu…
     }
 
     /// <summary>Ouvre la fenêtre (ou la ramène devant), éventuellement sur une section précise.</summary>
@@ -118,7 +130,9 @@ public partial class SettingsWindow : Window
             SettingsPage.Profiles => NavProfiles,
             SettingsPage.Sharing => NavSharing,
             SettingsPage.Connected => NavConnected,
+            SettingsPage.Friends => NavFriends,
             SettingsPage.Automations => NavAutomations,
+            SettingsPage.Week => NavWeek,
             SettingsPage.About => NavAbout,
             _ => NavGeneral,
         };
@@ -127,13 +141,7 @@ public partial class SettingsWindow : Window
 
     private void Nav_Checked(object sender, RoutedEventArgs e)
     {
-        (RadioButton Nav, FrameworkElement Page)[] pages =
-        [
-            (NavGeneral, GeneralPage), (NavAppearance, AppearancePage), (NavWallpaper, WallpaperPage), (NavIsland, IslandPage), (NavDock, DockPage),
-            (NavWidgets, WidgetsPage), (NavProfiles, ProfilesPage), (NavSharing, SharingPage), (NavConnected, ConnectedPage), (NavAutomations, AutomationsPage),
-            (NavAbout, AboutPage),
-        ];
-        foreach (var (nav, page) in pages)
+        foreach (var (nav, page) in PageEntries)
             page.Visibility = nav.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         if (NavProfiles.IsChecked == true) LoadProfiles();
         if (NavIsland.IsChecked == true) ShowClaude();
@@ -141,8 +149,10 @@ public partial class SettingsWindow : Window
         if (NavWallpaper.IsChecked == true) _ = LoadWallpaperPageAsync();
         if (NavSharing.IsChecked == true) LoadSharing();
         if (NavAutomations.IsChecked == true) LoadAutomations();
+        if (NavWidgets.IsChecked == true) ShowPlugins();
+        WatchWeek(NavWeek.IsChecked == true); // « Ma semaine » : redessinée à chaque relevé tant qu'elle est ouverte
         if (NavConnected.IsChecked == true) ShowRemote();
-        WatchFriends(NavConnected.IsChecked == true); // liste relue plus souvent tant que la page est ouverte
+        WatchFriends(NavFriends.IsChecked == true); // liste relue plus souvent tant que la page est ouverte
         Scroller.ScrollToTop();
     }
 
@@ -169,6 +179,7 @@ public partial class SettingsWindow : Window
         VolumeHudToggle.IsChecked = settings.Island.VolumeHud;
         FollowMouseToggle.IsChecked = settings.Island.FollowMouse;
         DiscordToggle.IsChecked = settings.Discord.Enabled;
+        DiscordJoinToggle.IsChecked = settings.Discord.JoinNotices;
         ClaudeToggle.IsChecked = settings.Claude.Enabled;
         DiscordIdBox.Text = settings.Discord.ClientId;
         ShowDiscordState();
@@ -216,6 +227,7 @@ public partial class SettingsWindow : Window
         HideDesktopIconsToggle.IsChecked = settings.Dock.HideDesktopIcons;
         MagnificationSlider.Value = settings.Dock.Magnification;
         MinimizeEffectToggle.IsChecked = settings.Dock.MinimizeEffect;
+        DockFollowToggle.IsChecked = settings.Dock.FollowMouse;
         GamingToggle.IsChecked = settings.Gaming.Auto;
         AutoUpdateToggle.IsChecked = settings.Updates.CheckAutomatically;
 
@@ -271,6 +283,7 @@ public partial class SettingsWindow : Window
         ShowRgb();
         ShowFriends();
         SeasonsToggle.IsChecked = settings.Appearance.Seasons;
+        ShowFocus(); // veilleuse et Ne pas déranger (7F)
 
         UpdateValueTexts();
         _loading = false;
@@ -312,6 +325,8 @@ public partial class SettingsWindow : Window
             settings.Island.VolumeHud = VolumeHudToggle.IsChecked == true;
             settings.Island.FollowMouse = FollowMouseToggle.IsChecked == true;
             settings.Discord.Enabled = DiscordToggle.IsChecked == true;
+            settings.Discord.JoinNotices = DiscordJoinToggle.IsChecked == true;
+            settings.Stage.FillStage = StageFillToggle.IsChecked == true;
             settings.Claude.Enabled = ClaudeToggle.IsChecked == true;
             settings.Island.PomodoroFocusMinutes = RoundTo(FocusSlider.Value, 5);
             settings.Island.PomodoroBreakMinutes = RoundTo(BreakSlider.Value, 1);
@@ -340,6 +355,7 @@ public partial class SettingsWindow : Window
                 : CloseAccentOption.IsChecked == true ? PreviewCloseColor.Accent
                 : PreviewCloseColor.Gray;
             settings.Dock.HideTaskbar = HideTaskbarToggle.IsChecked == true;
+            settings.Dock.FollowMouse = DockFollowToggle.IsChecked == true;
             settings.Dock.ShowTrayIcons = TrayIconsToggle.IsChecked == true;
             bool hideIcons = HideDesktopIconsToggle.IsChecked == true;
             // La flèche de la zone d'état arrive avec l'option (on peut la retirer ensuite dans la liste « Zone d'état »).
@@ -626,6 +642,31 @@ public partial class SettingsWindow : Window
         bool islandError = settings.Island.Enabled && island.Length > 0 && GlobalHotkey.IslandError != null;
         IslandHotkeyStatus.Text = islandError ? GlobalHotkey.IslandError : Loc.T("settings.island.hotkey.help");
         IslandHotkeyStatus.Foreground = islandError ? Paint.Timer : Paint.TextSecondary;
+
+        var note = settings.Notes.Hotkey;
+        if (!NoteHotkeyBox.IsKeyboardFocused) NoteHotkeyBox.Text = note.Length > 0 ? Hotkeys.Display(note) : Loc.T("settings.island.hotkey.none");
+        bool noteError = note.Length > 0 && GlobalHotkey.NoteError != null;
+        NoteHotkeyStatus.Text = noteError ? GlobalHotkey.NoteError : Loc.T("settings.notes.hotkey.help");
+        NoteHotkeyStatus.Foreground = noteError ? Paint.Timer : Paint.TextSecondary;
+        NotesEncryptToggle.IsChecked = settings.Notes.Encrypt;
+
+        StageModeToggle.IsChecked = settings.Stage.Enabled;
+        StageFillToggle.IsChecked = settings.Stage.FillStage;
+        StageModeToggle.IsEnabled = !App.SafeMode;
+        var stage = settings.Stage.Hotkey;
+        if (!StageHotkeyBox.IsKeyboardFocused) StageHotkeyBox.Text = stage.Length > 0 ? Hotkeys.Display(stage) : Loc.T("settings.island.hotkey.none");
+        bool stageError = stage.Length > 0 && GlobalHotkey.StageError != null;
+        StageHotkeyStatus.Text = stageError ? GlobalHotkey.StageError : Loc.T("settings.stage.hotkey.help");
+        StageHotkeyStatus.Foreground = stageError ? Paint.Timer : Paint.TextSecondary;
+    }
+
+    private void DefaultNoteHotkey_Click(object sender, RoutedEventArgs e) =>
+        SettingsStore.Update(s => s.Notes.Hotkey = Hotkeys.DefaultNote);
+
+    private void NotesEncryptToggle_Click(object sender, RoutedEventArgs e)
+    {
+        bool encrypt = NotesEncryptToggle.IsChecked == true;
+        SettingsStore.Update(s => s.Notes.Encrypt = encrypt); // NotesService réécrit le fichier dans le nouveau format
     }
 
     private void HotkeyBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -654,6 +695,18 @@ public partial class SettingsWindow : Window
             Keyboard.ClearFocus(); // annule : l'ancien raccourci revient
             return;
         }
+        if (box == NoteHotkeyBox && key is Key.Delete or Key.Back && modifiers == ModifierKeys.None)
+        {
+            SettingsStore.Update(s => s.Notes.Hotkey = ""); // aucun raccourci « Nouvelle note »
+            Keyboard.ClearFocus();
+            return;
+        }
+        if (box == StageHotkeyBox && key is Key.Delete or Key.Back && modifiers == ModifierKeys.None)
+        {
+            SettingsStore.Update(s => s.Stage.Hotkey = ""); // aucun raccourci pour Stage Manager
+            Keyboard.ClearFocus();
+            return;
+        }
         if (box == IslandHotkeyBox && key is Key.Delete or Key.Back && modifiers == ModifierKeys.None)
         {
             SettingsStore.Update(s => s.Island.ToggleHotkey = ""); // aucun raccourci pour l'île
@@ -673,6 +726,8 @@ public partial class SettingsWindow : Window
         var gesture = Hotkeys.Format(modifiers, key);
         if (box == RevealHotkeyBox) SettingsStore.Update(s => s.Dock.RevealHotkey = gesture);
         else if (box == IslandHotkeyBox) SettingsStore.Update(s => s.Island.ToggleHotkey = gesture);
+        else if (box == NoteHotkeyBox) SettingsStore.Update(s => s.Notes.Hotkey = gesture);
+        else if (box == StageHotkeyBox) SettingsStore.Update(s => s.Stage.Hotkey = gesture);
         else SettingsStore.Update(s => s.Palette.Hotkey = gesture);
         Keyboard.ClearFocus(); // le nouveau raccourci est enregistré en quittant la case
     }
@@ -718,20 +773,39 @@ public partial class SettingsWindow : Window
         var window = new SettingsWindow { ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -30000, Top = 0 };
         ((Grid)window.Content).Background = window.Background; // le fond de la fenêtre n'est pas dans le contenu
         window.Show();
-        foreach (var page in new[] { SettingsPage.General, SettingsPage.Appearance, SettingsPage.Wallpaper, SettingsPage.Island, SettingsPage.Dock, SettingsPage.Widgets, SettingsPage.Profiles, SettingsPage.Sharing, SettingsPage.Connected, SettingsPage.Automations, SettingsPage.About })
+        foreach (var page in new[] { SettingsPage.General, SettingsPage.Appearance, SettingsPage.Wallpaper, SettingsPage.Island, SettingsPage.Dock, SettingsPage.Widgets, SettingsPage.Profiles, SettingsPage.Sharing, SettingsPage.Connected, SettingsPage.Friends, SettingsPage.Automations, SettingsPage.Week, SettingsPage.About })
         {
             window.ShowPage(page);
+            if (page == SettingsPage.Friends) window.ShowFriendsSample(); // serveur, amis, demandes et bloqué d'exemple (rien n'est envoyé)
             if (page == SettingsPage.Connected)
             {
                 window.ShowRemoteSample(); // QR et téléphone d'exemple (rien n'écoute)
-                window.ShowFriendsSample();
                 if (window.RemoteQr.Source is System.Windows.Media.Imaging.BitmapSource qr)
                     File.WriteAllBytes(Path.Combine(folder, "7-qr-telecommande.png"), OpalineLogo.Png(qr)); // à décoder pour vérifier
             }
             if (page == SettingsPage.Wallpaper) await window.LoadWallpaperPageAsync(); // vignettes dessinées
             if (page == SettingsPage.Automations) window.ShowAutomationsSample(); // règles d'exemple (rien n'est écrit)
+            if (page == SettingsPage.Week) window.ShowWeekSample(); // deux semaines inventées, en mémoire
+            if (page == SettingsPage.Widgets) window.ShowPluginsSample(); // widgets des potes d'exemple, en mémoire (7H)
             await SnapshotRenderer.SaveAsync(window, Path.Combine(folder, $"7-parametres-{page.ToString().ToLowerInvariant()}.png"));
-            if (page == SettingsPage.Island) await window.SnapshotScrolledAsync(window.TimerGroupTitle, Path.Combine(folder, "7-parametres-island-minuteur.png"));
+            if (page == SettingsPage.Week && window.WeekAppsTitle is { } weekApps) await window.SnapshotScrolledAsync(weekApps, Path.Combine(folder, "7-parametres-week-2.png"));
+            if (page == SettingsPage.Connected) await window.SnapshotScrolledAsync(window.RgbGroupTitle, Path.Combine(folder, "7-parametres-connected-rgb.png"));
+            if (page == SettingsPage.Widgets)
+            {
+                await window.SnapshotScrolledAsync(window.PluginsGroupTitle, Path.Combine(folder, "7-parametres-widgets-potes.png"));
+                await window.SnapshotScrolledAsync(window.PluginList, Path.Combine(folder, "7-parametres-widgets-potes-2.png"));
+            }
+            if (page == SettingsPage.Appearance) await window.SnapshotScrolledAsync(window.FocusGroupTitle, Path.Combine(folder, "7-parametres-appearance-concentration.png"));
+            if (page == SettingsPage.Island)
+            {
+                await window.SnapshotScrolledAsync(window.TimerGroupTitle, Path.Combine(folder, "7-parametres-island-minuteur.png"));
+                await window.SnapshotScrolledAsync(window.AssistantGroupTitle, Path.Combine(folder, "7-parametres-island-assistant.png"));
+            }
+            if (page == SettingsPage.Friends)
+            {
+                await window.SnapshotScrolledAsync(window.FriendsRequestsGroup, Path.Combine(folder, "7-parametres-friends-2.png"));
+                await window.SnapshotScrolledAsync(window.FriendsBlockedGroup, Path.Combine(folder, "7-parametres-friends-3.png"));
+            }
             if (page == SettingsPage.Dock)
             {
                 // Page longue : la suite, écran par écran (aperçus, icônes du bureau, zone d'état…).
@@ -745,6 +819,11 @@ public partial class SettingsWindow : Window
                 scroller.ScrollToTop();
             }
         }
+        // Hauteur minimale : toute la barre de navigation doit rester visible (12 boutons depuis la page Amis).
+        window.Height = window.MinHeight;
+        window.ShowPage(SettingsPage.General);
+        window.UpdateLayout();
+        await SnapshotRenderer.SaveAsync(window, Path.Combine(folder, "7-parametres-hauteur-min.png"));
         window.Close();
     }
 

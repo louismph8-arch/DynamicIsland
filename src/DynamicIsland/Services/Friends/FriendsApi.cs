@@ -10,15 +10,38 @@ using System.Text.Json.Nodes;
 namespace DynamicIsland.Services.Friends;
 
 /// <param name="Status">« online », « game » ou « offline ».</param>
-public sealed record Friend(string Code, string Name, string Status, string? Game)
+/// <param name="Since">Depuis quand l'ami est en ligne / dans ce jeu (serveur version 3 ; null sinon).</param>
+public sealed record Friend(string Code, string Name, string Status, string? Game, DateTimeOffset? Since = null)
 {
     public bool Online => Status is "online" or "game";
     public string Display => Name.Length > 0 ? Name : FriendsApi.FormatCode(Code);
 }
 
-public sealed record FriendLists(IReadOnlyList<Friend> Friends, IReadOnlyList<Friend> Incoming, IReadOnlyList<Friend> Outgoing)
+/// <param name="Blocked">Personnes bloquées.</param>
+/// <param name="Extended">Le serveur connaît le blocage et les messages rapides (version 3 ou plus).</param>
+public sealed record FriendLists(IReadOnlyList<Friend> Friends, IReadOnlyList<Friend> Incoming, IReadOnlyList<Friend> Outgoing,
+    IReadOnlyList<Friend> Blocked, bool Extended)
 {
-    public static readonly FriendLists Empty = new([], [], []);
+    public static readonly FriendLists Empty = new([], [], [], [], false);
+}
+
+/// <summary>Message rapide reçu d'un ami (identifiant de la liste fermée, voir <see cref="QuickMessages"/>).</summary>
+public sealed record FriendMessage(string Code, string Name, string Message, DateTimeOffset At)
+{
+    public string Display => Name.Length > 0 ? Name : FriendsApi.FormatCode(Code);
+}
+
+/// <summary>
+/// Messages rapides (correctif 24) : liste FERMÉE, la même que celle du serveur (QUICK_MESSAGES dans worker.js). Seul
+/// l'identifiant voyage ; chaque Opaline l'affiche dans sa langue. Jamais de texte libre (l'île ne prend pas le clavier).
+/// </summary>
+public static class QuickMessages
+{
+    public static readonly string[] Ids = ["play", "available", "join", "later"];
+
+    public static bool IsKnown(string id) => Ids.Contains(id);
+
+    public static string Text(string id) => IsKnown(id) ? Loc.T("friends.message." + id) : id;
 }
 
 /// <summary>Compte de ce PC sur le serveur des amis : code d'ami + secret (chiffrés par Windows, DPAPI).</summary>
@@ -169,8 +192,44 @@ public static class FriendsApi
         var json = await SendAsync(HttpMethod.Get, account.Server, "/friends", account, null);
         static List<Friend> Read(JsonNode? list) => (list?.AsArray() ?? []).Select(f => new Friend(
             f!["code"]!.GetValue<string>(), f["name"]?.GetValue<string>() ?? "",
-            f["status"]?.GetValue<string>() ?? "offline", f["game"]?.GetValue<string>())).ToList();
-        return new FriendLists(Read(json["friends"]), Read(json["incoming"]), Read(json["outgoing"]));
+            f["status"]?.GetValue<string>() ?? "offline", f["game"]?.GetValue<string>(), Time(f["since"]))).ToList();
+        // « blocked » n'existe qu'à partir de la version 3 du serveur.
+        return new FriendLists(Read(json["friends"]), Read(json["incoming"]), Read(json["outgoing"]), Read(json["blocked"]), json["blocked"] is JsonArray);
+    }
+
+    /// <summary>Heure envoyée par le serveur (millisecondes depuis 1970), null si absente.</summary>
+    private static DateTimeOffset? Time(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue<double>(out var ms) && ms > 0 ? DateTimeOffset.FromUnixTimeMilliseconds((long)ms) : null;
+
+    /// <summary>Bloquer (version 3) : liens coupés, plus de présence, de demande ni de message de cette personne.</summary>
+    public static Task BlockAsync(FriendsAccount account, string code) =>
+        SendAsync(HttpMethod.Post, account.Server, "/friends/block", account, new JsonObject { ["code"] = code });
+
+    public static Task UnblockAsync(FriendsAccount account, string code) =>
+        SendAsync(HttpMethod.Post, account.Server, "/friends/unblock", account, new JsonObject { ["code"] = code });
+
+    /// <summary>Message rapide à un ami mutuel : null si envoyé, sinon la raison (« not_friend », « too_many », « message »…).</summary>
+    public static async Task<string?> SendMessageAsync(FriendsAccount account, string code, string message)
+    {
+        try
+        {
+            await SendAsync(HttpMethod.Post, account.Server, "/messages/send", account, new JsonObject { ["code"] = code, ["message"] = message });
+            return null;
+        }
+        catch (FriendsRefusedException ex)
+        {
+            return ex.Reason;
+        }
+    }
+
+    /// <summary>Mes messages en attente (le serveur les efface dès qu'il les a donnés).</summary>
+    public static async Task<IReadOnlyList<FriendMessage>> ReadMessagesAsync(FriendsAccount account)
+    {
+        var json = await SendAsync(HttpMethod.Get, account.Server, "/messages", account, null);
+        return (json["messages"]?.AsArray() ?? []).Select(m => new FriendMessage(
+                m!["code"]!.GetValue<string>(), m["name"]?.GetValue<string>() ?? "", m["message"]?.GetValue<string>() ?? "",
+                Time(m["at"]) ?? DateTimeOffset.UtcNow))
+            .Where(m => QuickMessages.IsKnown(m.Message)).ToList();
     }
 
     /// <summary>Ajoute (ou accepte) : null si c'est fait, sinon la raison (« unknown », « code », « full »).</summary>

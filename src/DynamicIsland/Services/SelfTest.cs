@@ -29,7 +29,8 @@ internal static partial class SelfTest
             Run(lines, "Fond d'écran d'origine (désinstallation)", () => WallpaperRestore(lines));
             Run(lines, "Batterie", () => Battery(lines));
             Run(lines, "Mini Claude : messages d'erreur", () => ClaudeErrors(lines));
-            Run(lines, "Mini Claude : moteur clé API (sans vraie clé)", () => ClaudeApi(lines));
+            Run(lines, "Mini assistant : clés API Anthropic et OpenAI (sans vraie clé)", () => ClaudeApi(lines));
+            Run(lines, "Mini assistant : ChatGPT par Codex (sans rien demander)", () => Codex(lines));
             Run(lines, "Langues (français / anglais)", () => Languages(lines));
             Run(lines, "Module qui plante : à qui est l'erreur", () => ModuleOwners(lines));
             Run(lines, "Sauvegardes des réglages", () => Backups(lines));
@@ -40,15 +41,24 @@ internal static partial class SelfTest
             Run(lines, "Éclairage RGB (G HUB cherché, OpenRGB simulé)", () => Rgb(lines));
             Run(lines, "Amis en ligne", () => Friends(lines));
             Run(lines, "Santé du PC (lecture seule)", () => Health(lines));
+            Run(lines, "Mélangeur de volume (lecture seule)", () => Mixer(lines));
+            Run(lines, "Presse-papiers et coffre (en mémoire, sans toucher au vrai presse-papiers)", () => ClipboardAndVault(lines));
+            Run(lines, "Notes et texte ajouté au presse-papiers (en mémoire / dossier temporaire)", () => NotesAndClipText(lines));
             Run(lines, "Thèmes saisonniers", () => Seasons(lines));
             Run(lines, "Bêta : versions, canal, avis, nouveautés", () => Beta(lines));
             Run(lines, "Automatisations", () => Automations(lines));
+            Run(lines, "Ma semaine : statistiques locales", () => Stats(lines));
             Run(lines, "Correctifs urgents", () => Urgent(lines));
             Run(lines, "Priorité 2 : île et paramètres", () => Island2(lines));
             Run(lines, "Priorité 2 : réseau, météo, minuteur", () => Comfort(lines));
             Run(lines, "Priorité 2 : dock (alignement, petites tailles) et icônes du bureau (lecture seule)", () => Dock2(lines));
+            Run(lines, "Dock : suivre l'écran de la souris (écrans simulés)", () => DockFollowMouse(lines));
+            Run(lines, "Concentration : Ne pas déranger et veilleuse (faux écrans, vrais écrans lus seulement)", () => Focus(lines));
+            Run(lines, "Stage Manager (écrans simulés, aucune vraie fenêtre touchée)", () => StageManagerTest(lines));
+            Run(lines, "Widgets des potes : lecture, fichiers piégés, gabarits, source web (sans réseau)", () => PluginsPure(lines));
         });
         Run(lines, "Curseur de souris", () => Cursor(lines)); // dessin WPF : sur le thread de l'interface
+        Run(lines, "Widgets des potes : rendu protégé", () => PluginsRender(lines)); // contrôles WPF : thread de l'interface
         lines.Add("");
         lines.Add("== Télécommande : aller-retour HTTP sur 127.0.0.1 (faux état)");
         try
@@ -457,7 +467,7 @@ internal static partial class SelfTest
             new() { Id = Dock.StatusItem.Trash, Visible = false }, new() { Id = "inconnu" }, new() { Id = Dock.StatusItem.Trash }, new() { Id = Dock.StatusItem.Keyboard },
         };
         var fixedList = Dock.StatusItem.NormalizeList(messy);
-        Check(lines, string.Join(",", fixedList.Select(i => i.Id)) == "trash,keyboard,updates,downloads,desktop" && !fixedList[0].Visible,
+        Check(lines, string.Join(",", fixedList.Select(i => i.Id)) == "trash,keyboard,updates,downloads,desktop,power,mixer" && !fixedList[0].Visible,
             "réglages : ordre gardé, doublon et inconnu retirés, éléments manquants ajoutés à la fin");
 
         var layouts = KeyboardLayoutService.Installed();

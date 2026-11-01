@@ -1,13 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <!-- La version Windows dans le TFM donne accès aux API WinRT (contrôles média). -->
+    <!-- La version Windows dans le TFM donne accÃ¨s aux API WinRT (contrÃ´les mÃ©dia). -->
     <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
-    <!-- ManagedShell (zone de notification) utilise System.Windows.Forms : sans ça, la version publiée
-         (autonome) ne l'embarque pas et l'arrêt de la zone de notification échoue. -->
+    <!-- ManagedShell (zone de notification) utilise System.Windows.Forms : sans Ã§a, la version publiÃ©e
+         (autonome) ne l'embarque pas et l'arrÃªt de la zone de notification Ã©choue. -->
     <UseWindowsForms>true</UseWindowsForms>
     <!-- WFO0003 vise les apps WinForms (DPI via Application.SetHighDpiMode) : le manifeste reste la bonne place pour WPF. -->
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
@@ -17,38 +17,43 @@
     <AssemblyName>DynamicIsland</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <!-- Nom affiché (5H) ; l'exe et les dossiers gardent « DynamicIsland » (voir AppInfo.cs). -->
+    <!-- Nom affichÃ© (5H) ; l'exe et les dossiers gardent Â« DynamicIsland Â» (voir AppInfo.cs). -->
     <Product>Opaline</Product>
     <AssemblyTitle>Opaline</AssemblyTitle>
-    <Version>1.28.0</Version>
+    <Version>1.31.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="13.3.0" />
     <PackageReference Include="ManagedShell" Version="0.0.374" />
-    <!-- Pas de « using » implicite de WinForms : ses types (Application, Button…) entreraient en conflit avec WPF. -->
+    <!-- Pas de Â« using Â» implicite de WinForms : ses types (Application, Buttonâ€¦) entreraient en conflit avec WPF. -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
   </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
-    <!-- Icônes de l'interface : police Lucide (licence ISC, copiée à côté de l'exe) -->
+    <!-- IcÃ´nes de l'interface : police Lucide (licence ISC, copiÃ©e Ã  cÃ´tÃ© de l'exe) -->
     <Resource Include="Assets\Fonts\lucide.ttf" />
-    <!-- Verre liquide : shader compilé par tools\compile-shaders.ps1 (la source .fx reste à côté) -->
+    <!-- Verre liquide : shader compilÃ© par tools\compile-shaders.ps1 (la source .fx reste Ã  cÃ´tÃ©) -->
     <Resource Include="Themes\Shaders\LiquidGlass.ps" />
     <Resource Include="Themes\Shaders\AnimatedAurora.ps" />
     <None Include="Assets\Fonts\LICENSE-lucide.txt" CopyToOutputDirectory="PreserveNewest" />
-    <!-- Fichiers de langue (6A) : clé → texte, lus par Loc -->
+    <!-- Fichiers de langue (6A) : clÃ© â†’ texte, lus par Loc -->
     <EmbeddedResource Include="Localization\fr.json" LogicalName="DynamicIsland.Localization.fr.json" />
     <EmbeddedResource Include="Localization\en.json" LogicalName="DynamicIsland.Localization.en.json" />
-    <!-- Page du téléphone pour la télécommande (6D), servie par Services/Remote -->
+    <!-- Page du tÃ©lÃ©phone pour la tÃ©lÃ©commande (6D), servie par Services/Remote -->
     <EmbeddedResource Include="Services\Remote\RemotePage.html" LogicalName="DynamicIsland.Remote.RemotePage.html" />
-    <!-- Code du serveur « Amis en ligne » (6D-4), copié depuis les paramètres pour être collé dans Cloudflare -->
+    <!-- Code du serveur Â« Amis en ligne Â» (6D-4), copiÃ© depuis les paramÃ¨tres pour Ãªtre collÃ© dans Cloudflare -->
     <EmbeddedResource Include="..\..\server\amis\worker.js" LogicalName="DynamicIsland.Friends.worker.js" />
-    <!-- Écran « Nouveautés » (7C) : notes de CETTE version (notes/vX.Y.Z.md, et .en.md en anglais s'il existe) -->
+    <!-- Ã‰cran Â« NouveautÃ©s Â» (7C) : notes de CETTE version (notes/vX.Y.Z.md, et .en.md en anglais s'il existe) -->
     <EmbeddedResource Include="..\..\notes\v$(Version).md" LogicalName="DynamicIsland.WhatsNew.fr.md" WithCulture="false" Condition="Exists('..\..\notes\v$(Version).md')" />
     <EmbeddedResource Include="..\..\notes\v$(Version).en.md" LogicalName="DynamicIsland.WhatsNew.en.md" WithCulture="false" Condition="Exists('..\..\notes\v$(Version).en.md')" />
+    <!-- Widgets des potes (7H) : modele, exemples et doc copies par Creer un widget -->
+    <EmbeddedResource Include="..\..\examples\widgets\modele.opalinewidget" LogicalName="DynamicIsland.Widgets.modele.opalinewidget" />
+    <EmbeddedResource Include="..\..\examples\widgets\horloge-meteo.opalinewidget" LogicalName="DynamicIsland.Widgets.horloge-meteo.opalinewidget" />
+    <EmbeddedResource Include="..\..\examples\widgets\compteur-bitcoin.opalinewidget" LogicalName="DynamicIsland.Widgets.compteur-bitcoin.opalinewidget" />
+    <EmbeddedResource Include="..\..\docs\widgets.md" LogicalName="DynamicIsland.Widgets.doc.md" WithCulture="false" />
   </ItemGroup>
 
 </Project>

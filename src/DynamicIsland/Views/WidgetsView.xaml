@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:t="clr-namespace:DynamicIsland.Themes"
         xmlns:ui="clr-namespace:DynamicIsland.Controls"
-             Width="{x:Static t:IslandShape.ContentWidth}" Height="128">
+             Width="{x:Static t:IslandShape.ContentWidth}" Height="{x:Static t:IslandShape.WidgetsContentHeight}">
   <UserControl.Resources>
     <Style x:Key="Tile" TargetType="Border">
       <Setter Property="Background" Value="{x:Static t:Paint.Surface}"/>
@@ -36,6 +36,18 @@
   </UserControl.Resources>
 
   <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="{x:Static t:IslandShape.WidgetsContentRow}"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <!-- Widgets des potes (7H) : en bas, à la suite (la rangée défile s'ils ne tiennent pas tous) -->
+    <ScrollViewer x:Name="PluginScroller" Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                  Focusable="False" Visibility="Collapsed" Margin="{ui:Space 0,s4,0,0}" PreviewMouseWheel="PluginScroller_PreviewMouseWheel">
+      <ScrollViewer.Resources>
+        <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinScrollBar}"/>
+      </ScrollViewer.Resources>
+      <StackPanel x:Name="PluginStrip" Orientation="Horizontal"/>
+    </ScrollViewer>
     <Grid x:Name="ContentGrid">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto"/>

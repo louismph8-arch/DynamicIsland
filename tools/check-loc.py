@@ -34,7 +34,10 @@ for folder, _, files in os.walk(ROOT):
                     if key.startswith(prefix):
                         used.setdefault(key, path)
             # Clés rangées dans des tableaux et traduites plus loin (modèles de Claude, pastilles, icônes de profil).
-            for key in re.findall(r'"((?:claude\.model|swatch|icon)\.[a-z_]+)"', source):
+            for key in re.findall(r'"((?:claude\.model|openai\.model|swatch|icon)\.[a-z_]+)"', source):
+                used.setdefault(key, path)
+            # Messages des widgets des potes refusés (7H) : new WidgetPackageException("plugins.error.…", …) → Loc.F plus loin.
+            for key in re.findall(r'WidgetPackageException\(\s*"([a-z][a-z0-9_.]+)"', source):
                 used.setdefault(key, path)
 
 missing_fr = sorted(k for k in used if k not in fr)

@@ -210,7 +210,7 @@
         <ControlTemplate TargetType="TextBox">
           <ui:SquircleBorder x:Name="Bd" Background="{x:Static t:Paint.Control}" BorderBrush="{x:Static t:Paint.Selected}"
                              BorderThickness="{x:Static t:Borders.Hairline}" CornerRadius="{x:Static t:Corners.S}" Padding="{ui:Space s4,0}">
-            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
           </ui:SquircleBorder>
           <ControlTemplate.Triggers>
             <Trigger Property="IsKeyboardFocused" Value="True">

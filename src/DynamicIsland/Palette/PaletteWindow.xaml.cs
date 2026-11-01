@@ -44,7 +44,9 @@ public partial class PaletteWindow : Window
         _glass = new LiquidGlass(Card, () => Card.CornerRadius.TopLeft);
         Closed += (_, _) => _glass.Detach();
         _actions = new PaletteActions(duration => _island?.StartTimer(duration), () => _island?.StartPomodoro(),
-            question => _island?.AskClaude(question), id => _island?.Surprise(id));
+            question => _island?.AskClaude(question), id => _island?.Surprise(id),
+            vault => _island?.OpenClipboard(vault), (glyph, text) => _island?.ShowNotice(glyph, text, duration: TimeSpan.FromSeconds(3)),
+            () => _island?.OpenNotes());
         SourceInitialized += (_, _) =>
         {
             // Ni barre des tâches ni Alt+Tab, mais activable (on doit pouvoir taper).

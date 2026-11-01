@@ -11,7 +11,7 @@ param(
 # Pas de 'Stop' : git et gh écrivent leur progression sur stderr (PowerShell 5 la prendrait pour une erreur).
 $ErrorActionPreference = 'Continue'
 $root = Split-Path $PSScriptRoot -Parent
-$excluded = @('CLAUDE.md', '.github/*', 'public/*')
+$excluded = @('CLAUDE.md', 'REPRISE.md', '.github/*', 'public/*') # REPRISE.md = notes de reprise entre sessions, comme CLAUDE.md
 
 if (-not (Test-Path (Join-Path $Target '.git'))) {
     gh repo clone louismph8-arch/DynamicIsland $Target

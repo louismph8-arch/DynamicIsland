@@ -113,6 +113,14 @@ public static partial class BugReport
         if (root["Timer"] is JsonObject timer && timer["CustomFile"] != null) timer["CustomFile"] = "(un fichier)"; // chemin perso du son de fin
         if (root["Discord"] is JsonObject discord) discord.Remove("ClientId");
         if (root["Remote"] is JsonObject remote && remote["Devices"] is JsonArray phones) remote["Devices"] = $"{phones.Count} appareils";
+        // Amis en ligne : ni pseudo, ni adresse du serveur, ni codes d'amis (seulement leur nombre).
+        if (root["Friends"] is JsonObject friends)
+        {
+            if (friends["Name"] != null) friends["Name"] = "(un pseudo)";
+            if (friends["Server"] is JsonValue server && server.ToString().Length > 0) friends["Server"] = "(un serveur)";
+            if (friends["Muted"] is JsonArray muted) friends["Muted"] = $"{muted.Count} amis";
+            if (friends["Blocked"] is JsonArray blocked) friends["Blocked"] = $"{blocked.Count} personnes";
+        }
         // Automatisations (7D) : on garde la forme des règles (déclencheur, actions), pas les noms, applis, dossiers ni images.
         if (root["Automations"] is JsonObject automations && automations["Rules"] is JsonArray rules)
             foreach (var rule in rules.OfType<JsonObject>())
@@ -164,7 +172,9 @@ public static partial class BugReport
         text.AppendLine($"  fond dynamique {On(settings.Wallpaper.Dynamic)} · fond animé {On(settings.Wallpaper.Animated)} · verre liquide {On(settings.Appearance.LiquidGlass)}");
         text.AppendLine($"  accent du fond {On(settings.Appearance.AccentFromWallpaper)} · accent Windows {On(settings.Appearance.SyncWindowsAccent)} · thème auto {On(settings.Appearance.AutoTheme)} · curseur {On(settings.Appearance.ThemedCursor)}");
         text.AppendLine($"  télécommande {On(settings.Remote.Enabled)} ({settings.Remote.Devices.Count} téléphone(s)) · éclairage RGB {On(settings.Rgb.Enabled)}");
-        text.AppendLine($"  Discord {On(settings.Discord.Enabled)} · mini Claude {On(settings.Claude.Enabled)} ({settings.Claude.Model}) · mode Gaming auto {On(settings.Gaming.Auto)}");
+        text.AppendLine($"  Discord {On(settings.Discord.Enabled)} · mini assistant {On(settings.Claude.Enabled)} ({settings.Claude.Engine} : {settings.Claude.Model} / {settings.Claude.ApiModel} / {settings.Claude.OpenAiModel}) · mode Gaming auto {On(settings.Gaming.Auto)}");
+        // « Ma semaine » (7F) : seulement si le suivi est activé, jamais un nom d'appli ni de jeu (statistiques.json n'est pas joint).
+        text.AppendLine($"  suivi de l'activité {On(settings.Stats.Enabled)}");
         text.AppendLine($"Modules arrêtés après une erreur pendant cette session : {(ModuleGuard.Disabled.Count == 0 ? "aucun" : string.Join(", ", ModuleGuard.Disabled))}");
         return Clean(text.ToString());
     }

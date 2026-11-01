@@ -1,5 +1,6 @@
 // Essai du serveur « Amis en ligne » SANS Cloudflare (Node.js 22.5+, SQLite intégré, rien à télécharger) :
-//   node test-local.mjs            → scénario complet (deux PC, demande d'ami, présence, invisible, retrait, oubli)
+//   node test-local.mjs            → scénario complet (deux PC, demande d'ami, présence, invisible, « depuis », messages
+//                                    rapides, blocage, retrait, avis, oubli ; part d'une base de la version 2 à mettre à jour)
 //   node test-local.mjs --serve 8799 → le serveur sur http://127.0.0.1:8799 pour essayer Opaline (Paramètres → Connecté)
 // La base D1 de Cloudflare est imitée avec node:sqlite (mêmes requêtes SQL).
 
@@ -19,6 +20,7 @@ class Statement {
 function d1() {
   const sqlite = new DatabaseSync(":memory:");
   return {
+    exec: sql => sqlite.exec(sql),
     prepare: sql => new Statement(sqlite, sql),
     async batch(statements) {
       sqlite.exec("BEGIN");
@@ -35,6 +37,8 @@ function d1() {
 }
 
 const env = { DB: d1() };
+// Base créée par la version 2 du serveur (présence sans colonne « since ») : la version 3 doit la mettre à jour seule.
+env.DB.exec("CREATE TABLE presence (id TEXT PRIMARY KEY, status TEXT NOT NULL, game TEXT, updated INTEGER NOT NULL)");
 
 // Faux webhook Discord (7C) : rien n'est envoyé, la dernière requête est gardée pour les vérifications. Pour essayer avec un
 // vrai salon : OPALINE_WEBHOOK=https://discord.com/api/webhooks/… node test-local.mjs --serve 8799
@@ -107,6 +111,52 @@ async function scenario() {
 
   await call("POST", "/me", louis, { status: "online" });
   check((await call("GET", "/friends", max)).data.friends[0].status === "online", "Louis visible de nouveau : en ligne");
+
+  // « depuis » (version 3) : gardé tant que l'état ne change pas, remis à l'heure quand il change
+  const info = (await call("GET", "/")).data;
+  check(info.version >= 3 && info.features.includes("block") && info.messages.includes("play"), "version 3 : blocage et messages rapides annoncés");
+  const since1 = (await call("GET", "/friends", max)).data.friends[0].since;
+  await new Promise(resolve => setTimeout(resolve, 15));
+  await call("POST", "/me", louis, { status: "online" });
+  const since2 = (await call("GET", "/friends", max)).data.friends[0].since;
+  await call("POST", "/me", louis, { status: "game", game: "Valorant" });
+  const since3 = (await call("GET", "/friends", max)).data.friends[0].since;
+  check(typeof since1 === "number" && since1 === since2 && since3 > since2, "« depuis » : même état = même heure, nouveau jeu = nouvelle heure (ancienne base mise à jour)");
+
+  // Messages rapides (version 3)
+  check((await call("POST", "/messages/send", max, { code: louis.id, message: "Viens sur mon serveur louche" })).status === 400,
+    "message hors de la liste fermée : refusé");
+  check((await call("POST", "/messages/send", max, { code: louis.id, message: "play" })).status === 200, "Max envoie « On joue ? » à Louis");
+  let inbox = (await call("GET", "/messages", louis)).data.messages;
+  check(inbox.length === 1 && inbox[0].code === max.id && inbox[0].name === "Max" && inbox[0].message === "play", "Louis reçoit le message de Max");
+  check((await call("GET", "/messages", louis)).data.messages.length === 0, "message effacé dès qu'il est lu");
+  const stranger = (await call("POST", "/register", null, { name: "Inconnu" })).data;
+  check((await call("POST", "/messages/send", stranger, { code: louis.id, message: "play" })).status === 403, "pas ami : message refusé");
+  let accepted = 1;
+  for (let i = 0; i < 25; i++) if ((await call("POST", "/messages/send", max, { code: louis.id, message: "available" })).status === 200) accepted++;
+  check(accepted === 20, `20 messages par heure au plus (${accepted} acceptés)`);
+  inbox = (await call("GET", "/messages", louis)).data.messages;
+  check(inbox.length === 10, `file courte : 10 messages en attente au plus (${inbox.length})`);
+
+  // Blocage (version 3)
+  await call("POST", "/friends/add", stranger, { code: louis.id });
+  check((await call("GET", "/friends", louis)).data.incoming.some(f => f.code === stranger.id), "demande reçue d'un inconnu");
+  await call("POST", "/friends/block", louis, { code: stranger.id });
+  let lists = (await call("GET", "/friends", louis)).data;
+  check(lists.incoming.length === 0 && lists.blocked.some(f => f.code === stranger.id && f.name === "Inconnu"), "inconnu bloqué : sa demande disparaît, il est dans « bloqués »");
+  check((await call("POST", "/friends/add", stranger, { code: louis.id })).status === 404, "un bloqué ne peut plus redemander (« code inconnu »)");
+  await call("POST", "/friends/block", louis, { code: max.id });
+  check((await call("GET", "/friends", max)).data.friends.length === 0 && (await call("GET", "/friends", louis)).data.friends.length === 0,
+    "Max bloqué : plus d'amitié, il ne voit plus la présence de Louis");
+  check((await call("POST", "/messages/send", max, { code: louis.id, message: "play" })).status === 403, "un bloqué ne peut plus envoyer de message");
+  await call("POST", "/friends/unblock", louis, { code: max.id });
+  await call("POST", "/friends/add", louis, { code: max.id });
+  await call("POST", "/friends/add", max, { code: louis.id });
+  lists = (await call("GET", "/friends", louis)).data;
+  check(lists.friends.length === 1 && !lists.blocked.some(f => f.code === max.id), "débloqué puis rajouté : amis de nouveau");
+  await call("POST", "/friends/add", louis, { code: stranger.id });
+  check(!(await call("GET", "/friends", louis)).data.blocked.some(f => f.code === stranger.id), "ajouter quelqu'un qu'on avait bloqué le débloque");
+  await call("POST", "/forget", stranger);
 
   check((await call("POST", "/friends/add", louis, { code: louis.id })).status === 400 && (await call("POST", "/friends/add", louis, { code: "ZZZZ2222" })).status === 404,
     "s'ajouter soi-même ou un code inconnu : refusé");

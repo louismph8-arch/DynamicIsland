@@ -29,6 +29,12 @@ public enum ClaudeFix
     Update,
     /// <summary>Clé API à ajouter ou à changer (Paramètres → Île → Claude).</summary>
     ApiKey,
+    /// <summary>Moteur Codex : se connecter à ChatGPT (« codex login »).</summary>
+    CodexLogin,
+    /// <summary>Moteur Codex : « codex update ».</summary>
+    CodexUpdate,
+    /// <summary>Moteur Codex : pas installé → page officielle d'installation.</summary>
+    CodexInstall,
 }
 
 /// <summary>Claude Code sur ce PC : trouvé ou non, connecté ou non (vérifié sans rien consommer du forfait).</summary>
@@ -65,7 +71,20 @@ public static partial class ClaudeService
     /// <summary>Levé (thread de l'interface) à chaque morceau de réponse, à la fin, et quand la conversation change.</summary>
     public static event Action? Changed;
 
-    public static string ModelName(string id) => Models.FirstOrDefault(m => m.Id == id).Name ?? id;
+    public static string ModelName(string id) =>
+        Models.FirstOrDefault(m => m.Id == id).Name ?? OpenAiModels.FirstOrDefault(m => m.Id == id).Name ?? id;
+
+    /// <summary>Nom de l'assistant du moteur choisi (onglet de l'île, palette, annonces) : « ChatGPT » avec la clé OpenAI ou Codex.</summary>
+    public static string AssistantName => SettingsStore.Current.Claude.Engine is ClaudeEngine.OpenAi or ClaudeEngine.Codex ? "ChatGPT" : "Claude";
+
+    /// <summary>Modèle utilisé par le moteur choisi.</summary>
+    public static string CurrentModel => SettingsStore.Current.Claude.Engine switch
+    {
+        ClaudeEngine.ApiKey => SettingsStore.Current.Claude.ApiModel,
+        ClaudeEngine.OpenAi => SettingsStore.Current.Claude.OpenAiModel,
+        ClaudeEngine.Codex => SettingsStore.Current.Claude.CodexModel,
+        _ => SettingsStore.Current.Claude.Model,
+    };
 
     // ------------------------------------------------------------------ questions
 
@@ -76,7 +95,10 @@ public static partial class ClaudeService
         if (question.Length == 0 || ModuleGuard.IsDisabled(ModuleGuard.Claude)) return;
         Stop();
         var turn = new ClaudeTurn(question);
-        var history = TurnList.Where(t => t.Done && t.Error == null && t.Answer.Length > 0).TakeLast(HistoryTurns).ToList();
+        var engine = SettingsStore.Current.Claude.Engine;
+        var answered = TurnList.Where(t => t.Done && t.Error == null && t.Answer.Length > 0).ToList();
+        // Claude Code et Codex : quelques échanges recopiés dans la question ; API : vraie conversation (messages user / assistant).
+        var history = engine is ClaudeEngine.ClaudeCode or ClaudeEngine.Codex ? answered.TakeLast(HistoryTurns).ToList() : ApiHistory(answered);
         TurnList.Add(turn);
         if (TurnList.Count > KeptTurns) TurnList.RemoveAt(0);
         using var cancel = new CancellationTokenSource(MaxDuration);
@@ -85,8 +107,13 @@ public static partial class ClaudeService
         Raise();
         try
         {
-            if (SettingsStore.Current.Claude.Engine == ClaudeEngine.ApiKey) await RunApiAsync(turn, question, history, cancel.Token);
-            else await RunAsync(turn, Prompt(question, history), cancel.Token);
+            switch (engine)
+            {
+                case ClaudeEngine.ApiKey: await RunApiAsync(turn, question, history, cancel.Token); break;
+                case ClaudeEngine.OpenAi: await RunOpenAiAsync(turn, question, history, cancel.Token); break;
+                case ClaudeEngine.Codex: await RunCodexAsync(turn, Prompt(question, history), cancel.Token); break;
+                default: await RunAsync(turn, Prompt(question, history), cancel.Token); break;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -96,7 +123,7 @@ public static partial class ClaudeService
         catch (Exception ex)
         {
             Log.Error("Claude", ex);
-            turn.Error = ex is ClaudeException ? ex.Message : Loc.F("claude.error.failed", ex.Message);
+            turn.Error = ex is ClaudeException ? ex.Message : Loc.F("claude.error.failed_named", AssistantName, ex.Message);
             turn.Fix = (ex as ClaudeException)?.Fix ?? ClaudeFix.None;
         }
         finally
@@ -140,7 +167,7 @@ public static partial class ClaudeService
     }
 
     private static string SystemPrompt() =>
-        $"Tu es Claude, intégré à {AppInfo.Name} : une petite « île » en haut de l'écran Windows de l'utilisateur, où ta réponse "
+        $"Tu es {AssistantName}, intégré à {AppInfo.Name} : une petite « île » en haut de l'écran Windows de l'utilisateur, où ta réponse "
         + "s'affiche dans un espace réduit (environ 440 × 190 pixels, avec défilement). Réponds dans la langue de la question "
         + (Loc.Language == Loc.English ? "(souvent l'anglais)" : "(souvent le français)") + ", directement et brièvement : en général 1 à 5 phrases, une courte liste seulement si c'est "
         + "vraiment utile, pas de titres ni de tableaux, un extrait de code court si on t'en demande. Tu n'as accès à aucun "

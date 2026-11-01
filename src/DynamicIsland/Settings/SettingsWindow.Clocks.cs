@@ -17,8 +17,30 @@ public partial class SettingsWindow
         DownloadNoticesToggle.IsChecked = island.DownloadNotices;
         HealthTabToggle.IsChecked = SettingsStore.Current.Health.Tab;
         HealthDiskToggle.IsChecked = SettingsStore.Current.Health.DiskAlert;
+        var clipboard = SettingsStore.Current.Clipboard;
+        ClipboardHistoryToggle.IsChecked = clipboard.History;
+        ClipboardPersistToggle.IsChecked = clipboard.Persist;
+        ClipboardPersistToggle.IsEnabled = clipboard.History;
+        ClipboardOfferToggle.IsChecked = clipboard.OfferSecrets;
+        ClipboardAutoClearToggle.IsChecked = clipboard.AutoClear;
         ShowClocks();
     }
+
+    /// <summary>Presse-papiers de l'île : historique, gardé après redémarrage, proposition du coffre, effacement après 30 s.</summary>
+    private void Clipboard_Click(object sender, RoutedEventArgs e)
+    {
+        bool history = ClipboardHistoryToggle.IsChecked == true, persist = ClipboardPersistToggle.IsChecked == true,
+             offer = ClipboardOfferToggle.IsChecked == true, autoClear = ClipboardAutoClearToggle.IsChecked == true;
+        ClipboardPersistToggle.IsEnabled = history;
+        SettingsStore.Update(s =>
+        {
+            s.Clipboard.History = history;
+            s.Clipboard.Persist = persist;
+            s.Clipboard.OfferSecrets = offer;
+            s.Clipboard.AutoClear = autoClear;
+        });
+    }
+
 
     /// <summary>Santé du PC (6E) : onglet de l'île et alerte d'espace disque.</summary>
     private void Health_Click(object sender, RoutedEventArgs e)

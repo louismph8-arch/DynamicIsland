@@ -27,8 +27,8 @@ public partial class SettingsWindow
     private (RadioButton Nav, FrameworkElement Page)[] PageEntries =>
     [
         (NavGeneral, GeneralPage), (NavAppearance, AppearancePage), (NavWallpaper, WallpaperPage), (NavIsland, IslandPage), (NavDock, DockPage),
-        (NavWidgets, WidgetsPage), (NavProfiles, ProfilesPage), (NavSharing, SharingPage), (NavConnected, ConnectedPage), (NavAutomations, AutomationsPage),
-        (NavAbout, AboutPage),
+        (NavWidgets, WidgetsPage), (NavProfiles, ProfilesPage), (NavSharing, SharingPage), (NavConnected, ConnectedPage), (NavFriends, FriendsPage), (NavAutomations, AutomationsPage),
+        (NavWeek, WeekPage), (NavAbout, AboutPage),
     ];
 
     private void InitializeChrome()

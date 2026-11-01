@@ -36,6 +36,11 @@ internal static class AppPaths
 
     /// <summary>Présent seulement quand les icônes du bureau sont cachées par nous (correctif 16) : elles étaient affichées avant.</summary>
     public static string DesktopIconsState => Path.Combine(DataFolder, "icones-bureau.txt");
+    /// <summary>Stage Manager (7G) : fenêtres réduites / déplacées par nous et leur place d'avant (rendues par le gardien).</summary>
+    public static string StageState => Path.Combine(DataFolder, "stage-manager.txt");
+
+    /// <summary>Présent seulement quand la veilleuse d'Opaline (7F) a changé la rampe gamma d'un écran : rampes d'origine.</summary>
+    public static string NightLightState => Path.Combine(DataFolder, "veilleuse.txt");
 
     /// <summary>Présent seulement quand le dock réserve de l'espace à l'écran : contient le handle de sa fenêtre.</summary>
     public static string AppBarHandle => Path.Combine(DataFolder, "dock-appbar.txt");

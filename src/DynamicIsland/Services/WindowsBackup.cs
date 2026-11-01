@@ -63,6 +63,14 @@ public static class WindowsBackup
         {
             Log.Error("Fond d'écran d'origine", ex);
         }
+        try
+        {
+            NightLight.NightLightService.RecoverIfNeeded(); // veilleuse (7F) : rampes gamma d'origine des écrans
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Veilleuse : rampes d'origine", ex);
+        }
         bool restored = false, cursors = false;
         foreach (var section in Load().Keys.ToList())
         {

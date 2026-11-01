@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "id": "horloge-meteo",
+  "name": "Horloge géante + météo",
+  "author": "Opaline",
+  "version": "1.0",
+  "description": "L'heure en grand, la date, et la météo de la ville choisie dans Opaline.",
+  "size": { "width": 340, "height": 160 },
+  "background": "card",
+  "root": {
+    "type": "stack",
+    "direction": "horizontal",
+    "gap": 22,
+    "children": [
+      {
+        "type": "stack",
+        "gap": 0,
+        "children": [
+          { "type": "text", "text": "{date:dddd}", "size": "caption", "weight": "semibold", "color": "accent" },
+          { "type": "text", "text": "{time:HH:mm}", "size": 64, "weight": "light", "font": "display" },
+          { "type": "text", "text": "{date:d MMMM yyyy}", "size": "footnote", "color": "secondary" }
+        ]
+      },
+      {
+        "type": "stack",
+        "align": "center",
+        "gap": 4,
+        "children": [
+          { "type": "icon", "name": "{weather.icon}", "size": "huge", "align": "center" },
+          { "type": "text", "text": "{weather.temp}", "size": "title1", "weight": "semibold", "font": "display", "align": "center" },
+          { "type": "text", "text": "{weather.city}", "size": "caption", "color": "secondary", "align": "center" }
+        ]
+      }
+    ]
+  }
+}

@@ -56,6 +56,11 @@ public static class DiscordVoice
 
     /// <summary>État changé (thread UI).</summary>
     public static event Action? Changed;
+    /// <summary>
+    /// Quelqu'un vient de rejoindre MON salon vocal (correctif 25) : nom affiché et nom du salon, sur le thread UI. Pas pour les
+    /// présents déjà là quand j'arrive dans le salon, ni pour moi-même.
+    /// </summary>
+    public static event Action<string, string>? MemberJoined;
 
     public static void Start()
     {
@@ -398,6 +403,7 @@ public static class DiscordVoice
                     await session.WriteAsync(OpHandshake, new JsonObject { ["v"] = 1, ["client_id"] = clientId }, wake);
                     var (_, ready) = await session.ReadAsync(wake);
                     if (ready["evt"]?.GetValue<string>() != "READY") throw new ServerClosedException("pas de READY");
+                    session.SelfId = ready["data"]?["user"]?["id"]?.GetValue<string>();
                     return session;
                 }
                 catch (ServerClosedException ex)
@@ -565,8 +571,16 @@ public static class DiscordVoice
                     await WatchChannelAsync(channel, wake);
                     break;
                 case "VOICE_STATE_CREATE" or "VOICE_STATE_UPDATE":
+                    var joiner = data?["user"]?["id"]?.GetValue<string>();
+                    bool joined = message["evt"]!.GetValue<string>() == "VOICE_STATE_CREATE" && joiner != null && joiner != SelfId
+                                  && !_members.ContainsKey(joiner);
                     UpdateMember(data);
                     PublishMembers();
+                    if (joined && _members.TryGetValue(joiner!, out var newcomer))
+                    {
+                        string who = newcomer.Name, where = _channelName ?? "";
+                        _ui?.BeginInvoke(() => MemberJoined?.Invoke(who, where));
+                    }
                     break;
                 case "VOICE_STATE_DELETE":
                     if (data?["user"]?["id"]?.GetValue<string>() is { } gone && _members.Remove(gone))
@@ -650,6 +664,9 @@ public static class DiscordVoice
 
         /// <summary>Discord a fermé la connexion (trame CLOSE), avec son message.</summary>
         private sealed class ServerClosedException(string message) : IOException(message);
+
+        /// <summary>Mon identifiant Discord (message READY) : je ne m'annonce pas moi-même.</summary>
+        public string? SelfId { get; set; }
 
         private sealed class MemberState
         {

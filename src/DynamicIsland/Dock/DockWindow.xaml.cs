@@ -22,7 +22,8 @@ public partial class DockWindow : Window
     private static double SizeScale => DockIconView.BaseIcon / DockShape.ReferenceIcon;
     private bool IsBar => _settings.Layout == DockLayout.Bar;
     // Place du dock (5I) : celle des réglages, ou celle visée pendant qu'on le déplace (enregistrée au lâcher).
-    private string? PlaceScreen => _live is { } live ? live.Screen : _settings.Screen;
+    // Option « suivre l'écran de la souris » : écran suivi, prioritaire sur celui des réglages (jamais enregistré).
+    private string? PlaceScreen => _live is { } live ? live.Screen : _follow is { } follow ? follow.Screen : _settings.Screen;
     private DockEdge PlaceEdge => _live?.Edge ?? _settings.Edge;
     private double PlaceOffset => _live?.Offset ?? _settings.Offset;
     /// <summary>Applis au centre / à gauche / à droite (correctif 15a) ; le dock flottant qu'on fait glisser suit la souris (centré + décalage).</summary>
@@ -55,6 +56,8 @@ public partial class DockWindow : Window
     private (DockMode Mode, bool HideTaskbar, double IconSize, DockLayout Layout, string? Screen, DockEdge Edge)? _applied;
     private (DockMode Mode, bool HideTaskbar, double IconSize, DockLayout Layout, string? Screen, DockEdge Edge) AppliedKey =>
         (_settings.Mode, _settings.HideTaskbar, DockIconView.BaseIcon, _settings.Layout, PlaceScreen, PlaceEdge);
+    /// <summary>Écran où le dock a suivi la souris (null = celui des réglages) ; voir DockWindow.Follow.</summary>
+    private FollowedScreen? _follow;
     /// <summary>Place visée pendant un déplacement du dock (null hors déplacement).</summary>
     private (string? Screen, DockEdge Edge, double Offset, DockAlignment Alignment)? _live;
     private readonly LiquidGlass _glass;
@@ -161,6 +164,7 @@ public partial class DockWindow : Window
         if (!ReferenceEquals(_loadedPins, _settings.Pinned)) ReloadPins(); // profil changé : ses applis
         UpdateProfileButton();
         ApplyMinimizeEffect();
+        CheckFollowSettings(); // option coupée ou autre écran choisi : le dock retourne sur l'écran des réglages
         if (!IsVisible || SnapshotFolder != null || _live != null) return; // dock désactivé : l'app s'en occupe
         if (_applied != AppliedKey) ApplySettings();
         UpdateMagnification();
@@ -248,6 +252,7 @@ public partial class DockWindow : Window
     private void OnWindowMinimizing(IntPtr window)
     {
         if (!_settings.MinimizeEffect || AtTop || !IsVisible || GamingMode.IsActive || SnapshotFolder != null) return;
+        if (Stage.StageManager.MinimizedByStage(window)) return; // Stage Manager (7G) : elle part dans SA colonne, pas dans le dock
         GenieEffect.TryStart(window, IconTargetFor(window));
     }
 

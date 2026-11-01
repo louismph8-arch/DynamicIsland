@@ -14,6 +14,7 @@ public partial class SettingsWindow
         StatusItem.Updates => Icons.WindowsUpdate,
         StatusItem.Trash => Icons.Trash,
         StatusItem.Desktop => Icons.ChevronDown,
+        StatusItem.Mixer => Icons.Mixer,
         _ => Icons.FolderDown,
     };
 

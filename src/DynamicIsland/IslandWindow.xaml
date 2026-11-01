@@ -57,6 +57,9 @@
                         HorizontalAlignment="Left" VerticalAlignment="Center" Opacity="0"/>
 
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
+              <!-- « Ne pas déranger » actif (7F) : petite lune discrète devant l'heure -->
+              <TextBlock x:Name="FocusMoon" Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}"
+                         Foreground="{x:Static t:Paint.TextSecondary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
               <TextBlock x:Name="CompactClock" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" VerticalAlignment="Center"/>
               <!-- Confidentialité : vert = webcam utilisée, orange = micro -->
               <Ellipse x:Name="CameraDot" Width="6" Height="6" Margin="{ui:Space s3,0,0,0}" VerticalAlignment="Center"
@@ -178,8 +181,14 @@
                              Content="{ui:L island.clocks}" Checked="Tab_Checked"/>
                 <RadioButton x:Name="HealthTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Health}"
                              Content="{ui:L island.health}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="MixerTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Mixer}"
+                             Content="{ui:L island.mixer}" Checked="Tab_Checked"/>
                 <RadioButton x:Name="FriendsTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Friends}"
                              Content="{ui:L island.friends}" Checked="Tab_Checked" Visibility="Collapsed"/>
+                <RadioButton x:Name="ClipboardTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Clipboard}"
+                             Content="{ui:L island.clipboard}" Checked="Tab_Checked"/>
+                <RadioButton x:Name="NotesTabButton" Style="{StaticResource TabButton}" Tag="{x:Static t:Icons.Notes}"
+                             Content="{ui:L island.notes}" Checked="Tab_Checked"/>
               </StackPanel>
               </ScrollViewer>
               <TextBlock x:Name="TabTitle" VerticalAlignment="Center" Visibility="Collapsed" Margin="{ui:Space s2,0,0,0}"
@@ -189,6 +198,8 @@
                          Fill="{StaticResource CameraBrush}" Visibility="Collapsed"/>
                 <Ellipse x:Name="ExpandedMicDot" Width="6" Height="6" Margin="{ui:Space 0,0,s4,0}" VerticalAlignment="Center"
                          Fill="{StaticResource MicrophoneBrush}" Visibility="Collapsed"/>
+                <TextBlock x:Name="ExpandedFocusMoon" Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}"
+                           Foreground="{x:Static t:Paint.TextSecondary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
                 <TextBlock x:Name="ExpandedClock" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" VerticalAlignment="Center"/>
               </StackPanel>
               </Grid>
@@ -203,7 +214,10 @@
                 <views:ClaudeView x:Name="ClaudeTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:WorldClockView x:Name="ClocksTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:HealthView x:Name="HealthTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:MixerView x:Name="MixerTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:FriendsView x:Name="FriendsTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:ClipboardView x:Name="ClipboardTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <views:NotesView x:Name="NotesTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
               </Grid>
             </Grid>
           </Grid>

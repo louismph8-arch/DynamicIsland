@@ -192,6 +192,10 @@ public static class ShellGuard
         catch (Exception ex) { Log.Error("Récupération : animation de réduction", ex); }
         try { DesktopIconsService.RecoverIfNeeded(); }
         catch (Exception ex) { Log.Error("Récupération : icônes du bureau", ex); }
+        try { NightLight.NightLightService.RecoverIfNeeded(); } // rampes gamma d'origine (veilleuse, 7F)
+        catch (Exception ex) { Log.Error("Récupération : veilleuse", ex); }
+        try { Stage.StageState.RecoverIfNeeded(); } // fenêtres réduites par Stage Manager (7G) encore là : rendues
+        catch (Exception ex) { Log.Error("Récupération : Stage Manager", ex); }
     }
 
     /// <summary>

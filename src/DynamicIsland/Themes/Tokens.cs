@@ -58,6 +58,16 @@ public static class Swatch
         ("swatch.green", Green, Green), ("swatch.teal", Teal, Teal), ("swatch.sunset", Orange, Pink),
     ];
 
+    /// <summary>Couleurs des notes (identifiant enregistré, clé du nom, couleur) ; « » = sans couleur.</summary>
+    public static readonly (string Id, string Name, Color Color)[] NoteColors =
+    [
+        ("", "notes.color.none", WhiteA(0x40)), ("yellow", "notes.color.yellow", Color.FromRgb(0xFF, 0xD6, 0x0A)),
+        ("orange", "notes.color.orange", Orange), ("red", "notes.color.red", Red), ("green", "notes.color.green", Green),
+        ("blue", "notes.color.blue", Blue), ("violet", "notes.color.violet", Purple), ("pink", "notes.color.pink", Pink),
+    ];
+
+    public static Color NoteColor(string? id) => NoteColors.FirstOrDefault(c => c.Id == (id ?? ""), NoteColors[0]).Color;
+
     /// <summary>Voile de blanc (alpha 0–255) : surfaces, survols, séparateurs sur fond sombre.</summary>
     public static Color WhiteA(byte alpha) => Color.FromArgb(alpha, 0xFF, 0xFF, 0xFF);
     public static Color InkA(byte alpha) => Color.FromArgb(alpha, Ink.R, Ink.G, Ink.B);
@@ -403,6 +413,18 @@ public static class CardShape
     public const double EditorHeight = 740;
     public const double FieldWidth = 220;          // champ de texte d'une règle
     public const double PickerMaxWidth = 220;      // texte d'un bouton de choix
+    public const double VaultWidth = 520;          // fenêtre d'une entrée du coffre
+    public const double VaultHeight = 640;
+    public const double NoteHeight = 70;           // note d'une entrée du coffre
+    public const double ClipWidth = 520;           // « Nouveau texte » du presse-papiers
+    public const double ClipHeight = 520;
+    public const double ClipTextHeight = 160;
+    public const double NoteEditorWidth = 560;     // éditeur d'une note (redimensionnable)
+    public const double NoteEditorHeight = 600;
+    public const double NoteEditorMinWidth = 420;
+    public const double NoteEditorMinHeight = 380;
+    public const double Swatch = 18;               // pastille de couleur d'une note
+    public const double Grip = 22;                 // coin pour agrandir la fenêtre
 }
 
 /// <summary>Fenêtre des paramètres : notre propre barre de titre (correctif 10) et la recherche (correctif 11).</summary>
@@ -481,6 +503,24 @@ public static class Desk
     public const double CalendarCell = 28;
     public static readonly TimeSpan StatsInterval = TimeSpan.FromSeconds(2);
     public static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(350);
+}
+
+/// <summary>Widgets des potes (7H) : marges, tailles dans l'île et dans les paramètres.</summary>
+public static class PluginShape
+{
+    public const double Padding = 16;          // marge intérieure d'un widget avec carte
+    public const double LineHeight = 1.35;     // hauteur d'une ligne de texte (en tailles de police)
+    public const double RingLabel = 0.22;      // texte au centre d'un anneau, en fraction de sa taille
+    public const double ImageOversample = 2;   // images décodées à 2× leur taille (nettes à 200 %)
+    public const double IslandTile = 80;       // hauteur d'un widget en bas de l'onglet Widgets de l'île
+    public const double IslandRow = 88;        // rangée ajoutée à l'île (tuile + marge)
+    public const double SettingsPreview = 72;  // aperçu dans la liste des paramètres
+    public const double InstallPreview = 120;  // aperçu avant d'installer
+    public const double PreviewMaxRatio = 2.6; // un aperçu très large est réduit (largeur ≤ 2,6 × hauteur)
+    public const double DesktopCascade = 32;   // décalage de la place par défaut d'un widget à l'autre
+    /// <summary>Temps entre deux mises à jour : widget qui montre des mesures (processeur, musique…) ou seulement l'heure.</summary>
+    public static readonly TimeSpan FastRefresh = TimeSpan.FromSeconds(2);
+    public static readonly TimeSpan SlowRefresh = TimeSpan.FromSeconds(15);
 }
 
 /// <summary>
@@ -603,7 +643,7 @@ public static class Sizes
     public const double Chip = 24;
     public const double SoftButton = 34;
     public const double Tab = 30;
-    public const double NavItem = 38;
+    public const double NavItem = 35; // 12 pages dans 560 DIP de haut (hauteur minimale des paramètres)
     public const double Button = 32;         // boutons et champs des paramètres
     public const double SwitchWidth = 42;
     public const double SwitchHeight = 24;
@@ -655,11 +695,31 @@ public static class IslandShape
     public static readonly Size Control = new(440, 238);
     /// <summary>Rangée « Appareils connectés » sous les profils (centre de contrôle), ajoutée seulement s'il y en a.</summary>
     public const double DevicesRow = 38;
+    /// <summary>Colonne des tuiles du centre de contrôle (7F) : mode sombre + veilleuse, puis « Ne pas déranger » en large.</summary>
+    public static readonly GridLength ControlTilesColumn = new(224);
     public static readonly Size Panel = new(440, 196);   // widgets, étagère, vocal
+    /// <summary>Contenu de l'onglet Widgets sans les widgets des potes (7H), qui ajoutent <see cref="PluginShape.IslandRow"/> en dessous.</summary>
+    public const double WidgetsContentHeight = 128;
+    public static readonly GridLength WidgetsContentRow = new(WidgetsContentHeight);
     public static readonly Size Claude = new(480, 262);  // mini Claude : la conversation défile
     public static readonly Size Health = new(488, 272);  // santé du PC : mesures, disques, 3 applis
+    public static readonly Size Clipboard = new(480, 272); // presse-papiers : historique ou coffre (la liste défile)
+    public const double ClipboardContentWidth = 444;
+    public const double ClipboardListHeight = 168;
+    public const double ClipboardRow = 40;
+    public const double ClipboardThumb = 30;
+    public static readonly Size Notes = new(480, 272);    // notes : la liste défile
+    public const double NotesContentWidth = 444;
+    public const double NotesListHeight = 176;
+    public const double NoteStripe = 3;          // liseré de couleur d'une note
+    public const int NotePreviewLines = 3;       // lignes d'aperçu sous le titre
     public const double WideTabs = 552;          // l'île peut s'élargir jusque-là si la rangée d'onglets est longue (fenêtre de 600 moins le halo)
     public const double HealthContentWidth = 454;
+    public static readonly Size Mixer = new(440, 266);   // mélangeur : volume général + 4 applis (la liste défile au-delà)
+    public const double MixerListHeight = 140;   // liste des applis du mélangeur
+    public const double MixerRow = 34;           // une appli du mélangeur
+    public const double MixerName = 112;         // colonne du nom (le curseur prend le reste)
+    public const double MixerIcon = 20;          // icône de l'appli (exe) dans le mélangeur
     public const double MinExpandedInnerWidth = 438;
     public const double ContentWidth = 406;
     public const double MusicContentHeight = 150;
@@ -670,7 +730,7 @@ public static class IslandShape
     public const double ClockCardWidth = 94;     // horloges du monde : une carte par ville (4 au plus)
     public const double ClockCardHeight = 128;
     // Placement libre (5I)
-    public static readonly double MaxExpandedWidth = Math.Max(WideTabs, new[] { Music, Calendar, Control, Panel, Claude, Health }.Max(s => s.Width));
+    public static readonly double MaxExpandedWidth = Math.Max(WideTabs, new[] { Music, Calendar, Control, Panel, Claude, Health, Mixer, Clipboard, Notes }.Max(s => s.Width));
     public const double ClaudeBubble = 340;      // largeur max d'une question dans la conversation
     public const double ClaudeContentWidth = 444; // contenu de l'onglet Claude (île de 480 moins ses marges)
     public const double ClaudeContentHeight = 192;
@@ -742,9 +802,31 @@ public static class DockShape
     public const double DesktopArrowSlide = 3;      // la flèche glisse un peu pendant qu'elle pivote
     public const double StatusBadge = 15;           // pastille du nombre (mises à jour)
     public const double StatusDot = 6;              // point « nouveau » / « pleine »
+    public const double StatusVolumeStep = 0.02;    // molette sur la case « Mélangeur » : volume général ±2 %
     public const double PoofDistance = 26;          // effet « poof » de la corbeille : distance des bulles
     public const int DownloadsShown = 12;           // pile Téléchargements : éléments affichés
     public const double MovingOpacity = 0.75;       // dock pendant qu'on le déplace
+}
+
+/// <summary>Stage Manager (7G) : colonne de miniatures à gauche de chaque écran (en DIP).</summary>
+public static class StageShape
+{
+    public const double ThumbWidth = 168;      // miniature DWM d'un groupe (format de la fenêtre gardé)
+    public const double ThumbHeight = 100;
+    public const double ChipWidth = 44;        // petite miniature d'une autre fenêtre de la pile (cliquable)
+    public const double ChipHeight = 28;
+    public const int MaxChips = 3;
+    public const double PileOffset = 5;        // décalage des cartes de la pile derrière la miniature
+    public const int PileCards = 2;
+    public const double ScreenMargin = 12;     // entre le bord de l'écran et la colonne
+    public const double StageGap = 16;         // entre la colonne et la fenêtre au centre
+    public const double GroupGap = 6;          // entre deux groupes de la colonne
+    public const double GroupHeight = 150;     // place d'un groupe (miniature + nom + pile), pour compter combien tiennent
+    public const int MaxGroups = 6;
+    public const double Shrink = 0.8;          // fenêtre trop grande pour la scène : ramenée à 80 % de la place
+    public const double ControlTile = 56;      // tuile « Stage Manager » du centre de contrôle (icône seule)
+    /// <summary>Largeur totale de la colonne (miniature + marges de la carte et de la fenêtre).</summary>
+    public const double ColumnWidth = ThumbWidth + 2 * 8 + 2 * 8 + 2 * PileOffset;
 }
 
 /// <summary>Ressorts (raideur, amortissement &lt; 1 = léger rebond). Voir Animation/Spring.</summary>
@@ -788,6 +870,7 @@ public static class Motion
     public static readonly TimeSpan Bounce = TimeSpan.FromMilliseconds(600); // rebond d'une icône au lancement
     public static readonly TimeSpan Pulse = TimeSpan.FromMilliseconds(650);  // alerte de fin du minuteur
     public static readonly TimeSpan Genie = TimeSpan.FromMilliseconds(500);  // réduction façon macOS
+    public static readonly TimeSpan StageSwap = TimeSpan.FromMilliseconds(380); // Stage Manager : échange colonne ↔ centre
     public static readonly TimeSpan IntroStretch = TimeSpan.FromMilliseconds(170); // intro : la bulle attend avant de s'étirer
     public static readonly TimeSpan Page = TimeSpan.FromMilliseconds(320);   // assistant : changement de page
     public static readonly TimeSpan DelayShort = TimeSpan.FromMilliseconds(40);
@@ -894,20 +977,44 @@ public static class Icons
     public const string News = "\uE343"; // party-popper (« Nouveautés », 7C)
     public const string Beta = "\uE0D5"; // flask-conical (canal Bêta)
     public const string Picture = "\uE0F6"; // image
+    public const string Clipboard = "\uE085"; // clipboard (onglet \u00AB Presse-papiers \u00BB)
+    public const string ClipboardPlus = "\uE5BF"; // clipboard-plus (ajouter un texte au presse-papiers)
+    public const string Notes = "\uE303"; // sticky-note (onglet \u00AB Notes \u00BB)
+    public const string NotePen = "\uE596"; // notebook-pen (nouvelle note)
+    public const string TaskOpen = "\uE167"; // square (case \u00E0 cocher vide d'une note)
+    public const string TaskDone = "\uE16A"; // check-square (case coch\u00E9e)
+    public const string ListChecks = "\uE1D0"; // list-checks (ins\u00E9rer une case)
+    public const string ResizeGrip = "\uE1C5"; // move-diagonal-2 (coin pour agrandir une fen\u00EAtre)
+    public const string Key = "\uE4A3"; // key-round (coffre de mots de passe)
+    public const string Vault = "\uE58F"; // vault
+    public const string Pin = "\uE259"; // pin
+    public const string PinOff = "\uE2B6"; // pin-off
+    public const string Link = "\uE102"; // link
+    public const string LockOpen = "\uE10C"; // lock-open
+    public const string Eraser = "\uE28F"; // eraser
+    public const string User = "\uE19F"; // user
+    public const string Eye = "\uE0BA"; // eye
+    public const string EyeOff = "\uE0BB"; // eye-off
+    public const string TextItem = "\uE198"; // type (\u00E9l\u00E9ment texte de l'historique)
     public const string Archive = "\uE30D"; // file-archive
     public const string Automations = "\uE1B4"; // zap (automatisations, 7D)
+    public const string Week = "\uE2A3"; // bar-chart-3 (page \u00AB Ma semaine \u00BB, 7F)
     public const string FolderOpen = "\uE247"; // folder-open
     public const string BellOff = "\uE05A"; // bell-off (Ne pas déranger)
     public const string Bell = "\uE059"; // bell
+    public const string Mixer = "\uE162"; // sliders-vertical (m\u00E9langeur de volume : onglet de l'\u00EEle + zone d'\u00E9tat du dock)
     public const string Message = "\uE117"; // message-square
     public const string ArrowRight = "\uE049"; // arrow-right
     public const string HardDrive = "\uE0ED"; // hard-drive
     public const string Thermometer = "\uE186"; // thermometer
     public const string Sleep = "\uE410"; // moon-star
+    public const string DoNotDisturb = "\uE410"; // moon-star (Ne pas d\u00E9ranger, 7F : diff\u00E9rent de la lune du mode sombre)
+    public const string NightLight = "\uE17A"; // sunset (veilleuse, 7F)
     public const string Restart = "\uE149"; // rotate-cw
     public const string Minimize = "\uE11B"; // minimize-2
     public const string Maximize = "\uE113"; // maximize-2
     public const string AppWindow = "\uE426"; // app-window
+    public const string Stage = "\uE470"; // layout-panel-left (Stage Manager, 7G)
     public const string Keyboard = "\uE284"; // keyboard
     public const string WindowsUpdate = "\uE145"; // refresh-cw
     public const string FolderDown = "\uE332"; // folder-down
@@ -965,4 +1072,24 @@ public static class Icons
         if (name.Length == 1 && Legacy.TryGetValue(name[0], out var converted)) return converted;
         return ByName.ContainsKey(name) ? name : "star";
     }
+}
+
+
+/// <summary>Page « Ma semaine » (7F) : petits graphiques de la semaine (couleurs vérifiées avec le validateur de palette, fond sombre).</summary>
+public static class WeekShape
+{
+    public const double ChartHeight = 132;         // hauteur de la zone des barres (temps d'écran par jour)
+    public const double BarWidth = 26;             // largeur d'une barre (fine)
+    public const double BarRadius = 4;             // bout arrondi, ancré sur la ligne de base
+    public const double SegmentGap = 2;            // espace entre la part « applis » et la part « jeux » d'une barre
+    public const double MinSegment = 3;            // une part non nulle reste visible
+    public const double LegendDot = 8;             // pastille de la légende
+    public const double PomodoroDot = 9;           // une pastille = un Pomodoro terminé
+    public const int PomodoroDotsShown = 6;        // au-delà : « +n »
+    public const double TopBar = 6;                // barre horizontale des applis / jeux les plus utilisés
+    public const double TopNameWidth = 170;
+    public const double TopValueWidth = 72;
+    public static readonly CornerRadius BarTop = new(BarRadius, BarRadius, 0, 0);
+    /// <summary>Jeux (2e série) : sarcelle foncée, ΔE ≥ 15 avec l'indigo d'Opaline, même pour les daltoniens.</summary>
+    public static readonly Brush Games = Paint.Frozen(Color.FromRgb(0x22, 0xA5, 0xBF));
 }

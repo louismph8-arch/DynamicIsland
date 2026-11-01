@@ -114,7 +114,11 @@ public sealed class StatusItem
     public const string Trash = "trash";
     public const string Downloads = "downloads";
     public const string Desktop = "desktop";
-    public static readonly string[] All = [Keyboard, Updates, Trash, Downloads, Desktop];
+    /// <summary>Bouton d'alimentation (correctif 20) : verrouiller, veille, redémarrer, éteindre.</summary>
+    public const string Power = "power";
+    /// <summary>Mélangeur de volume (point 22) : clic = l'onglet Mélangeur de l'île, molette = volume général.</summary>
+    public const string Mixer = "mixer";
+    public static readonly string[] All = [Keyboard, Updates, Trash, Downloads, Desktop, Power, Mixer];
     /// <summary>Cachés tant qu'on ne les demande pas : la flèche des icônes du bureau n'apparaît pas toute seule dans le dock.</summary>
     private static readonly string[] HiddenByDefault = [Desktop];
 
@@ -143,6 +147,8 @@ public sealed class DockSettings
     public bool HideTaskbar { get; set; }
     /// <summary>Icônes d'arrière-plan (zone de notification) à droite du dock.</summary>
     public bool ShowTrayIcons { get; set; } = true;
+    /// <summary>Icônes d'arrière-plan repliées derrière leur flèche (petite flèche au bout de la zone, ou flèche du bureau).</summary>
+    public bool TrayCollapsed { get; set; }
     /// <summary>Grossissement maximal au survol (1 = aucun).</summary>
     public double Magnification { get; set; } = 1.4;
     /// <summary>Fenêtres réduites aspirées dans leur icône (effet Génie de macOS).</summary>
@@ -162,6 +168,11 @@ public sealed class DockSettings
     public double Offset { get; set; }
     /// <summary>Position verrouillée : glisser le fond du dock ne le déplace plus.</summary>
     public bool LockPosition { get; set; }
+    /// <summary>
+    /// Le dock suit l'écran de la souris (comme l'île) : il passe sur l'écran où la souris s'arrête, au même bord, sans
+    /// changer <see cref="Screen"/> (l'écran choisi reste celui du démarrage). Désactivé par défaut.
+    /// </summary>
+    public bool FollowMouse { get; set; }
     /// <summary>Zone d'état à droite du dock (6B) : éléments dans l'ordre d'affichage, chacun masquable.</summary>
     public List<StatusItem> Status { get; set; } = StatusItem.Defaults();
     /// <summary>Changement de langue du clavier aussi annoncé brièvement dans l'île.</summary>

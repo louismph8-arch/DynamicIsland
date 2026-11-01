@@ -94,4 +94,38 @@ public sealed class FocusSettings
 {
     /// <summary>Fin du « Ne pas déranger » ; DateTime.MaxValue = jusqu'à ce qu'on l'enlève ; null = arrêté.</summary>
     public DateTime? DoNotDisturbUntil { get; set; }
+
+    /// <summary>Veilleuse d'Opaline (7F) : lumière bleue réduite par la rampe gamma des écrans (désactivée par défaut).</summary>
+    public NightLightSettings NightLight { get; set; } = new();
+
+    public void Normalize()
+    {
+        NightLight ??= new NightLightSettings();
+        NightLight.Normalize();
+    }
+}
+
+public enum NightLightSchedule { Always, Sun, Hours }
+
+/// <summary>Veilleuse (7F) : rien n'est touché tant que <see cref="Enabled"/> est faux.</summary>
+public sealed class NightLightSettings
+{
+    /// <summary>Veilleuse en marche (selon la programmation) ; faux par défaut.</summary>
+    public bool Enabled { get; set; }
+    /// <summary>Toujours (dès qu'elle est activée), du coucher au lever du soleil, ou heures fixes.</summary>
+    public NightLightSchedule Schedule { get; set; } = NightLightSchedule.Always;
+    public string From { get; set; } = "21:00";
+    public string To { get; set; } = "07:00";
+    /// <summary>Intensité 0–100 % : 0 = 6500 K (rien ne change), 100 = 2700 K (très chaud).</summary>
+    public int Strength { get; set; } = 50;
+    /// <summary>Coupée pendant les jeux (couleurs fidèles) ; activé par défaut.</summary>
+    public bool PauseInGames { get; set; } = true;
+
+    public void Normalize()
+    {
+        Strength = Math.Clamp(Strength, 0, 100);
+        if (!Enum.IsDefined(Schedule)) Schedule = NightLightSchedule.Always;
+        if (!TimeOnly.TryParseExact(From ?? "", "HH:mm", out _)) From = "21:00";
+        if (!TimeOnly.TryParseExact(To ?? "", "HH:mm", out _)) To = "07:00";
+    }
 }

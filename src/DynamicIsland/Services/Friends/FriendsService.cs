@@ -35,6 +35,12 @@ public static partial class FriendsService
     /// <summary>Un ami vient de se connecter ou de lancer un jeu (pour l'annonce dans l'île).</summary>
     public static event Action<Friend>? CameOnline;
 
+    /// <summary>Message rapide reçu d'un ami (ni bloqué, ni coupé) : annonce dans l'île (thread de l'interface).</summary>
+    public static event Action<FriendMessage>? MessageReceived;
+
+    /// <summary>Un message plus vieux que ça (resté sur le serveur pendant qu'Opaline était fermée) n'est plus annoncé.</summary>
+    private static readonly TimeSpan MessageTooOld = TimeSpan.FromMinutes(30);
+
     public static State Status { get; private set; }
     public static FriendLists Lists { get; private set; } = FriendLists.Empty;
     /// <summary>Mon code d'ami (« ABCD-EFGH »), null tant que ce PC n'est pas inscrit.</summary>
@@ -171,11 +177,15 @@ public static partial class FriendsService
         _busy = true;
         try
         {
-            var lists = await FriendsApi.ListAsync(_account);
+            var account = _account;
+            var lists = await FriendsApi.ListAsync(account);
+            if (lists.Extended) await SyncBlockedAsync(account, lists);
+            lists = Filter(lists);
             AnnounceArrivals(lists);
             Lists = lists;
             SetStatus(State.Connected);
             Changed?.Invoke();
+            if (lists.Extended) AnnounceMessages(await FriendsApi.ReadMessagesAsync(account));
         }
         catch (FriendsApi.AuthException)
         {
@@ -211,7 +221,7 @@ public static partial class FriendsService
         _firstList = false;
         if (first || !Settings.Notify) return;
         var before = Lists.Friends.ToDictionary(f => f.Code);
-        foreach (var friend in lists.Friends.Where(f => f.Online))
+        foreach (var friend in lists.Friends.Where(f => f.Online && !IsMuted(f.Code)))
         {
             var previous = before.GetValueOrDefault(friend.Code);
             bool arrived = previous is not { Online: true } || previous.Status != "game" && friend.Status == "game";
@@ -220,6 +230,164 @@ public static partial class FriendsService
             Notified[friend.Code] = DateTime.UtcNow;
             CameOnline?.Invoke(friend);
         }
+    }
+
+    /// <summary>Messages reçus : un par ami (le plus récent), sauf bloqué, coupé, trop vieux ou option désactivée.</summary>
+    private static void AnnounceMessages(IReadOnlyList<FriendMessage> messages)
+    {
+        if (messages.Count == 0 || !Settings.Messages) return;
+        var blocked = BlockedCodes();
+        foreach (var message in messages
+                     .Where(m => !blocked.Contains(m.Code) && !IsMuted(m.Code) && DateTimeOffset.UtcNow - m.At < MessageTooOld)
+                     .GroupBy(m => m.Code).Select(g => g.Last()))
+        {
+            Log.Info("Amis : message rapide reçu"); // ni l'ami, ni le message dans le journal
+            MessageReceived?.Invoke(message);
+        }
+    }
+
+    // ------------------------------------------------------------------ blocage et annonces coupées (correctifs 23-24)
+
+    private static HashSet<string> BlockedCodes() => Settings.Blocked.Select(b => b.Code).ToHashSet();
+
+    /// <summary>
+    /// Les personnes bloquées sur ce PC sont cachées partout, même avec un serveur ancien (qui ne sait pas bloquer : le lien
+    /// est alors seulement coupé, et une nouvelle demande de leur part reste invisible ici).
+    /// </summary>
+    private static FriendLists Filter(FriendLists lists)
+    {
+        var blocked = BlockedCodes();
+        return lists with
+        {
+            Friends = lists.Friends.Where(f => !blocked.Contains(f.Code)).ToList(),
+            Incoming = lists.Incoming.Where(f => !blocked.Contains(f.Code)).ToList(),
+            Outgoing = lists.Outgoing.Where(f => !blocked.Contains(f.Code)).ToList(),
+            Blocked = Settings.Blocked.Select(b => new Friend(b.Code, b.Name, "offline", null)).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// Serveur version 3 : un blocage fait sur ce PC quand le serveur ne savait pas encore bloquer lui est envoyé ; un blocage
+    /// connu du serveur mais pas de ce PC (réglages remis d'une sauvegarde…) est repris ici.
+    /// </summary>
+    private static async Task SyncBlockedAsync(FriendsAccount account, FriendLists lists)
+    {
+        var onServer = lists.Blocked.Select(b => b.Code).ToHashSet();
+        foreach (var local in Settings.Blocked.Where(b => !onServer.Contains(b.Code)).ToList())
+        {
+            try
+            {
+                await FriendsApi.BlockAsync(account, local.Code);
+            }
+            catch (FriendsApi.FriendsRefusedException)
+            {
+                // trop de blocages, code invalide : il reste au moins caché sur ce PC
+            }
+        }
+        var missing = lists.Blocked.Where(b => !BlockedCodes().Contains(b.Code)).ToList();
+        if (missing.Count > 0)
+            SettingsStore.Update(s => s.Friends.Blocked.AddRange(missing.Select(b => new BlockedFriend { Code = b.Code, Name = b.Name })));
+    }
+
+    public static bool IsMuted(string code) => Settings.Muted.Contains(code);
+
+    /// <summary>Couper (ou réactiver) les annonces et les messages d'un ami dans l'île.</summary>
+    public static void SetMuted(string code, bool muted)
+    {
+        SettingsStore.Update(s =>
+        {
+            s.Friends.Muted.Remove(code);
+            if (muted) s.Friends.Muted.Add(code);
+        });
+        Changed?.Invoke();
+    }
+
+    /// <summary>Bloquer : null si c'est fait, sinon le message à afficher.</summary>
+    public static async Task<string?> BlockAsync(Friend friend)
+    {
+        if (_account is not { } account) return Loc.T("friends.error.not_connected");
+        try
+        {
+            if (Lists.Extended) await FriendsApi.BlockAsync(account, friend.Code);
+            else await FriendsApi.RemoveAsync(account, friend.Code); // serveur ancien : on coupe au moins le lien
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or FriendsApi.AuthException or FriendsApi.FriendsRefusedException)
+        {
+            Log.Info($"Amis : blocage impossible ({ex.GetType().Name})");
+            return Loc.T("friends.error.server");
+        }
+        SettingsStore.Update(s =>
+        {
+            s.Friends.Blocked.RemoveAll(b => b.Code == friend.Code);
+            s.Friends.Blocked.Add(new BlockedFriend { Code = friend.Code, Name = friend.Name });
+            s.Friends.Muted.Remove(friend.Code);
+        });
+        Log.Info("Amis : une personne bloquée");
+        Lists = Filter(Lists);
+        Changed?.Invoke();
+        await PollAsync();
+        return null;
+    }
+
+    /// <summary>Débloquer : d'abord sur le serveur (sinon le blocage reviendrait à la relecture suivante), puis ici.</summary>
+    public static async Task<string?> UnblockAsync(string code)
+    {
+        if (_account is { } account && Lists.Extended)
+        {
+            try
+            {
+                await FriendsApi.UnblockAsync(account, code);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or FriendsApi.AuthException or FriendsApi.FriendsRefusedException)
+            {
+                Log.Info($"Amis : déblocage impossible ({ex.GetType().Name})");
+                return Loc.T("friends.error.server");
+            }
+        }
+        SettingsStore.Update(s => s.Friends.Blocked.RemoveAll(b => b.Code == code));
+        Lists = Filter(Lists);
+        Changed?.Invoke();
+        await PollAsync();
+        return null;
+    }
+
+    /// <summary>Le serveur sait-il envoyer des messages rapides (version 3) ?</summary>
+    public static bool MessagesAvailable => Status == State.Connected && Lists.Extended;
+
+    /// <summary>Message rapide (identifiant de <see cref="QuickMessages"/>) : null si envoyé, sinon le message à afficher.</summary>
+    public static async Task<string?> SendMessageAsync(string code, string message)
+    {
+        if (_account is not { } account) return Loc.T("friends.error.not_connected");
+        if (!QuickMessages.IsKnown(message)) return Loc.T("friends.error.server");
+        try
+        {
+            return await FriendsApi.SendMessageAsync(account, code, message) switch
+            {
+                null => null,
+                "not_friend" => Loc.T("friends.error.not_friend"),
+                "too_many" => Loc.T("friends.error.too_many"),
+                _ => Loc.T("friends.error.server"),
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or FriendsApi.AuthException)
+        {
+            return Loc.T("friends.error.server");
+        }
+    }
+
+    /// <summary>« Joue à Valorant », « En ligne »… ; avec <paramref name="since"/>, « … depuis 14:32 » si le serveur le sait.</summary>
+    public static string StatusText(Friend friend, bool since = false)
+    {
+        var text = friend.Status switch
+        {
+            "game" => friend.Game is { Length: > 0 } game ? Loc.F("friends.status.game", game) : Loc.T("friends.status.game_hidden"),
+            "online" => Loc.T("friends.status.online"),
+            _ => Loc.T("friends.status.offline"),
+        };
+        if (!since || !friend.Online || friend.Since is not { } start) return text;
+        var local = start.ToLocalTime();
+        var when = local.Date == DateTime.Today ? local.ToString("t", Loc.Culture) : local.ToString("g", Loc.Culture);
+        return Loc.F("friends.status.since", text, when);
     }
 
     private static void SetStatus(State state)
@@ -246,6 +414,9 @@ public static partial class FriendsService
         try
         {
             var refused = await FriendsApi.AddAsync(account, code);
+            var clean = code.Trim().ToUpperInvariant().Replace("-", "").Replace(" ", "");
+            if (refused == null && Settings.Blocked.Any(b => b.Code == clean))
+                SettingsStore.Update(s => s.Friends.Blocked.RemoveAll(b => b.Code == clean)); // rajouter = débloquer (comme le serveur)
             await PollAsync();
             return refused switch
             {
@@ -292,7 +463,12 @@ public static partial class FriendsService
         FriendsAccount.Delete();
         _account = null;
         Lists = FriendLists.Empty;
-        SettingsStore.Update(s => s.Friends.Enabled = false);
+        SettingsStore.Update(s =>
+        {
+            s.Friends.Enabled = false;
+            s.Friends.Blocked.Clear(); // le compte n'existe plus : ses blocages non plus
+            s.Friends.Muted.Clear();
+        });
         Log.Info("Amis : compte effacé");
     }
 

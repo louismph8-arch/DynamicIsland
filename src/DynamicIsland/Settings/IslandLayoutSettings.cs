@@ -33,6 +33,8 @@ public sealed class AppRule
     public string Name { get; set; } = "";
     public AppBehavior Island { get; set; }
     public AppBehavior Dock { get; set; }
+    /// <summary>Stage Manager (7G) : ses fenêtres restent où elles sont (jamais réduites ni déplacées).</summary>
+    public bool StageIgnore { get; set; }
 
     public const int Max = 40;
 
@@ -78,7 +80,11 @@ public sealed class IslandTabItem
     public const string Clocks = "clocks";
     public const string Health = "health";
     public const string Friends = "friends";
-    public static readonly string[] All = [Music, Calendar, Control, Widgets, Shelf, Voice, Claude, Clocks, Health, Friends];
+    public const string Mixer = "mixer";
+    /// <summary>Ordre par défaut ; un onglet ajouté plus tard (Mélangeur) se range à la fin des listes déjà enregistrées.</summary>
+    public const string Clipboard = "clipboard";
+    public const string Notes = "notes";
+    public static readonly string[] All = [Music, Calendar, Control, Mixer, Widgets, Shelf, Voice, Claude, Clocks, Health, Friends, Clipboard, Notes];
 
     public string Id { get; set; } = "";
     public bool Visible { get; set; } = true;

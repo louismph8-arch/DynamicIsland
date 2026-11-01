@@ -16,19 +16,42 @@ public static partial class ClaudeService
     /// <summary>Modèle par défaut avec une clé API (choix de l'utilisateur : bon et nettement moins cher qu'Opus).</summary>
     public const string ApiDefaultModel = "claude-sonnet-5-5";
     private const int ApiMaxTokens = 4096;
+    /// <summary>Vraie conversation par l'API : au plus 20 échanges renvoyés, les plus anciens retirés d'abord…</summary>
+    internal const int ApiHistoryTurns = 20;
+    /// <summary>… et pas plus de ~40 000 caractères en tout (une conversation qui s'allonge ne coûte pas de plus en plus cher).</summary>
+    internal const int ApiHistoryChars = 40_000;
+    /// <summary>Une très longue réponse est raccourcie dans l'historique.</summary>
+    private const int ApiAnswerChars = 6000;
+
+    /// <summary>
+    /// Échanges renvoyés à l'API (conversation en mémoire seulement) : les plus récents, au plus <see cref="ApiHistoryTurns"/>
+    /// et <see cref="ApiHistoryChars"/> caractères ; les plus anciens sont retirés en premier. Vérifié par <c>--self-test</c>.
+    /// </summary>
+    internal static List<ClaudeTurn> ApiHistory(IReadOnlyList<ClaudeTurn> answered)
+    {
+        var kept = new List<ClaudeTurn>();
+        int chars = 0;
+        for (int i = answered.Count - 1; i >= 0 && kept.Count < ApiHistoryTurns; i--)
+        {
+            chars += answered[i].Question.Length + HistoryAnswer(answered[i]).Length;
+            if (chars > ApiHistoryChars && kept.Count > 0) break;
+            kept.Insert(0, answered[i]);
+        }
+        return kept;
+    }
+
+    private static string HistoryAnswer(ClaudeTurn turn) =>
+        turn.Answer.Length > ApiAnswerChars ? turn.Answer[..ApiAnswerChars] + "…" : turn.Answer;
 
     private static async Task RunApiAsync(ClaudeTurn turn, string question, List<ClaudeTurn> history, CancellationToken token)
     {
-        var key = ClaudeApiKey.Load() ?? throw new ClaudeException(Loc.T("claude.api.no_key"), ClaudeFix.ApiKey);
+        var key = ApiKeys.Anthropic.Load() ?? throw new ClaudeException(Loc.F("claude.api.no_key", "Anthropic"), ClaudeFix.ApiKey);
         var model = SettingsStore.Current.Claude.ApiModel;
         var messages = new List<MessageParam>();
         foreach (var past in history)
         {
             messages.Add(new UserMessageParam { Content = past.Question });
-            messages.Add(new AssistantMessageParam
-            {
-                Content = past.Answer.Length > HistoryAnswerChars ? past.Answer[..HistoryAnswerChars] + "…" : past.Answer,
-            });
+            messages.Add(new AssistantMessageParam { Content = HistoryAnswer(past) });
         }
         messages.Add(new UserMessageParam { Content = question });
 

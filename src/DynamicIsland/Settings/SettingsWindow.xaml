@@ -4,7 +4,7 @@
         xmlns:t="clr-namespace:DynamicIsland.Themes"
         xmlns:ui="clr-namespace:DynamicIsland.Controls"
         Title="{ui:L settings.parametres_opaline}"
-        Width="920" Height="620" MinWidth="780" MinHeight="560"
+        Width="920" Height="620" MinWidth="780" MinHeight="620"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/app.ico"
         Background="{x:Static t:Paint.Window}" Foreground="{StaticResource TextPrimary}" FontFamily="{StaticResource UiFont}">
@@ -30,7 +30,7 @@
     <!-- ===== Navigation ===== -->
     <Border x:Name="NavPanel" Grid.RowSpan="2" Background="{x:Static t:Paint.Sidebar}" BorderBrush="{x:Static t:Paint.Card}" BorderThickness="{x:Static t:Borders.RightHairline}">
       <DockPanel Margin="{ui:Space s7,s7,s7,s7}">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="{ui:Space s5,0,0,s7}">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="{ui:Space s5,0,0,s5}">
           <Image x:Name="HeaderLogo" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality"/>
           <StackPanel Margin="{ui:Space s6,0,0,0}" VerticalAlignment="Center">
             <TextBlock Text="Opaline" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold"/>
@@ -38,7 +38,7 @@
           </StackPanel>
         </StackPanel>
         <!-- Recherche (correctif 11) : n'importe quel réglage, Ctrl+F -->
-        <Grid DockPanel.Dock="Top" Margin="{ui:Space 0,0,0,s7}">
+        <Grid DockPanel.Dock="Top" Margin="{ui:Space 0,0,0,s5}">
           <TextBox x:Name="SearchBox" Style="{StaticResource SearchField}"
                    TextChanged="SearchBox_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"/>
           <TextBlock Text="{x:Static t:Icons.Search}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.M}" IsHitTestVisible="False"
@@ -53,6 +53,8 @@
             </ui:SquircleBorder>
           </Popup>
         </Grid>
+        <!-- 12 pages : la liste défile (sans barre) si la fenêtre est vraiment trop basse -->
+        <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" Focusable="False">
         <StackPanel>
           <RadioButton x:Name="NavGeneral" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Settings}" Content="{ui:L settings.general}" Checked="Nav_Checked"/>
           <RadioButton x:Name="NavAppearance" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Appearance}" Content="{ui:L settings.apparence}" Checked="Nav_Checked"/>
@@ -63,9 +65,12 @@
           <RadioButton x:Name="NavProfiles" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Profiles}" Content="{ui:L settings.profils}" Checked="Nav_Checked"/>
           <RadioButton x:Name="NavSharing" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Share}" Content="{ui:L settings.partage}" Checked="Nav_Checked"/>
           <RadioButton x:Name="NavConnected" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Connected}" Content="{ui:L settings.connected}" Checked="Nav_Checked"/>
+          <RadioButton x:Name="NavFriends" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Friends}" Content="{ui:L settings.friends.page}" Checked="Nav_Checked"/>
           <RadioButton x:Name="NavAutomations" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Automations}" Content="{ui:L settings.automations}" Checked="Nav_Checked"/>
+          <RadioButton x:Name="NavWeek" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Week}" Content="{ui:L settings.week}" Checked="Nav_Checked"/>
           <RadioButton x:Name="NavAbout" Style="{StaticResource NavButton}" Tag="{x:Static t:Icons.Info}" Content="{ui:L settings.propos}" Checked="Nav_Checked"/>
         </StackPanel>
+        </ScrollViewer>
       </DockPanel>
     </Border>
 
@@ -212,6 +217,32 @@
                        PreviewKeyDown="HotkeyBox_PreviewKeyDown" GotKeyboardFocus="HotkeyBox_GotKeyboardFocus"
                        LostKeyboardFocus="HotkeyBox_LostKeyboardFocus"/>
               <Button Grid.Column="2" Style="{StaticResource SettingsButton}" Margin="{ui:Space s4,0,0,0}" Content="{ui:L settings.par_defaut}" Click="DefaultHotkey_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.notes.group}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.notes.hotkey.title}"/>
+                <TextBlock x:Name="NoteHotkeyStatus" Style="{StaticResource CardDescription}" TextWrapping="Wrap"/>
+              </StackPanel>
+              <TextBox x:Name="NoteHotkeyBox" Grid.Column="1" Style="{StaticResource HexBox}" Width="190" MaxLength="40" IsReadOnly="True"
+                       FontFamily="{StaticResource UiFont}" Cursor="Hand" ToolTip="{ui:L settings.notes.hotkey.tip}"
+                       PreviewKeyDown="HotkeyBox_PreviewKeyDown" GotKeyboardFocus="HotkeyBox_GotKeyboardFocus"
+                       LostKeyboardFocus="HotkeyBox_LostKeyboardFocus"/>
+              <Button Grid.Column="2" Style="{StaticResource SettingsButton}" Margin="{ui:Space s4,0,0,0}" Content="{ui:L settings.notes.hotkey.suggest}" Click="DefaultNoteHotkey_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.notes.encrypt.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.notes.encrypt.description}"/>
+              </StackPanel>
+              <CheckBox x:Name="NotesEncryptToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="NotesEncryptToggle_Click"/>
             </Grid>
           </ui:SquircleBorder>
         </StackPanel>
@@ -458,6 +489,73 @@
                 <Button Style="{StaticResource SettingsButton}" Margin="{ui:Space 0,0,s3,0}" Content="{ui:L settings.seasons.valentine}" Tag="Valentine" Click="SeasonPreview_Click"/>
               </WrapPanel>
             </StackPanel>
+          </ui:SquircleBorder>
+
+          <!-- Concentration (7F) : veilleuse = rampe gamma des écrans, désactivée par défaut, toujours remise comme avant -->
+          <TextBlock x:Name="FocusGroupTitle" Style="{StaticResource GroupTitle}" Text="{ui:L settings.focus.group}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <StackPanel>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.nightlight}"/>
+                  <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.nightlight.desc}"/>
+                </StackPanel>
+                <CheckBox x:Name="NightLightToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="NightLight_Changed"/>
+              </Grid>
+              <TextBlock x:Name="NightLightStatus" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s4,0,0}"/>
+            </StackPanel>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.nightlight.strength}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.nightlight.strength.desc}"/>
+              </StackPanel>
+              <TextBlock x:Name="NightStrengthText" Grid.Column="1" Style="{StaticResource ValueText}"/>
+              <Slider x:Name="NightStrengthSlider" Grid.Column="2" Style="{StaticResource SettingsSlider}" VerticalAlignment="Center"
+                      Minimum="5" Maximum="100" SmallChange="5" LargeChange="10" IsSnapToTickEnabled="True" TickFrequency="5"
+                      ValueChanged="NightStrength_Changed"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <RadioButton x:Name="NightScheduleAlways" Style="{StaticResource OptionCard}" GroupName="NightSchedule" Checked="NightSchedule_Checked"
+                       Content="{ui:L settings.nightlight.schedule.always}" Tag="{ui:L settings.nightlight.schedule.always.desc}"/>
+          <RadioButton x:Name="NightScheduleSun" Style="{StaticResource OptionCard}" GroupName="NightSchedule" Checked="NightSchedule_Checked"
+                       Content="{ui:L settings.nightlight.schedule.sun}"/>
+          <RadioButton x:Name="NightScheduleHours" Style="{StaticResource OptionCard}" GroupName="NightSchedule" Checked="NightSchedule_Checked"
+                       Content="{ui:L settings.nightlight.schedule.hours}" Tag="{ui:L settings.nightlight.schedule.hours.desc}"/>
+          <ui:SquircleBorder x:Name="NightHoursCard" Style="{StaticResource SettingCard}" Margin="{ui:Space 0,s3,0,s3}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Style="{StaticResource CardTitle}" VerticalAlignment="Center" Text="{ui:L settings.nightlight.hours}"/>
+              <TextBlock Grid.Column="1" Style="{StaticResource CardDescription}" VerticalAlignment="Center" Margin="{ui:Space 0,0,s3,0}" Text="{ui:L settings.nightlight.hours.from}"/>
+              <TextBox x:Name="NightFromBox" Grid.Column="2" Style="{StaticResource HexBox}" MaxLength="5" KeyDown="NightHours_KeyDown" LostFocus="NightHours_LostFocus"/>
+              <TextBlock Grid.Column="3" Style="{StaticResource CardDescription}" VerticalAlignment="Center" Margin="{ui:Space s4,0,s3,0}" Text="{ui:L settings.nightlight.hours.to}"/>
+              <TextBox x:Name="NightToBox" Grid.Column="4" Style="{StaticResource HexBox}" MaxLength="5" KeyDown="NightHours_KeyDown" LostFocus="NightHours_LostFocus"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.nightlight.games}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.nightlight.games.desc}"/>
+              </StackPanel>
+              <CheckBox x:Name="NightGamesToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="NightLight_Changed"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L controls.dnd}"/>
+                <TextBlock x:Name="FocusDndText" Style="{StaticResource CardDescription}" TextWrapping="Wrap"/>
+              </StackPanel>
+              <Button x:Name="FocusDndButton" Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Click="FocusDnd_Click"/>
+            </Grid>
           </ui:SquircleBorder>
         </StackPanel>
 
@@ -812,6 +910,16 @@
             </Grid>
           </ui:SquircleBorder>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.discord.join_notices}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.discord.join_notices.description}"/>
+              </StackPanel>
+              <CheckBox x:Name="DiscordJoinToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Setting_Changed"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <StackPanel>
               <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -832,7 +940,7 @@
             </StackPanel>
           </ui:SquircleBorder>
 
-          <TextBlock Style="{StaticResource GroupTitle}" Text="Claude"/>
+          <TextBlock x:Name="AssistantGroupTitle" Style="{StaticResource GroupTitle}" Text="{ui:L settings.assistant.group}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -863,7 +971,7 @@
           <StackPanel x:Name="ClaudeModelList"/>
           <ui:SquircleBorder x:Name="ClaudeApiCard" Style="{StaticResource SettingCard}" Visibility="Collapsed">
             <StackPanel>
-              <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.claude.api}"/>
+              <TextBlock x:Name="ClaudeKeyTitle" Style="{StaticResource CardTitle}" Text="{ui:L settings.claude.api}"/>
               <TextBlock x:Name="ClaudeKeyStatusText" Style="{StaticResource CardDescription}" TextWrapping="Wrap"/>
               <Grid Margin="{ui:Space 0,s5,0,0}">
                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -880,6 +988,23 @@
             </StackPanel>
           </ui:SquircleBorder>
           <StackPanel x:Name="ClaudeApiModelList" Visibility="Collapsed"/>
+          <StackPanel x:Name="OpenAiModelList" Visibility="Collapsed"/>
+          <ui:SquircleBorder x:Name="CodexCard" Style="{StaticResource SettingCard}" Visibility="Collapsed">
+            <StackPanel>
+              <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.codex.title}"/>
+              <TextBlock x:Name="CodexStatusText" Style="{StaticResource CardDescription}" TextWrapping="Wrap"/>
+              <WrapPanel Margin="{ui:Space 0,s4,0,0}">
+                <Button x:Name="CodexInstallButton" Style="{StaticResource SettingsButton}" Margin="{ui:Space 0,0,s4,0}" Content="{ui:L settings.codex.install}"
+                        Background="{DynamicResource AccentGradientBrush}" Visibility="Collapsed" Click="CodexInstall_Click"/>
+                <Button x:Name="CodexLoginButton" Style="{StaticResource SettingsButton}" Margin="{ui:Space 0,0,s4,0}" Content="{ui:L settings.connecter}"
+                        Background="{DynamicResource AccentGradientBrush}" Visibility="Collapsed" Click="CodexLogin_Click"/>
+                <Button x:Name="CodexUpdateButton" Style="{StaticResource SettingsButton}" Margin="{ui:Space 0,0,s4,0}" Content="{ui:L settings.mettre_jour}"
+                        ToolTip="{ui:L settings.codex.update.tip}" Click="CodexUpdate_Click"/>
+                <Button Style="{StaticResource SettingsButton}" Margin="{ui:Space 0,0,s4,0}" Content="{ui:L settings.verifier}" Click="CodexCheck_Click"/>
+              </WrapPanel>
+            </StackPanel>
+          </ui:SquircleBorder>
+          <StackPanel x:Name="CodexModelList" Visibility="Collapsed"/>
 
           <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.notices.group}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
@@ -940,6 +1065,55 @@
               <CheckBox x:Name="HealthDiskToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Health_Click"/>
             </Grid>
           </ui:SquircleBorder>
+
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.clipboard}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.clipboard.history}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.clipboard.history.desc}"/>
+              </StackPanel>
+              <CheckBox x:Name="ClipboardHistoryToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Clipboard_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.clipboard.persist}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.clipboard.persist.desc}"/>
+              </StackPanel>
+              <CheckBox x:Name="ClipboardPersistToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Clipboard_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.clipboard.offer}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.clipboard.offer.desc}"/>
+              </StackPanel>
+              <CheckBox x:Name="ClipboardOfferToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Clipboard_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.clipboard.autoclear}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.clipboard.autoclear.desc}"/>
+              </StackPanel>
+              <CheckBox x:Name="ClipboardAutoClearToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Clipboard_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <StackPanel>
+              <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.clipboard.vault}"/>
+              <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.clipboard.vault.desc}"/>
+            </StackPanel>
+          </ui:SquircleBorder>
+
         </StackPanel>
 
         <!-- Dock -->
@@ -975,6 +1149,16 @@
                        Content="{ui:L settings.bas_ecran}" Tag="{ui:L settings.comme_barre_taches_windows}"/>
           <RadioButton x:Name="DockTopEdge" Style="{StaticResource OptionCard}" GroupName="DockEdge" Checked="DockEdge_Checked"
                        Content="{ui:L settings.haut_ecran}" Tag="{ui:L settings.icones_ouvrent_vers_bas}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}" Margin="{ui:Space 0,s5,0,0}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.suivre_ecran_souris}"/>
+                <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L settings.dock_passe_ecran_souris}"/>
+              </StackPanel>
+              <CheckBox x:Name="DockFollowToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Setting_Changed"/>
+            </Grid>
+          </ui:SquircleBorder>
           <ui:SquircleBorder Style="{StaticResource SettingCard}" Margin="{ui:Space 0,s5,0,s3}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -1070,6 +1254,46 @@
               </StackPanel>
               <Button Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s4,0,0,0}"
                       Content="{ui:L settings.rules.open}" Click="OpenAppRules_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+
+          <!-- Stage Manager (7G) -->
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.stage.group}"/>
+          <ui:SquircleBorder x:Name="StageCard" Style="{StaticResource SettingCard}">
+            <StackPanel>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.stage.title}"/>
+                  <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.stage.description}"/>
+                </StackPanel>
+                <CheckBox x:Name="StageModeToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="StageModeToggle_Click"/>
+              </Grid>
+              <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s4,0,0}" Text="{ui:L settings.stage.details}"/>
+              <Grid Margin="{ui:Space 0,s4,0,0}">
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.stage.fill}"/>
+                  <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.stage.fill.description}"/>
+                </StackPanel>
+                <CheckBox x:Name="StageFillToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Setting_Changed"/>
+              </Grid>
+              <Button Style="{StaticResource SettingsButton}" HorizontalAlignment="Left" Margin="{ui:Space 0,s4,0,0}"
+                      Content="{ui:L settings.stage.exceptions}" Click="OpenAppRules_Click"/>
+            </StackPanel>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.stage.hotkey}"/>
+                <TextBlock x:Name="StageHotkeyStatus" Style="{StaticResource CardDescription}" TextWrapping="Wrap"/>
+              </StackPanel>
+              <TextBox x:Name="StageHotkeyBox" Grid.Column="1" Style="{StaticResource HexBox}" Width="190" MaxLength="40" IsReadOnly="True"
+                       Margin="{ui:Space s4,0,0,0}" VerticalAlignment="Center" FontFamily="{StaticResource UiFont}" Cursor="Hand" ToolTip="{ui:L settings.clique_ici_puis_appuie}"
+                       PreviewKeyDown="HotkeyBox_PreviewKeyDown" GotKeyboardFocus="HotkeyBox_GotKeyboardFocus"
+                       LostKeyboardFocus="HotkeyBox_LostKeyboardFocus"/>
+              <Button Grid.Column="2" Style="{StaticResource SettingsButton}" Margin="{ui:Space s4,0,0,0}" Content="{ui:L settings.par_defaut}" Click="DefaultStageHotkey_Click"/>
             </Grid>
           </ui:SquircleBorder>
 
@@ -1310,6 +1534,25 @@
               <CheckBox x:Name="LockWidgetsToggle" Grid.Column="2" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Setting_Changed"/>
             </Grid>
           </ui:SquircleBorder>
+
+          <!-- Widgets des potes (7H) : fichiers .opalinewidget déclaratifs, aucun code exécuté (voir SettingsWindow.Plugins.cs) -->
+          <TextBlock x:Name="PluginsGroupTitle" Style="{StaticResource GroupTitle}" Text="{ui:L plugins.group}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L plugins.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L plugins.description}"/>
+              </StackPanel>
+              <Button Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s4,0,0,0}"
+                      Content="{ui:L plugins.create}" ToolTip="{ui:L plugins.create.tooltip}" Click="CreatePluginTemplate_Click"/>
+              <Button x:Name="InstallPluginButton" Grid.Column="2" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s4,0,0,0}"
+                      Content="{ui:L plugins.install}" Click="InstallPlugin_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <TextBlock x:Name="PluginStatusText" Style="{StaticResource CardDescription}" Margin="{ui:Space s2,0,0,s5}" Visibility="Collapsed"/>
+          <StackPanel x:Name="PluginPreviewPanel"/>
+          <StackPanel x:Name="PluginList"/>
 
         </StackPanel>
 
@@ -1597,7 +1840,7 @@
 
           <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space s2,s2,s2,0}" Text="{ui:L settings.remote.note}"/>
 
-          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.rgb}"/>
+          <TextBlock x:Name="RgbGroupTitle" Style="{StaticResource GroupTitle}" Text="{ui:L settings.rgb}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -1614,6 +1857,9 @@
                 <Ellipse x:Name="RgbSwatch" Width="14" Height="14" VerticalAlignment="Center" Margin="{ui:Space 0,0,s4,0}"/>
                 <TextBlock x:Name="RgbLogitechText" Style="{StaticResource CardTitle}" TextWrapping="Wrap"/>
               </StackPanel>
+              <TextBlock x:Name="RgbRazerText" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s3,0,0}"/>
+              <TextBlock x:Name="RgbCorsairText" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s2,0,0}"/>
+              <TextBlock x:Name="RgbSteelSeriesText" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s2,0,0}"/>
               <TextBlock x:Name="RgbOpenRgbText" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s2,0,0}"/>
               <CheckBox x:Name="RgbMusicToggle" Margin="{ui:Space 0,s6,0,0}" Foreground="{StaticResource TextSecondary}"
                         Content="{ui:L settings.rgb.music}" Click="Rgb_Click"/>
@@ -1623,8 +1869,12 @@
             </StackPanel>
           </ui:SquircleBorder>
 
-          <!-- Amis en ligne (6D-4) -->
-          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.friends}"/>
+        </StackPanel>
+
+        <!-- Amis en ligne (6D-4), page à part depuis le correctif 23 : serveur, compte, demandes, amis, bloqués -->
+        <StackPanel x:Name="FriendsPage" Visibility="Collapsed">
+          <TextBlock Style="{StaticResource PageTitle}" Text="{ui:L settings.friends.page}"/>
+          <TextBlock Style="{StaticResource PageSubtitle}" TextWrapping="Wrap" Text="{ui:L settings.friends.page.subtitle}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -1656,6 +1906,8 @@
               </StackPanel>
             </ui:SquircleBorder>
 
+            <StackPanel x:Name="FriendsConnectedPanel">
+            <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.friends.group.me}"/>
             <ui:SquircleBorder x:Name="FriendsMeCard" Style="{StaticResource SettingCard}">
               <StackPanel>
                 <Grid>
@@ -1679,22 +1931,48 @@
                           Content="{ui:L settings.friends.share_game}" Click="FriendsOption_Click"/>
                 <CheckBox x:Name="FriendsNotifyToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{StaticResource TextSecondary}"
                           Content="{ui:L settings.friends.notify}" Click="FriendsOption_Click"/>
+                <CheckBox x:Name="FriendsMessagesToggle" Margin="{ui:Space 0,s3,0,0}" Foreground="{StaticResource TextSecondary}"
+                          Content="{ui:L settings.friends.messages}" Click="FriendsOption_Click"/>
               </StackPanel>
             </ui:SquircleBorder>
 
-            <ui:SquircleBorder x:Name="FriendsListCard" Style="{StaticResource SettingCard}">
+            <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.friends.group.add}"/>
+            <ui:SquircleBorder Style="{StaticResource SettingCard}">
               <StackPanel>
-                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.friends.list}"/>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.friends.add.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.friends.add.desc}"/>
                 <Grid Margin="{ui:Space 0,s4,0,0}">
                   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions>
                   <TextBox x:Name="FriendsAddBox" Style="{StaticResource HexBox}" Width="150" MaxLength="12" KeyDown="FriendsAddBox_KeyDown"/>
                   <Button Grid.Column="1" Style="{StaticResource SettingsButton}" Margin="{ui:Space s4,0,0,0}" Content="{ui:L settings.friends.add}" Click="FriendsAdd_Click"/>
                 </Grid>
                 <TextBlock x:Name="FriendsMessageText" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s3,0,0}" Visibility="Collapsed"/>
-                <StackPanel x:Name="FriendsList" Margin="{ui:Space 0,s3,0,0}"/>
               </StackPanel>
             </ui:SquircleBorder>
-            <Button Style="{StaticResource SettingsButton}" HorizontalAlignment="Left" Margin="{ui:Space s2,s2,0,0}" Content="{ui:L settings.friends.leave}"
+
+            <StackPanel x:Name="FriendsRequestsGroup">
+              <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.friends.group.requests}"/>
+              <ui:SquircleBorder Style="{StaticResource SettingCard}">
+                <StackPanel x:Name="FriendsRequestsList"/>
+              </ui:SquircleBorder>
+            </StackPanel>
+
+            <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.friends.list}"/>
+            <ui:SquircleBorder x:Name="FriendsListCard" Style="{StaticResource SettingCard}">
+              <StackPanel x:Name="FriendsList"/>
+            </ui:SquircleBorder>
+
+            <StackPanel x:Name="FriendsBlockedGroup">
+              <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.friends.group.blocked}"/>
+              <ui:SquircleBorder Style="{StaticResource SettingCard}">
+                <StackPanel>
+                  <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.friends.blocked.desc}"/>
+                  <StackPanel x:Name="FriendsBlockedList" Margin="{ui:Space 0,s3,0,0}"/>
+                </StackPanel>
+              </ui:SquircleBorder>
+            </StackPanel>
+            </StackPanel>
+            <Button Style="{StaticResource SettingsButton}" HorizontalAlignment="Left" Margin="{ui:Space s2,s6,0,0}" Content="{ui:L settings.friends.leave}"
                     Click="FriendsLeave_Click"/>
           </StackPanel>
         </StackPanel>
@@ -1724,8 +2002,49 @@
           </ui:SquircleBorder>
         </StackPanel>
 
-        <!-- À propos -->
-        <StackPanel x:Name="AboutPage" Visibility="Collapsed">
+        <!-- Ma semaine (7F) : temps d'écran, jeux, Pomodoros ; suivi local, désactivé par défaut -->
+        <StackPanel x:Name="WeekPage" Visibility="Collapsed">
+          <TextBlock Style="{StaticResource PageTitle}" Text="{ui:L settings.week}"/>
+          <TextBlock Style="{StaticResource PageSubtitle}" TextWrapping="Wrap" Text="{ui:L settings.week.subtitle}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.week.track}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.week.track.desc}"/>
+              </StackPanel>
+              <CheckBox x:Name="WeekTrackToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="WeekTrack_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+
+          <!-- Semaine affichée (navigation, totaux, graphiques), dessinée dans SettingsWindow.Week.cs -->
+          <StackPanel x:Name="WeekContent"/>
+
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.week.options}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.week.summary}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.week.summary.desc}"/>
+              </StackPanel>
+              <CheckBox x:Name="WeekSummaryToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="WeekSummary_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.week.clear}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.week.clear.desc}"/>
+              </StackPanel>
+              <Button x:Name="WeekClearButton" Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center"
+                      Margin="{ui:Space s5,0,0,0}" Content="{ui:L settings.week.clear.button}" Click="WeekClear_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+        </StackPanel>
+
+        <!-- À propos -->        <StackPanel x:Name="AboutPage" Visibility="Collapsed">
           <TextBlock Style="{StaticResource PageTitle}" Text="{ui:L settings.propos}"/>
           <TextBlock Style="{StaticResource PageSubtitle}" Text="{ui:L settings.ile_dock_widgets_windows}"/>
 

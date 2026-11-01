@@ -30,6 +30,20 @@ public static class DesktopWidgetsService
     private static IntPtr _hook;
     private static DockNative.WinEventProc? _hookProc; // gardé en vie : Windows l'appelle
     private static bool? _faded;
+    /// <summary>Fenêtres des widgets des potes (7H) : mêmes règles (estompées, juste au-dessus du bureau), gérées par PluginService.</summary>
+    private static readonly List<DesktopWidgetWindow> Extra = [];
+    private static IEnumerable<DesktopWidgetWindow> All => Windows.Values.Concat(Extra);
+
+    /// <summary>Widget des potes affiché sur le bureau : il s'estompe et se range comme les autres.</summary>
+    public static void Attach(DesktopWidgetWindow window)
+    {
+        if (!Extra.Contains(window)) Extra.Add(window);
+        HookForeground();
+        _faded = null;
+        UpdateFocus();
+    }
+
+    public static void Detach(DesktopWidgetWindow window) => Extra.Remove(window);
 
     public static void Start(MediaService media)
     {
@@ -226,12 +240,12 @@ public static class DesktopWidgetsService
     /// <summary>Bureau au premier plan → widgets nets ; une appli → estompés. Puis place au-dessus du bureau.</summary>
     private static void UpdateFocus()
     {
-        if (Windows.Count == 0) return;
+        if (!All.Any()) return;
         bool faded = !IsDesktop(GetForegroundWindow());
         if (faded != _faded)
         {
             _faded = faded;
-            foreach (var window in Windows.Values) window.SetFaded(faded);
+            foreach (var window in All) window.SetFaded(faded);
         }
         KeepAboveDesktop();
     }
@@ -253,12 +267,12 @@ public static class DesktopWidgetsService
         var desktop = DesktopWindow();
         if (desktop == IntPtr.Zero) return;
         // Déjà en place (les widgets sont les fenêtres juste au-dessus du bureau) : on ne touche à rien.
-        var ours = Windows.Values.Select(w => w.Handle).ToHashSet();
+        var ours = All.Select(w => w.Handle).ToHashSet();
         var chain = new HashSet<IntPtr>();
         for (var h = DockNative.GetWindow(desktop, GW_HWNDPREV); h != IntPtr.Zero && ours.Contains(h); h = DockNative.GetWindow(h, GW_HWNDPREV))
             chain.Add(h);
         if (chain.Count == ours.Count) return;
-        foreach (var window in Windows.Values)
+        foreach (var window in All)
         {
             if (window.Handle == IntPtr.Zero) continue;
             var above = DockNative.GetWindow(desktop, GW_HWNDPREV);

@@ -55,7 +55,47 @@ public partial class ControlCenterView : UserControl
         BrightnessSlider.UserChanged += value => _brightness?.Set((int)Math.Round(value));
         SettingsStore.Changed += RefreshProfiles;
         RefreshProfiles();
-        _devicesTimer.Tick += (_, _) => _ = RefreshDevicesAsync();
+        _devicesTimer.Tick += (_, _) =>
+        {
+            _ = RefreshDevicesAsync();
+            RefreshFocus(); // temps restant du « Ne pas déranger » (onglet ouvert seulement)
+        };
+        FocusService.Changed += RefreshFocus;
+        Services.NightLight.NightLightService.Changed += RefreshNightLight;
+        Stage.StageManager.Changed += RefreshStage;
+        RefreshFocus();
+        RefreshNightLight();
+        RefreshStage();
+    }
+
+    // ------------------------------------------------------------------ Stage Manager (7G)
+
+    /// <summary>Tuile « Stage Manager » : allumée si le mode tourne ; grisée en mode sans échec.</summary>
+    internal void RefreshStage()
+    {
+        StageToggle.IsChecked = Stage.StageManager.IsOn;
+        StageToggle.IsEnabled = !App.SafeMode;
+        StageToggle.ToolTip = Loc.T(Stage.StageManager.IsOn ? "stage.tile.on" : "stage.tile.off");
+    }
+
+    private void StageToggle_Click(object sender, RoutedEventArgs e)
+    {
+        Stage.StageManager.Toggle();
+        RefreshStage();
+    }
+
+    /// <summary>Clic droit : activer / couper et paramètres (exceptions, raccourci).</summary>
+    private void StageToggle_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new ContextMenu { PlacementTarget = StageToggle, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        var toggle = new MenuItem { Header = Loc.T(Stage.StageManager.IsOn ? "palette.stage.off" : "palette.stage.on"), IsEnabled = !App.SafeMode };
+        toggle.Click += (_, _) => Stage.StageManager.Toggle();
+        menu.Items.Add(toggle);
+        var settings = new MenuItem { Header = Loc.T("stage.menu.settings") };
+        settings.Click += (_, _) => SettingsWindow.Open(SettingsPage.Dock);
+        menu.Items.Add(settings);
+        menu.IsOpen = true;
     }
 
     private async Task RefreshDevicesAsync()
@@ -214,6 +254,9 @@ public partial class ControlCenterView : UserControl
         UpdateBrightness();
         _brightness?.RequestRead();
         UpdateDarkMode();
+        RefreshFocus();
+        RefreshNightLight();
+        RefreshStage();
     }
 
     private void UpdateVolume()
@@ -261,14 +304,93 @@ public partial class ControlCenterView : UserControl
     {
         bool dark = ThemeService.IsDarkMode();
         DarkToggle.IsChecked = dark;
-        DarkStateText.Text = Loc.T(dark ? "state.on" : "state.off");
+        DarkToggle.ToolTip = Loc.T(dark ? "state.on" : "state.off");
     }
 
     private void DarkToggle_Click(object sender, RoutedEventArgs e)
     {
         bool dark = DarkToggle.IsChecked == true;
         ThemeService.SetDarkMode(dark);
-        DarkStateText.Text = Loc.T(dark ? "state.on" : "state.off");
+        DarkToggle.ToolTip = Loc.T(dark ? "state.on" : "state.off");
+    }
+
+    // ------------------------------------------------------------------ Ne pas déranger et veilleuse (7F)
+
+    /// <summary>Tuile « Ne pas déranger » : allumée + temps restant (« Encore 25 min », « Jusqu'à 8:00 »…).</summary>
+    internal void RefreshFocus()
+    {
+        bool on = FocusService.DoNotDisturb;
+        FocusToggle.IsChecked = on;
+        FocusStateText.Text = on ? FocusService.Describe(DateTime.Now) : Loc.T("dnd.tile.choose");
+    }
+
+    /// <summary>Rendu --snapshot : les deux tuiles allumées, sans rien changer (ni réglages, ni écrans).</summary>
+    internal void ShowFocusSample()
+    {
+        FocusToggle.IsChecked = true;
+        FocusStateText.Text = Loc.F("dnd.state.minutes", 25);
+        NightToggle.IsChecked = true;
+        StageToggle.IsChecked = true;
+    }
+
+    /// <summary>Tuile « Veilleuse » : allumée + température (infobulle).</summary>
+    internal void RefreshNightLight()
+    {
+        NightToggle.IsChecked = Services.NightLight.NightLightService.IsOn;
+        NightToggle.ToolTip = Services.NightLight.NightLightService.StateText();
+    }
+
+    /// <summary>Éteint : on choisit une durée ; allumé : on l'arrête.</summary>
+    private void FocusToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (FocusService.DoNotDisturb) FocusService.Stop();
+        else ShowFocusMenu(FocusToggle);
+        RefreshFocus();
+    }
+
+    private void FocusToggle_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        ShowFocusMenu(FocusToggle);
+        e.Handled = true;
+    }
+
+    private static void ShowFocusMenu(FrameworkElement target)
+    {
+        var menu = new ContextMenu { PlacementTarget = target, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        foreach (var item in FocusMenu.Items()) menu.Items.Add(item);
+        menu.IsOpen = true;
+    }
+
+    private void NightToggle_Click(object sender, RoutedEventArgs e)
+    {
+        Services.NightLight.NightLightService.Toggle();
+        RefreshNightLight();
+    }
+
+    /// <summary>Clic droit : intensité (25 à 100 %) et paramètres de la veilleuse.</summary>
+    private void NightToggle_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new ContextMenu { PlacementTarget = NightToggle, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        int current = SettingsStore.Current.Focus.NightLight.Strength;
+        menu.Items.Add(new MenuItem { Header = Services.NightLight.NightLightService.StateText(), IsEnabled = false, FontWeight = FontWeights.SemiBold });
+        menu.Items.Add(new Separator());
+        foreach (int strength in new[] { 25, 50, 75, 100 })
+        {
+            var item = new MenuItem { Header = Loc.F("nightlight.menu.strength", strength), IsCheckable = true, IsChecked = current == strength };
+            int value = strength;
+            item.Click += (_, _) => SettingsStore.Update(s =>
+            {
+                s.Focus.NightLight.Strength = value;
+                s.Focus.NightLight.Enabled = true;
+            });
+            menu.Items.Add(item);
+        }
+        menu.Items.Add(new Separator());
+        var settings = new MenuItem { Header = Loc.T("nightlight.menu.settings") };
+        settings.Click += (_, _) => SettingsWindow.Open(SettingsPage.Appearance);
+        menu.Items.Add(settings);
+        menu.IsOpen = true;
     }
 
     private static string VolumeIcon(double percent, bool muted) =>

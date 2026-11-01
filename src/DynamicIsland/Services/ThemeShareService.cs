@@ -466,7 +466,8 @@ public static partial class ThemeShareService
     {
         int index = Array.IndexOf(args, "--import");
         if (index >= 0 && index + 1 < args.Length) return args[index + 1];
-        return args.FirstOrDefault(a => Extensions.Any(e => a.EndsWith(e, StringComparison.OrdinalIgnoreCase)));
+        // Un widget des potes (.opalinewidget, 7H) passe par le même chemin : les paramètres l'ouvrent dans la page Widgets.
+        return args.FirstOrDefault(a => Extensions.Any(e => a.EndsWith(e, StringComparison.OrdinalIgnoreCase)) || Plugins.PluginStore.IsWidgetFile(a));
     }
 
     /// <summary>Filtre des boîtes de dialogue « Ouvrir » : les deux extensions.</summary>

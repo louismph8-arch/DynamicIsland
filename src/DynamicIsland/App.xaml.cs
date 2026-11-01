@@ -52,6 +52,13 @@ public partial class App : Application
             return;
         }
 
+        // Mises à jour Windows (correctif 21) : Opaline relancée en administrateur installe puis redémarre / éteint.
+        if (e.Args.Contains(Services.WindowsUpdateInstall.Argument))
+        {
+            Shutdown(Services.WindowsUpdateInstall.Run(e.Args));
+            return;
+        }
+
         // Réveil à distance (7B) : Opaline relancée en administrateur règle la carte réseau puis se ferme (sans PowerShell).
         if (e.Args.Contains(Services.Remote.WakeOnLan.SetupArgument))
         {
@@ -272,6 +279,7 @@ public partial class App : Application
             AutoThemeService.Start();
         }, ModuleGuard.Colors);
         RunModule("Widgets du bureau", () => DesktopWidgets.DesktopWidgetsService.Start(_island!.Media), ModuleGuard.Widgets);
+        RunModule("Widgets des potes", () => Plugins.PluginService.Start(_island!.Media), ModuleGuard.Plugins);
         RunModule("Fonds d'écran", () =>
         {
             DynamicWallpaperService.Start();
@@ -283,6 +291,8 @@ public partial class App : Application
             GlobalHotkey.Pressed += () => RunModule("Palette de commandes", () => Palette.PaletteWindow.Toggle(_island), ModuleGuard.Palette);
             GlobalHotkey.RevealPressed += () => RunModule("Dock", () => _dock?.ToggleReveal(), ModuleGuard.Dock);
             GlobalHotkey.IslandPressed += () => RunModule("Île", () => _island?.ToggleByUser());
+            GlobalHotkey.NotePressed += () => RunModule("Notes", () => Notes.NoteEditorWindow.Open(null), ModuleGuard.NotesTab);
+            GlobalHotkey.StagePressed += () => RunModule("Stage Manager", Stage.StageManager.Toggle, ModuleGuard.Stage);
             GlobalHotkey.Start();
         }, ModuleGuard.Palette);
         RunModule("Zone d'état du dock", () =>
@@ -305,6 +315,13 @@ public partial class App : Application
             DownloadNotifier.Finished += files => RunModule("Île", () => ShowSoon(() => ShowDownload(files), TimeSpan.FromSeconds(30)), ModuleGuard.Notices);
             DeviceNotifier.Start();
             DownloadNotifier.Start();
+            // Quelqu'un rejoint mon salon vocal Discord (correctif 25) : petite annonce avec son nom.
+            DiscordVoice.MemberJoined += (who, channel) => RunModule("Île", () =>
+            {
+                if (!SettingsStore.Current.Discord.JoinNotices) return;
+                ShowSoon(() => _island?.ShowNotice(Icons.Headphones, Loc.F("discord.joined", who),
+                    duration: TimeSpan.FromSeconds(4), detail: channel.Length > 0 ? channel : null) ?? true, TimeSpan.FromSeconds(6));
+            }, ModuleGuard.Notices);
         }, ModuleGuard.Notices);
         RunModule("Télécommande", () =>
         {
@@ -334,15 +351,30 @@ public partial class App : Application
                 TimeSpan.FromMinutes(2)), ModuleGuard.Health);
             Services.Health.HealthService.Start();
         }, ModuleGuard.Health);
+        RunModule("Presse-papiers", () =>
+        {
+            // Copie marquée sensible (gestionnaire de mots de passe) : jamais dans l'historique ; l'île propose de la garder.
+            ClipboardHistory.SecretOffered += () => RunModule("Île", () => ShowSoon(() => _island?.OfferSecret() ?? true,
+                TimeSpan.FromSeconds(20)), ModuleGuard.ClipboardTab);
+            PasswordVault.Owner = () => _island?.WindowHandle ?? IntPtr.Zero;
+            PasswordVault.Start();
+            ClipboardHistory.Start();
+        }, ModuleGuard.ClipboardTab);
+        RunModule("Notes", NotesService.Start, ModuleGuard.NotesTab);
         RunModule("Amis en ligne", () =>
         {
             Services.Friends.FriendsService.CameOnline += friend => RunModule("Île", () => ShowSoon(() => _island?.ShowNotice(Icons.Friends,
                 friend.Display, duration: TimeSpan.FromSeconds(6),
                 detail: friend.Status == "game" && friend.Game is { Length: > 0 } game ? Loc.F("friends.status.game", game) : Loc.T("friends.status.online")) ?? true,
                 TimeSpan.FromSeconds(30)), ModuleGuard.Friends);
+            // Message rapide d'un ami (correctif 24) : « Max · On joue ? » ; Ne pas déranger est respecté par ShowNotice.
+            Services.Friends.FriendsService.MessageReceived += message => RunModule("Île", () => ShowSoon(() => _island?.ShowNotice(Icons.Message,
+                message.Display, duration: TimeSpan.FromSeconds(8), detail: Services.Friends.QuickMessages.Text(message.Message)) ?? true,
+                TimeSpan.FromMinutes(2)), ModuleGuard.Friends);
             Services.Friends.FriendsService.Start();
         }, ModuleGuard.Friends);
         RunModule("Thèmes", ThemeShareService.RegisterFileType);
+        RunModule("Widgets des potes", Plugins.PluginStore.RegisterFileType, ModuleGuard.Plugins); // double-clic sur un .opalinewidget
         RunModule("Discord", DiscordVoice.Start, ModuleGuard.Discord);
         RunModule("Mises à jour", () =>
         {
@@ -364,7 +396,16 @@ public partial class App : Application
             welcome.Start();
         }
         RunModule("Ne pas déranger", FocusService.Start);
+        // Veilleuse (7F) : ne touche aux écrans que si l'option est active ; sinon seulement quelques abonnements.
+        if (!SafeMode) RunModule("Veilleuse", Services.NightLight.NightLightService.Start, ModuleGuard.NightLight);
         RunModule("Automatisations", () => Services.Automations.AutomationService.Start(() => _island), ModuleGuard.Automations);
+        // Stage Manager (7G) : désactivé par défaut ; coupé, il ne fait que suivre ses réglages (aucun crochet, aucune fenêtre).
+        if (!SafeMode) RunModule("Stage Manager", () => Stage.StageManager.Start(() => _island), ModuleGuard.Stage);
+        RunModule("Ma semaine", () =>
+        {
+            if (_island != null) _island.Timer.FocusEnded += Services.Stats.UsageStats.PomodoroDone; // Pomodoro terminé
+            Services.Stats.UsageStats.Start(() => _island);
+        }, ModuleGuard.Stats);
         MemoryWatch.Start();
         RunModule("Gardien", ShellGuard.Start); // même sans dock : il relance l'app après un plantage
         if (_afterCrash) Dispatcher.BeginInvoke(AnnounceRestart, DispatcherPriority.ApplicationIdle);
@@ -441,6 +482,9 @@ public partial class App : Application
         return _island.ShowNotice(Icons.FileDown, text, click, TimeSpan.FromSeconds(8), Loc.T("download.done"), existing);
     }
 
+    /// <summary>Case « Mélangeur » du dock (point 22) : l'île s'ouvre sur l'onglet Mélangeur.</summary>
+    public void OpenMixer() => RunModule("Île", () => _island?.OpenMixer());
+
     /// <summary>Annonce de quelques secondes dans l'île (thème installé, mise à jour…).</summary>
     public void Notify(string glyph, string text, Action? onClick = null) =>
         RunModule("Île", () => _island?.ShowNotice(glyph, text, onClick));
@@ -498,6 +542,7 @@ public partial class App : Application
     public static void Restart(bool safeMode = false)
     {
         SettingsStore.Flush();
+        Services.Stats.UsageStats.Flush();
         if (Environment.ProcessPath is { } exe)
         {
             var start = new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false };
@@ -540,6 +585,7 @@ public partial class App : Application
             _menuBar = null;
         });
         ModuleGuard.Register(ModuleGuard.Widgets, DesktopWidgets.DesktopWidgetsService.Stop);
+        ModuleGuard.Register(ModuleGuard.Plugins, Plugins.PluginService.Stop); // widgets des potes retirés du bureau (et de l'île)
         ModuleGuard.Register(ModuleGuard.Wallpapers, () =>
         {
             AnimatedWallpaper.Stop(); // le fond dynamique s'arrête de lui-même
@@ -551,7 +597,24 @@ public partial class App : Application
         ModuleGuard.Register(ModuleGuard.Rgb, Services.Rgb.RgbService.Stop); // G HUB reprend l'éclairage
         ModuleGuard.Register(ModuleGuard.Friends, Services.Friends.FriendsService.Stop); // présence effacée du serveur
         ModuleGuard.Register(ModuleGuard.Health, Services.Health.HealthService.Stop);
+        ModuleGuard.Register(ModuleGuard.ClipboardTab, () =>
+        {
+            ClipboardHistory.Stop(); // plus d'écoute du presse-papiers
+            PasswordVault.Stop(); // coffre reverrouillé, plus rien en mémoire
+        });
+        ModuleGuard.Register(ModuleGuard.NotesTab, () =>
+        {
+            NotesService.Stop(); // ce qui était tapé est enregistré, puis plus rien n'est écrit
+            GlobalHotkey.Refresh(); // raccourci « Nouvelle note » libéré
+        });
         ModuleGuard.Register(ModuleGuard.Automations, Services.Automations.AutomationService.Stop); // plus aucune règle ne tourne
+        ModuleGuard.Register(ModuleGuard.Stats, Services.Stats.UsageStats.Stop); // plus aucun relevé (ce qui est déjà compté est enregistré)
+        ModuleGuard.Register(ModuleGuard.NightLight, Services.NightLight.NightLightService.Stop); // écrans remis comme avant
+        ModuleGuard.Register(ModuleGuard.Stage, () =>
+        {
+            Stage.StageManager.Stop(); // fenêtres rendues à leur place d'avant, colonnes fermées
+            GlobalHotkey.Refresh(); // raccourci libéré
+        });
         ModuleGuard.Register(ModuleGuard.Remote, () =>
         {
             Services.Remote.RemoteControl.Stop(); // plus rien n'écoute sur le réseau
@@ -668,10 +731,15 @@ public partial class App : Application
             var media = new MediaService(Dispatcher);
             await media.InitializeAsync();
             await DesktopWidgets.DesktopWidgetsService.RenderSnapshotsAsync(folder, media);
+            await Plugins.PluginSnapshots.RenderAsync(folder); // widgets des potes d'exemple (en mémoire, données d'exemple)
             await Welcome.WelcomeWindow.RenderSnapshotsAsync(folder);
             await Feedback.FeedbackWindow.RenderSnapshotAsync(folder);
             await Feedback.WhatsNewWindow.RenderSnapshotAsync(folder);
             await Automations.RuleEditorWindow.RenderSnapshotAsync(folder);
+            await Vault.VaultEditorWindow.RenderSnapshotAsync(folder);
+            await Vault.ClipTextWindow.RenderSnapshotAsync(folder);
+            await Notes.NoteEditorWindow.RenderSnapshotAsync(folder);
+            await Stage.StageColumnWindow.RenderSnapshotAsync(Path.Combine(folder, "15-stage-colonne.png"));
         }
         catch (Exception ex)
         {
@@ -927,12 +995,21 @@ public partial class App : Application
     {
         if (_singleInstance != null) CrashWatch.SessionEnded(); // fermeture voulue : le gardien ne relance rien
         SettingsStore.Flush();
+        Services.Stats.UsageStats.Flush();
         RestoreShell();
         RunQuietly("Icônes d'arrière-plan", _tray.Dispose); // rend les icônes à Explorer
         RunQuietly("Icône de notification", () => _appTray?.Dispose());
         RunQuietly("Fond animé", AnimatedWallpaper.Stop); // retire nos fenêtres du bureau
         RunQuietly("Widgets du bureau", DesktopWidgets.DesktopWidgetsService.Stop);
         RunQuietly("Claude", ClaudeService.Stop); // ferme une réponse en cours (processus de Claude Code)
+        RunQuietly("Presse-papiers", () =>
+        {
+            SecureClipboard.EraseNow(); // un mot de passe du coffre encore copié (option d'effacement) ne survit pas à l'app
+            ClipboardHistory.Flush(); // écriture différée de l'historique faite tout de suite
+            NotesService.Flush(); // une note tapée juste avant de quitter est enregistrée
+            PasswordVault.Lock();
+        });
+
         _singleInstance?.ReleaseMutex();
         _singleInstance?.Dispose();
         base.OnExit(e);
@@ -958,6 +1035,22 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Error("Restauration des icônes du bureau", ex);
+        }
+        try
+        {
+            Services.NightLight.NightLightService.Restore(); // veilleuse (7F) : rampes gamma d'origine (rien si elle n'a rien changé)
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Restauration de la veilleuse", ex);
+        }
+        try
+        {
+            Stage.StageManager.Restore(); // Stage Manager (7G) : fenêtres réduites par nous rendues (rien s'il est coupé)
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Restauration des fenêtres de Stage Manager", ex);
         }
     }
 }

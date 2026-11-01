@@ -22,7 +22,8 @@ public sealed record PaletteItem(string Title, string Subtitle, Action Run)
 }
 
 /// <summary>Ce que la palette peut demander à l'île (AskClaude : null sans île affichée).</summary>
-public sealed record PaletteActions(Action<TimeSpan> StartTimer, Action StartPomodoro, Action<string>? AskClaude = null, Action<string>? Surprise = null);
+public sealed record PaletteActions(Action<TimeSpan> StartTimer, Action StartPomodoro, Action<string>? AskClaude = null, Action<string>? Surprise = null,
+    Action<bool>? OpenClipboard = null, Action<string, string>? Notice = null, Action? OpenNotes = null);
 
 /// <summary>
 /// Interprète ce qu'on tape dans la palette : calcul, minuteur, profil, applis, dossiers, raccourcis
@@ -44,6 +45,65 @@ public static partial class PaletteEngine
     [GeneratedRegex(@"^(?:profils?|profiles?)\b\s*(?<rest>.*)$", RegexOptions.IgnoreCase)]
     private static partial Regex ProfileCommand();
 
+    [GeneratedRegex(@"^(?:mots?\s+de\s+passe|mdp|passwords?|pwd)\b\s*(?<rest>.*)$", RegexOptions.IgnoreCase)]
+    private static partial Regex PasswordCommand();
+
+    // « ne pas déranger 1 h », « dnd 30 min », « npd stop », « do not disturb »… (7F)
+    [GeneratedRegex(@"^(?:ne\s+pas\s+d[ée]ranger|dnd|npd|do\s+not\s+disturb|concentration|focus)\b\s*(?<rest>.*)$", RegexOptions.IgnoreCase)]
+    private static partial Regex FocusCommand();
+
+    [GeneratedRegex(@"^(?:veilleuse|night\s*light|lumi[èe]re\s+bleue|blue\s+light)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex NightLightCommand();
+
+    [GeneratedRegex(@"^(?:stop|arr[êe]ter?|off|non|fin|end)$", RegexOptions.IgnoreCase)]
+    private static partial Regex StopWord();
+
+    [GeneratedRegex(@"^(?:demain|tomorrow|matin|morning)$", RegexOptions.IgnoreCase)]
+    private static partial Regex MorningWord();
+
+    /// <summary>
+    /// « Ne pas déranger » (7F) : la commande seule propose les 4 durées (et « Arrêter » s'il est actif) ; suivie d'une durée
+    /// (« 1 h », « 45 »), de « demain » ou de « stop », une seule ligne. Aussi « veilleuse » = allumer / éteindre la veilleuse.
+    /// </summary>
+    private static void AddFocus(string query, List<PaletteItem> items)
+    {
+        if (NightLightCommand().IsMatch(query) || AppCatalog.MatchScore(Loc.T("palette.nightlight.alias"), query) >= 3)
+        {
+            bool lit = Services.NightLight.NightLightService.IsOn;
+            items.Add(new PaletteItem(Loc.T(lit ? "palette.nightlight.off" : "palette.nightlight.on"), Services.NightLight.NightLightService.StateText(),
+                Services.NightLight.NightLightService.Toggle) { Glyph = Icons.NightLight });
+        }
+
+        var command = FocusCommand().Match(query);
+        bool named = command.Success || AppCatalog.MatchScore(Loc.T("palette.dnd.alias"), query) >= 3;
+        if (!named) return;
+        var rest = command.Success ? command.Groups["rest"].Value.Trim() : "";
+        string subtitle = FocusService.DoNotDisturb ? FocusService.Describe(DateTime.Now) : Loc.T("palette.dnd.description");
+        PaletteItem Item(string title, Action run) => new(title, subtitle, run) { Glyph = Icons.DoNotDisturb };
+
+        if (rest.Length > 0 && StopWord().IsMatch(rest))
+        {
+            items.Add(Item(Loc.T("palette.dnd.stop"), FocusService.Stop));
+            return;
+        }
+        if (rest.Length > 0 && MorningWord().IsMatch(rest))
+        {
+            items.Add(Item(Loc.F("palette.dnd.for", FocusService.Label(FocusService.Choice.Morning)), () => FocusService.TurnOn(FocusService.Choice.Morning)));
+            return;
+        }
+        if (rest.Length > 0 && TryParseDuration(rest, out var duration))
+        {
+            items.Add(Item(Loc.F("palette.dnd.for", Describe(duration)), () => FocusService.TurnOn(duration)));
+            return;
+        }
+        if (FocusService.DoNotDisturb) items.Add(Item(Loc.T("palette.dnd.stop"), FocusService.Stop));
+        foreach (var choice in FocusService.Choices)
+        {
+            var picked = choice;
+            items.Add(Item(Loc.F("palette.dnd.for", FocusService.Label(choice)), () => FocusService.TurnOn(picked)));
+        }
+    }
+
     /// <summary>Raccourcis Windows proposés par leur nom (dans la langue de l'interface).</summary>
     private static (string Name, string Target, string Glyph)[] Places =>
     [
@@ -62,12 +122,17 @@ public static partial class PaletteEngine
 
         var items = new List<PaletteItem>();
         // « ? question », « claude … » ou une phrase qui finit par « ? » : Claude en premier.
-        bool claudeFirst = query.StartsWith('?') || query.EndsWith('?') || query.StartsWith("claude ", StringComparison.OrdinalIgnoreCase);
+        bool claudeFirst = query.StartsWith('?') || query.EndsWith('?') || query.StartsWith("claude ", StringComparison.OrdinalIgnoreCase)
+                           || query.StartsWith("chatgpt ", StringComparison.OrdinalIgnoreCase);
         if (claudeFirst) AddClaude(query, actions, items);
         if (query.StartsWith('?')) return items;
         AddCalculation(query, items);
         AddTimer(query, actions, items);
         AddProfiles(query, items);
+        AddClipboard(query, actions, items);
+        AddFocus(query, items);
+        AddClipText(query, actions, items);
+        AddNotes(query, actions, items);
         AddSurprises(query, actions, items);
 
         foreach (var app in AppCatalog.Search(query, 4))
@@ -81,6 +146,9 @@ public static partial class PaletteEngine
             items.Add(new PaletteItem(name, "Windows", () => Open(target)) { Glyph = glyph });
         if (AppCatalog.MatchScore(Loc.T("palette.dock.alias"), query) >= 3 && !App.SafeMode)
             items.Add(new PaletteItem(Dock.TaskbarSwitch.Label, Loc.T("palette.dock.description"), Dock.TaskbarSwitch.Toggle) { Glyph = Icons.Dock });
+        if (AppCatalog.MatchScore(Loc.T("palette.stage.alias"), query) >= 3 && !App.SafeMode)
+            items.Add(new PaletteItem(Loc.T(Stage.StageManager.IsOn ? "palette.stage.off" : "palette.stage.on"), Loc.T("palette.stage.description"),
+                Stage.StageManager.Toggle) { Glyph = Icons.Stage });
         if (AppCatalog.MatchScore($"{Loc.T("settings.parametres")} {AppInfo.Name}", query) >= 3 || AppCatalog.MatchScore(Loc.T("palette.settings.alias"), query) >= 3)
             items.Add(new PaletteItem(Loc.F("palette.settings", AppInfo.Name), Loc.T("palette.settings.description"), () => SettingsWindow.Open()) { Glyph = Icons.Settings });
 
@@ -90,7 +158,43 @@ public static partial class PaletteEngine
         return items;
     }
 
+    /// <summary>
+    /// « presse-papiers » = l'onglet de l'île ; « mot de passe &lt;nom&gt; » = copier ce mot de passe du coffre (exclu des
+    /// historiques). Coffre verrouillé : une seule ligne qui le déverrouille (Windows Hello) puis copie la meilleure correspondance.
+    /// </summary>
+    private static void AddClipboard(string query, PaletteActions actions, List<PaletteItem> items)
+    {
+        if (actions.OpenClipboard is not { } open || ModuleGuard.IsDisabled(ModuleGuard.ClipboardTab)) return;
+        if (AppCatalog.MatchScore(Loc.T("palette.clipboard.alias"), query) >= 3)
+            items.Add(new PaletteItem(Loc.T("palette.clipboard"), Loc.T("palette.clipboard.description"), () => open(false)) { Glyph = Icons.Clipboard });
+
+        var command = PasswordCommand().Match(query);
+        if (!command.Success) return;
+        var name = command.Groups["rest"].Value.Trim();
+        void Copied(VaultEntry? entry) => actions.Notice?.Invoke(Icons.Key,
+            entry == null ? Loc.F("palette.password.none", name) : Loc.F("palette.password.copied", entry.Name));
+        if (name.Length == 0)
+        {
+            items.Add(new PaletteItem(Loc.T("palette.vault"), Loc.T("palette.vault.description"), () => open(true)) { Glyph = Icons.Key });
+            return;
+        }
+        if (PasswordVault.IsLocked)
+        {
+            items.Add(new PaletteItem(Loc.F("palette.password", name), Loc.T("palette.password.locked"),
+                async () => Copied(await PasswordVault.CopyPasswordByNameAsync(name))) { Glyph = Icons.Key });
+            return;
+        }
+        var matches = PasswordVault.Match(name).Take(4).ToList();
+        if (matches.Count == 0) items.Add(new PaletteItem(Loc.F("palette.password.none", name), Loc.T("palette.vault.description"), () => open(true)) { Glyph = Icons.Key });
+        foreach (var entry in matches)
+            items.Add(new PaletteItem(Loc.F("palette.password", entry.Name), entry.Login.Length > 0 ? entry.Login : Loc.T("vault.no_login"), () =>
+            {
+                if (PasswordVault.CopyPassword(entry)) Copied(entry);
+            }) { Glyph = Icons.Key });
+    }
+
     /// <summary>Surprises (6F) : seulement pour qui tape exactement la bonne phrase.</summary>
+
     private static void AddSurprises(string query, PaletteActions actions, List<PaletteItem> items)
     {
         if (actions.Surprise is not { } surprise) return;
@@ -107,9 +211,10 @@ public static partial class PaletteEngine
         if (actions.AskClaude is not { } ask || !SettingsStore.Current.Claude.Enabled) return;
         var question = query.TrimStart('?').Trim();
         if (question.StartsWith("claude ", StringComparison.OrdinalIgnoreCase)) question = question[7..].Trim();
+        else if (question.StartsWith("chatgpt ", StringComparison.OrdinalIgnoreCase)) question = question[8..].Trim();
         if (question.Length == 0) return;
         var shown = question.Length > 70 ? question[..70] + "…" : question;
-        items.Add(new PaletteItem(Loc.T("palette.claude.ask"), Loc.F("palette.claude.ask.description", shown), () => ask(question))
+        items.Add(new PaletteItem(Loc.F("palette.claude.ask", ClaudeService.AssistantName), Loc.F("palette.claude.ask.description", shown), () => ask(question))
         {
             Glyph = Icons.Sparkles,
             GlyphBackground = (Brush)Application.Current.FindResource(AppearanceService.AccentGradientKey),
@@ -117,7 +222,7 @@ public static partial class PaletteEngine
     }
 
     private static PaletteItem ClaudeTip() =>
-        new(Loc.T("palette.claude.tip"), Loc.T("palette.claude.tip.description"), () => { })
+        new(Loc.F("palette.claude.tip", ClaudeService.AssistantName), Loc.T("palette.claude.tip.description"), () => { })
         {
             Glyph = Icons.Sparkles,
             GlyphBackground = (Brush)Application.Current.FindResource(AppearanceService.AccentGradientKey),

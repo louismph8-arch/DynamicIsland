@@ -30,10 +30,23 @@ public partial class SettingsWindow
                 RgbService.LogitechState.NotInstalled => "settings.rgb.logitech.missing",
                 _ => "settings.rgb.logitech.waiting",
             });
+        RgbRazerText.Text = BrandText("razer", RgbService.RazerStatus);
+        RgbCorsairText.Text = BrandText("corsair", RgbService.CorsairStatus);
+        RgbSteelSeriesText.Text = BrandText("steelseries", RgbService.SteelSeriesStatus);
         RgbOpenRgbText.Text = RgbService.OpenRgbDevices >= 0
             ? Loc.F("settings.rgb.openrgb.on", RgbService.OpenRgbDevices)
             : Loc.T("settings.rgb.openrgb.off");
     }
+
+    /// <summary>« Razer Chroma : connecté » ou ce qu'il faut installer / activer (clés settings.rgb.&lt;marque&gt;.&lt;état&gt;).</summary>
+    private static string BrandText(string brand, RgbBrandState state) => Loc.T($"settings.rgb.{brand}." + state switch
+    {
+        RgbBrandState.Connected => "on",
+        RgbBrandState.NotRunning => "absent",
+        RgbBrandState.Refused => "refused",
+        RgbBrandState.Missing when brand == "corsair" => "missing",
+        _ => "waiting",
+    });
 
     private void Rgb_Click(object sender, RoutedEventArgs e)
     {

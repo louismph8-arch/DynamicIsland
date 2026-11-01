@@ -51,6 +51,7 @@ public partial class DockWindow
         if (_settings.Mode == DockMode.Smart && _watchTicks % 3 == 0) _overlapped = IsOverlapped();
         // Règle de l'appli au premier plan (priorité 2, point 13) : « se cache » / « toujours visible ».
         if (_watchTicks % 3 == 0) _appRule = AppRuleService.HasRules ? AppRuleService.ForForeground(dock: true) : Settings.AppBehavior.Default;
+        if (_settings.FollowMouse && _watchTicks % FollowTicks == 0) FollowMouse(); // même cadence que l'île (400 ms)
         UpdateVisibility();
     }
 

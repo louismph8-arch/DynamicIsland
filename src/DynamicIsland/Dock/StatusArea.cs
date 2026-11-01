@@ -16,7 +16,7 @@ namespace DynamicIsland.Dock;
 
 /// <summary>
 /// Zone d'état à droite du dock (6B) : langue du clavier, Windows Update, corbeille, pile Téléchargements, flèche des icônes
-/// du bureau (correctif 16), dans l'ordre et avec l'affichage choisis dans les paramètres. Chaque case a son survol (étiquette
+/// du bureau (correctif 16), mélangeur de volume (point 22), dans l'ordre et avec l'affichage choisis dans les paramètres. Chaque case a son survol (étiquette
 /// du dock), son clic et son menu. Aucune action importante sans l'utilisateur : rien n'est installé ni redémarré, la corbeille
 /// n'est vidée qu'après confirmation, un fichier déposé va dans la corbeille (récupérable).
 /// </summary>
@@ -47,6 +47,8 @@ public sealed class StatusArea : StackPanel
     private readonly TranslateTransform _arrowSlide = new();
     /// <summary>État affiché par la flèche (null avant le premier affichage : pas d'animation au démarrage).</summary>
     private bool? _desktopHidden;
+    /// <summary>Volume général pour la case « Mélangeur » (lu seulement au survol et à la molette, jamais en boucle).</summary>
+    private readonly VolumeService _volume = new();
 
     public StatusArea()
     {
@@ -244,6 +246,16 @@ public sealed class StatusArea : StackPanel
             };
             border.Drop += (_, e) => TrashDrop(cell, e);
         }
+        if (id == StatusItem.Mixer)
+        {
+            border.MouseEnter += (_, _) => UpdateCell(StatusItem.Mixer); // icône et étiquette au volume du moment
+            border.MouseWheel += (_, e) =>
+            {
+                e.Handled = true;
+                if (_volume.TryRead(out double level, out bool _)) _volume.SetLevel(level + Math.Sign(e.Delta) * DockShape.StatusVolumeStep);
+                UpdateCell(StatusItem.Mixer);
+            };
+        }
         return cell;
     }
 
@@ -279,6 +291,10 @@ public sealed class StatusArea : StackPanel
                 cell.Glyph.Foreground = Paint.TextPrimary;
                 dot = _newestDownload is { } newest && newest.When > DownloadsService.SeenUntil;
                 break;
+            case StatusItem.Power:
+                cell.Glyph.Text = Icons.Power;
+                cell.Glyph.Foreground = Paint.TextPrimary;
+                break;
             case StatusItem.Desktop:
                 bool hidden = SettingsStore.Current.Dock.HideDesktopIcons;
                 cell.Glyph.Text = Icons.ChevronDown;
@@ -289,6 +305,10 @@ public sealed class StatusArea : StackPanel
                     _desktopHidden = hidden;
                     TurnArrow(cell, hidden, animate);
                 }
+                break;
+            case StatusItem.Mixer:
+                cell.Glyph.Text = cell.Border.IsMouseOver && _volume.TryRead(out double level, out bool muted) ? VolumeGlyph(level, muted) : Icons.Mixer;
+                cell.Glyph.Foreground = Paint.TextPrimary;
                 break;
         }
         cell.Dot.Visibility = dot && badge == null ? Visibility.Visible : Visibility.Collapsed;
@@ -314,6 +334,12 @@ public sealed class StatusArea : StackPanel
             case StatusItem.Desktop:
                 bool hidden = SettingsStore.Current.Dock.HideDesktopIcons;
                 return Loc.T(hidden ? "status.desktop.hidden" : "status.desktop.shown") + "\n" + Loc.T(hidden ? "status.desktop.help.show" : "status.desktop.help.hide");
+            case StatusItem.Power:
+                return Loc.T("status.power") + "\n" + Loc.T("status.power.help");
+            case StatusItem.Mixer:
+                string volume = !_volume.TryRead(out double level, out bool muted) ? "—"
+                    : muted ? Loc.T("volume.muted") : Loc.F("format.percent", Math.Round(level * 100));
+                return Loc.F("status.mixer", volume) + "\n" + Loc.T("status.mixer.help");
             default:
                 return Loc.T("folders.downloads") + (_newestDownload is { } newest ? "\n" + Loc.F("status.downloads.latest", newest.Name) : "");
         }
@@ -364,11 +390,27 @@ public sealed class StatusArea : StackPanel
             case StatusItem.Desktop:
                 ToggleDesktopIcons();
                 break;
+            case StatusItem.Power:
+                HoverEnded?.Invoke(cell.Border);
+                MenuRequested?.Invoke(Menu(StatusItem.Power)); // clic gauche = même menu que le clic droit
+                break;
+            case StatusItem.Mixer:
+                HoverEnded?.Invoke(cell.Border);
+                (Application.Current as App)?.OpenMixer();
+                break;
         }
     }
 
+    private static string VolumeGlyph(double level, bool muted) =>
+        muted || level < 0.005 ? Icons.VolumeMute : level < 0.34 ? Icons.VolumeLow : level < 0.67 ? Icons.VolumeMedium : Icons.VolumeHigh;
+
     /// <summary>Clic sur la flèche : même réglage que « Cacher les icônes du bureau » (le service cache ou remet aussitôt).</summary>
-    private static void ToggleDesktopIcons() => SettingsStore.Update(s => s.Dock.HideDesktopIcons = !s.Dock.HideDesktopIcons);
+    /// <remarks>Demande de l'utilisateur : la même flèche range aussi les icônes d'arrière-plan du dock (et les ressort).</remarks>
+    private static void ToggleDesktopIcons() => SettingsStore.Update(s =>
+    {
+        s.Dock.HideDesktopIcons = !s.Dock.HideDesktopIcons;
+        s.Dock.TrayCollapsed = s.Dock.HideDesktopIcons;
+    });
 
     private ContextMenu Menu(string id)
     {
@@ -392,6 +434,17 @@ public sealed class StatusArea : StackPanel
                 check.IsEnabled = !WindowsUpdateService.Checking;
                 menu.Items.Add(check);
                 menu.Items.Add(Entry(Loc.T("status.updates.open"), WindowsUpdateService.OpenSettings));
+                if (WindowsUpdateService.Pending.Count > 0 || WindowsUpdateService.RestartRequired)
+                {
+                    // Correctif 21 : seulement au clic, avec confirmation (fenêtre administrateur s'il faut encore installer).
+                    menu.Items.Add(new Separator());
+                    var install = WindowsUpdateService.Pending.Count > 0;
+                    var restartItem = Entry(Loc.T(install ? "updates.win.install.restart" : "updates.win.restart"), () => Later(() => WindowsUpdateInstall.Start(restart: true)), Icons.Restart);
+                    var shutdownItem = Entry(Loc.T(install ? "updates.win.install.shutdown" : "updates.win.shutdown"), () => Later(() => WindowsUpdateInstall.Start(restart: false)), Icons.Power);
+                    restartItem.IsEnabled = shutdownItem.IsEnabled = !WindowsUpdateInstall.Running;
+                    menu.Items.Add(restartItem);
+                    menu.Items.Add(shutdownItem);
+                }
                 break;
             case StatusItem.Trash:
                 menu.Items.Add(Entry(Loc.T("status.trash.open"), RecycleBinService.Open));
@@ -404,6 +457,18 @@ public sealed class StatusArea : StackPanel
                 break;
             case StatusItem.Desktop:
                 menu.Items.Add(Entry(Loc.T(SettingsStore.Current.Dock.HideDesktopIcons ? "status.desktop.show" : "status.desktop.hide"), ToggleDesktopIcons));
+                break;
+            case StatusItem.Power:
+                // Par le Dispatcher : le menu est refermé avant la question de confirmation.
+                menu.Items.Add(Entry(Loc.T("menubar.lock"), () => Later(PowerActions.Lock), Icons.Lock));
+                menu.Items.Add(Entry(Loc.T("menubar.sleep") + "…", () => Later(PowerActions.Sleep), Icons.WeatherMoon));
+                menu.Items.Add(Entry(Loc.T("menubar.restart"), () => Later(PowerActions.Restart), Icons.Restart));
+                menu.Items.Add(Entry(Loc.T("menubar.shutdown"), () => Later(PowerActions.ShutDown), Icons.Power));
+                break;
+            case StatusItem.Mixer:
+                menu.Items.Add(Entry(Loc.T("status.mixer.open"), () => (Application.Current as App)?.OpenMixer()));
+                menu.Items.Add(Entry(_volume.TryRead(out _, out bool silent) && silent ? Loc.T("status.mixer.unmute") : Loc.T("status.mixer.mute"), _volume.ToggleMute));
+                menu.Items.Add(Entry(Loc.T("status.mixer.windows"), () => OpenUri("ms-settings:apps-volume")));
                 break;
         }
         menu.Items.Add(new Separator());
@@ -561,9 +626,12 @@ public sealed class StatusArea : StackPanel
 
     private static void OpenUri(string uri) => Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose();
 
-    private static MenuItem Entry(string header, Action action)
+    private void Later(Action action) => Dispatcher.BeginInvoke(action);
+
+    private static MenuItem Entry(string header, Action action, string? glyph = null)
     {
         var entry = new MenuItem { Header = header };
+        if (glyph != null) entry.Icon = new TextBlock { Text = glyph, FontFamily = FontStack.Icons, FontSize = IconSize.S, Foreground = Paint.TextSecondary };
         entry.Click += (_, _) => action();
         return entry;
     }

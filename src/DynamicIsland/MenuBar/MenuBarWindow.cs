@@ -282,17 +282,11 @@ public sealed class MenuBarWindow : Window
         menu.Items.Add(Entry(Loc.F("palette.settings", AppInfo.Name) + "…", () => SettingsWindow.Open()));
         menu.Items.Add(Entry(Loc.F("menubar.about", AppInfo.Name), () => SettingsWindow.Open(SettingsPage.About)));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Entry(Loc.T("menubar.lock"), () => LockWorkStation()));
-        menu.Items.Add(Entry(Loc.T("menubar.sleep"), () => SetSuspendState(false, false, false)));
-        menu.Items.Add(Entry(Loc.T("menubar.restart"), () => Confirm(Loc.T("menubar.restart.confirm"), "/r /t 0")));
-        menu.Items.Add(Entry(Loc.T("menubar.shutdown"), () => Confirm(Loc.T("menubar.shutdown.confirm"), "/s /t 0")));
+        menu.Items.Add(Entry(Loc.T("menubar.lock"), PowerActions.Lock));
+        menu.Items.Add(Entry(Loc.T("menubar.sleep") + "…", PowerActions.Sleep));
+        menu.Items.Add(Entry(Loc.T("menubar.restart"), PowerActions.Restart));
+        menu.Items.Add(Entry(Loc.T("menubar.shutdown"), PowerActions.ShutDown));
         OpenMenu(menu, _logoButton);
-    }
-
-    private static void Confirm(string question, string arguments)
-    {
-        if (MessageBox.Show(question + " " + Loc.T("menubar.apps_will_close"), AppInfo.Name, MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        Process.Start(new ProcessStartInfo("shutdown.exe", arguments) { CreateNoWindow = true, UseShellExecute = false });
     }
 
     // ------------------------------------------------------------------ état à droite
@@ -460,12 +454,6 @@ public sealed class MenuBarWindow : Window
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
-
-    [DllImport("user32.dll")]
-    private static extern bool LockWorkStation();
-
-    [DllImport("powrprof.dll")]
-    private static extern bool SetSuspendState(bool hibernate, bool force, bool disableWakeEvent);
 
     [DllImport("user32.dll")]
     private static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extraInfo);

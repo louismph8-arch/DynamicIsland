@@ -20,11 +20,13 @@ public static class GlobalHotkey
     private const int PaletteId = 0x4449;
     private const int RevealId = 0x444A;
     private const int IslandId = 0x444B;
+    private const int NoteId = 0x444C;
+    private const int StageId = 0x444D;
     private const uint MOD_NOREPEAT = 0x4000;
     private static readonly IntPtr HWND_MESSAGE = new(-3);
 
     private static HwndSource? _window;
-    private static string? _palette, _reveal, _island; // raccourcis enregistrés
+    private static string? _palette, _reveal, _island, _note, _stage; // raccourcis enregistrés
     private static bool _suspended;
 
     /// <summary>Le raccourci de la palette a été pressé (thread UI).</summary>
@@ -33,6 +35,10 @@ public static class GlobalHotkey
     public static event Action? RevealPressed;
     /// <summary>Le raccourci « Cacher / afficher l'île » a été pressé (thread UI, priorité 2 point 14).</summary>
     public static event Action? IslandPressed;
+    /// <summary>Le raccourci « Nouvelle note » a été pressé (thread UI ; aucun par défaut).</summary>
+    public static event Action? NotePressed;
+    /// <summary>Le raccourci « Stage Manager » a été pressé (thread UI ; aucun par défaut).</summary>
+    public static event Action? StagePressed;
     /// <summary>Un raccourci a été (ou n'a pas pu être) enregistré.</summary>
     public static event Action? StateChanged;
 
@@ -42,6 +48,10 @@ public static class GlobalHotkey
     public static string? RevealError { get; private set; }
     /// <summary>Idem pour le raccourci « Cacher / afficher l'île ».</summary>
     public static string? IslandError { get; private set; }
+    /// <summary>Idem pour le raccourci « Nouvelle note ».</summary>
+    public static string? NoteError { get; private set; }
+    /// <summary>Idem pour le raccourci « Stage Manager ».</summary>
+    public static string? StageError { get; private set; }
 
     public static void Start()
     {
@@ -77,6 +87,14 @@ public static class GlobalHotkey
         _island = Register(IslandId, _island,
             settings.Island.Enabled && !_suspended && settings.Island.ToggleHotkey.Length > 0 ? settings.Island.ToggleHotkey : null,
             "Cacher / afficher l'île", error => IslandError = error);
+        // « Nouvelle note » : désactivé par défaut ; libéré en jeu comme la palette (le jeu garde toutes ses touches).
+        _note = Register(NoteId, _note,
+            !_suspended && !GamingMode.IsActive && !ModuleGuard.IsDisabled(ModuleGuard.NotesTab) && settings.Notes.Hotkey.Length > 0 ? settings.Notes.Hotkey : null,
+            "Nouvelle note", error => NoteError = error);
+        // Stage Manager (7G) : aucun par défaut ; libéré en jeu comme la palette.
+        _stage = Register(StageId, _stage,
+            !_suspended && !GamingMode.IsActive && !App.SafeMode && !ModuleGuard.IsDisabled(ModuleGuard.Stage) && settings.Stage.Hotkey.Length > 0 ? settings.Stage.Hotkey : null,
+            "Stage Manager", error => StageError = error);
     }
 
     /// <returns>Le raccourci enregistré après l'appel (null si aucun).</returns>
@@ -110,12 +128,14 @@ public static class GlobalHotkey
     {
         if (msg != WM_HOTKEY) return IntPtr.Zero;
         int id = wParam.ToInt32();
-        if (id != PaletteId && id != RevealId && id != IslandId) return IntPtr.Zero;
+        if (id != PaletteId && id != RevealId && id != IslandId && id != NoteId && id != StageId) return IntPtr.Zero;
         handled = true;
         try
         {
             if (id == PaletteId) Pressed?.Invoke();
             else if (id == IslandId) IslandPressed?.Invoke();
+            else if (id == NoteId) NotePressed?.Invoke();
+            else if (id == StageId) StagePressed?.Invoke();
             else RevealPressed?.Invoke();
         }
         catch (Exception ex)
@@ -139,6 +159,10 @@ public static class Hotkeys
     /// <summary>« Afficher le dock » : D comme Dock ; Ctrl+Alt ne se tape pas par hasard en jeu.</summary>
     public const string DefaultIsland = "Ctrl+Alt+I"; // cacher / afficher l'île (priorité 2, point 14)
     public const string DefaultReveal = "Ctrl+Alt+D";
+    /// <summary>Proposé par le bouton « Par défaut » de « Nouvelle note » (le raccourci reste vide tant qu'on ne le choisit pas).</summary>
+    public const string DefaultNote = "Ctrl+Alt+N";
+    /// <summary>Proposé par « Par défaut » de Stage Manager (7G) ; aucun raccourci tant qu'on ne le choisit pas.</summary>
+    public const string DefaultStage = "Ctrl+Alt+S";
 
     public static bool TryParse(string? text, out ModifierKeys modifiers, out Key key)
     {
