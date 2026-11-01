@@ -67,6 +67,7 @@ public partial class IslandWindow
         if (remote.Devices.Count == 0) remote.Devices.Add(new RemoteDevice { Id = "demo", Name = "iPhone" });
         Services.Remote.RemoteOutbox.Add([Path.Combine(windows, "win.ini")]);
         await Task.Delay(1500); // laisse les services (média, écrans) répondre
+        await Design.OpalBackdrop.WhenReady(); // copie floutée (fond du pack) derrière le verre opalin
 
         FinishAnimations();
         await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "0-compacte.png"));
@@ -106,6 +107,7 @@ public partial class IslandWindow
             if (tab == Tab.Clipboard) ClipboardTab.ShowSample(vault: false); // historique d'exemple : le vrai presse-papiers n'est pas lu
             if (tab == Tab.Notes) NotesTab.ShowSample(); // notes d'exemple : notes.json n'est jamais lu
             FinishAnimations();
+            _opal.HideSweep(); // le balayage de l'ouverture ne tourne pas dans un rendu figé
             await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, name + ".png"));
             if (tab == Tab.Clipboard)
             {
@@ -133,6 +135,10 @@ public partial class IslandWindow
                 _glass.SimulateCursor(new Point(Island.ActualWidth * 0.75, Island.ActualHeight * 0.2));
                 await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "1b-musique-reflet.png"));
                 _glass.SimulateCursor(null);
+                // Verre opalin (O1) : balayage nacré figé au milieu de l'île, comme à l'ouverture.
+                _opal.ShowSweepAt(0.45);
+                await SnapshotRenderer.SaveAsync(this, Path.Combine(folder, "1c-musique-balayage.png"));
+                _opal.HideSweep();
                 // Thèmes saisonniers (6F) : l'effet avancé de quelques secondes, sans animation en direct.
                 foreach (var (season, seasonName) in new[] { (Services.Seasons.Season.Halloween, "3j-halloween"), (Services.Seasons.Season.Christmas, "3k-noel") })
                 {

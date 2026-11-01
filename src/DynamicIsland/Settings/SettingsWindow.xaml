@@ -285,6 +285,25 @@
                       Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.1" ValueChanged="Setting_Changed"/>
             </Grid>
           </ui:SquircleBorder>
+          <!-- Refonte O1 : intensité du « verre opalin » (appliquée tout de suite à toute l'app) + la démo pour comparer -->
+          <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.opal.group}"/>
+          <RadioButton x:Name="OpalDiscreet" Style="{StaticResource OptionCard}" GroupName="OpalStyle" Checked="OpalStyle_Checked"
+                       Content="{ui:L opal.style.discreet}" Tag="{ui:L opal.style.discreet.description}"/>
+          <RadioButton x:Name="OpalBalanced" Style="{StaticResource OptionCard}" GroupName="OpalStyle" Checked="OpalStyle_Checked"
+                       Content="{ui:L opal.style.balanced}" Tag="{ui:L opal.style.balanced.description}"/>
+          <RadioButton x:Name="OpalIntense" Style="{StaticResource OptionCard}" GroupName="OpalStyle" Checked="OpalStyle_Checked"
+                       Content="{ui:L opal.style.intense}" Tag="{ui:L opal.style.intense.description}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.opal.title}"/>
+                <TextBlock Style="{StaticResource CardDescription}" Text="{ui:L settings.opal.description}"/>
+              </StackPanel>
+              <Button Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s6,0,0,0}"
+                      Content="{ui:L settings.opal.open}" Click="OpalDemo_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
 
           <TextBlock Style="{StaticResource GroupTitle}" Text="{ui:L settings.couleurs_automatiques}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">

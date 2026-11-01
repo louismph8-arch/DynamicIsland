@@ -42,6 +42,7 @@ public partial class PaletteWindow : Window
     {
         InitializeComponent();
         _glass = new LiquidGlass(Card, () => Card.CornerRadius.TopLeft);
+        _ = new Design.OpalSkin(Card, Design.OpalRole.Panel, _glass); // verre opalin (O1)
         Closed += (_, _) => _glass.Detach();
         _actions = new PaletteActions(duration => _island?.StartTimer(duration), () => _island?.StartPomodoro(),
             question => _island?.AskClaude(question), id => _island?.Surprise(id),
@@ -76,7 +77,6 @@ public partial class PaletteWindow : Window
         PlaceFrom(anchor);
         SnapTo(anchor.Bounds.Width, anchor.Bounds.Height, anchor.Radius);
 
-        Card.BorderBrush = new SolidColorBrush(AppearanceService.RimColor());
         AppearanceService.ApplyGlow(CardShadow, Shadows.Window);
         QueryBox.Text = text ?? "";
         QueryBox.CaretIndex = QueryBox.Text.Length;
@@ -395,7 +395,6 @@ public partial class PaletteWindow : Window
     {
         await Task.WhenAll(AppCatalog.RefreshAsync(), FolderIndex.RefreshAsync());
         var window = new PaletteWindow { ShowActivated = false, Left = -30000, Top = 0, _island = island };
-        window.Card.BorderBrush = new SolidColorBrush(AppearanceService.RimColor());
         AppearanceService.ApplyGlow(window.CardShadow, Shadows.Window);
         window.Show();
         foreach (var (query, name) in new[]

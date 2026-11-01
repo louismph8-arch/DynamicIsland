@@ -99,6 +99,9 @@ public sealed class AppSettings
     }
 }
 
+/// <summary>Intensité du « verre opalin » (refonte O1) : discret, équilibré, intense.</summary>
+public enum OpalStyle { Discreet, Balanced, Intense }
+
 public sealed class AppearanceSettings
 {
     /// <summary>Accent en dégradé (deux couleurs identiques = couleur unie). Par défaut : bleu → violet.</summary>
@@ -106,6 +109,8 @@ public sealed class AppearanceSettings
     public string AccentEnd { get; set; } = Swatch.Hex(Swatch.AccentEnd);
     /// <summary>Thèmes saisonniers sur l'île (6F) : Halloween, Noël, Nouvel An, Saint-Valentin.</summary>
     public bool Seasons { get; set; } = true;
+    /// <summary>Intensité du « verre opalin » choisie dans la démo (refonte O1) ; pas encore utilisée par le reste de l'app.</summary>
+    public OpalStyle OpalStyle { get; set; } = OpalStyle.Balanced;
     /// <summary>Halo néon autour de l'île et du dock, de 0 à 1.</summary>
     public double GlowIntensity { get; set; } = 0.4;
     /// <summary>Opacité du fond de l'île (et du dock flottant), de 0,5 à 1.</summary>

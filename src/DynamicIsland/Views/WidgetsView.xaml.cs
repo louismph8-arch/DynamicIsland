@@ -184,9 +184,10 @@ public partial class WidgetsView : UserControl
                     Width = widget.Definition.Width,
                     Height = widget.Definition.Height,
                     CornerRadius = Corners.Tile,
-                    Background = widget.Definition.Card ? Paint.Surface : Brushes.Transparent,
+                    Background = widget.Definition.Card ? null : Brushes.Transparent, // carte : verre opalin (O1) posé juste après
                     Child = rendered.Root,
                 };
+                if (widget.Definition.Card) Design.OpalTile.Apply(tile);
                 PluginStrip.Children.Add(new Viewbox
                 {
                     Height = PluginShape.IslandTile,

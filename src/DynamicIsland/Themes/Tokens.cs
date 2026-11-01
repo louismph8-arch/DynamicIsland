@@ -1099,3 +1099,126 @@ public static class WeekShape
     /// <summary>Jeux (2e série) : sarcelle foncée, ΔE ≥ 15 avec l'indigo d'Opaline, même pour les daltoniens.</summary>
     public static readonly Brush Games = Paint.Frozen(Color.FromRgb(0x22, 0xA5, 0xBF));
 }
+
+/// <summary>
+/// Réglages d'une intensité du « verre opalin » (refonte O1). Alphas et opacités de 0 à 1 ; longueurs en DIP, sauf
+/// <see cref="Blur"/> (en pixels de la copie réduite du fond d'écran, voir <see cref="Opal.BlurWidth"/>).
+/// </summary>
+public sealed record OpalLook(
+    double Blur, double Vibrancy,                 // flou simulé du décor, saturation de ce décor flouté (1 = inchangée)
+    double Smoke, double MilkTop, double MilkBottom, double Tint, // voile sombre, voile laiteux (haut → bas), teinte d'accent
+    double Grain,                                 // opacité du grain
+    double IridShift, double IridPale, double IridAlpha, double IridWidth, // reflets irisés de la bordure
+    double TopLine,                               // liseré lumineux du haut
+    ShadowSpec Shadow,                            // ombre douce dessous
+    double GlowBlur, double GlowOpacity,          // lueur opaline d'une tuile survolée
+    double SweepAlpha, double SweepWidth);        // balayage nacré (largeur en fraction de la surface)
+
+/// <summary>Identité « verre opalin » (refonte O1) : les trois intensités de la démo, rayons, grain, reflets, balayage.</summary>
+public static class Opal
+{
+    public static readonly OpalLook Discreet = new(
+        Blur: 3, Vibrancy: 1.0, Smoke: 0.66, MilkTop: 0.07, MilkBottom: 0.02, Tint: 0.07, Grain: 0.025,
+        IridShift: 18, IridPale: 0.55, IridAlpha: 0.32, IridWidth: 1, TopLine: 0.30,
+        Shadow: new(18, 4, 0.32), GlowBlur: 26, GlowOpacity: 0.40, SweepAlpha: 0.16, SweepWidth: 0.26);
+
+    public static readonly OpalLook Balanced = new(
+        Blur: 5, Vibrancy: 1.18, Smoke: 0.50, MilkTop: 0.13, MilkBottom: 0.04, Tint: 0.15, Grain: 0.04,
+        IridShift: 26, IridPale: 0.38, IridAlpha: 0.62, IridWidth: 1.25, TopLine: 0.48,
+        Shadow: new(26, 6, 0.42), GlowBlur: 36, GlowOpacity: 0.62, SweepAlpha: 0.30, SweepWidth: 0.32);
+
+    public static readonly OpalLook Intense = new(
+        Blur: 7, Vibrancy: 1.40, Smoke: 0.34, MilkTop: 0.21, MilkBottom: 0.07, Tint: 0.25, Grain: 0.055,
+        IridShift: 34, IridPale: 0.25, IridAlpha: 0.88, IridWidth: 1.6, TopLine: 0.70,
+        Shadow: new(34, 8, 0.48), GlowBlur: 46, GlowOpacity: 0.85, SweepAlpha: 0.46, SweepWidth: 0.38);
+
+    public static OpalLook For(Settings.OpalStyle style) => style switch
+    {
+        Settings.OpalStyle.Discreet => Discreet,
+        Settings.OpalStyle.Intense => Intense,
+        _ => Balanced,
+    };
+
+    // Rayons cohérents : panneau > tuile > bouton
+    public const double PanelRadius = 28;      // île ouverte, carte du bas de colonne
+    public const double DockRadius = 22;
+    public const double TileRadius = 18;
+    public const double InnerRadius = 12;      // pochette, icône du dock
+    public const double ButtonRadius = 10;
+
+    // Grain : petite texture de bruit générée une fois (même graine = même image), posée en mosaïque
+    public const int GrainSize = 128;
+    public const int GrainSeed = 0x0FA1;
+
+    // Flou simulé : copie du fond d'écran réduite à cette largeur, flou « boîte » en plusieurs passes, puis agrandie
+    public const int BlurWidth = 256;
+    public const int BlurPasses = 3;
+
+    // Reflets irisés : angle de la bordure selon la souris (degrés), lissage, cadence (seulement quand la souris bouge)
+    public const double IridBaseAngle = 35;
+    public const double IridSwing = 150;       // de la gauche à la droite de la fenêtre
+    public const double IridSlide = 0.28;      // glissement du centre du dégradé (haut → bas de la fenêtre)
+    public const double Follow = 0.22;         // part du chemin parcourue à chaque image
+    public const double FollowDone = 0.002;    // assez proche : la minuterie s'arrête
+    public static readonly TimeSpan FollowTick = TimeSpan.FromMilliseconds(33);
+
+    // Balayage nacré
+    public static readonly TimeSpan Sweep = TimeSpan.FromMilliseconds(600);
+    public const double SweepAngle = 18;
+    public static readonly TimeSpan GlowFade = TimeSpan.FromMilliseconds(220);
+    public const double HaloReach = 90;        // place autour d'une surface pour son ombre et sa lueur
+
+    // Application à l'app (O1, suite) : île, dock, palette, cartes, tuiles, menus
+    public const double CoveredSmoke = 0.86;   // voile quand une fenêtre (pas le bureau) est derrière l'île : pas de flou du fond
+    public const double PanelSmokeMin = 0.80;  // surfaces sans flou du fond (palette, cartes) : jamais plus transparentes
+    public const double TileLift = 0.035;      // une tuile est un peu plus laiteuse que la surface qui la porte
+    public const double TileHoverLift = 0.05;  // + au survol
+    public const double TileTint = 0.55;       // part de la teinte d'accent de la surface reprise par une tuile
+    public const double TileRim = 0.55;        // part de l'irisation de la surface reprise par la bordure d'une tuile
+    public const double TileGlow = 0.55;       // lueur sous une tuile survolée (part de OpalLook.GlowOpacity)
+    public const double TileGlowBlur = 0.6;    // rayon de cette lueur (part de OpalLook.GlowBlur)
+    public const double PopupTint = 0.7;       // teinte d'accent des menus clic droit (part de OpalLook.Tint)
+    public const double PopupRim = 0.6;        // bordure irisée des menus (part de OpalLook.IridAlpha)
+    public const double TopLineInset = 0.4;    // le liseré du haut s'arrête avant les coins (part du rayon)
+    public const double SweepMinWidth = 24;
+    public const double SweepHeight = 2.2;     // hauteur du reflet du balayage (part de la hauteur de la surface)
+    // Lisibilité d'abord : sur un fond d'écran clair, le voile sombre posé sur la copie floutée est renforcé
+    public const double BrightFrom = 0.40;     // luminosité moyenne du fond à partir de laquelle on renforce
+    public const double BrightRange = 0.35;    // renfort complet à BrightFrom + BrightRange
+    public const double BrightSmoke = 0.60;    // part du chemin vers un voile opaque au renfort complet
+    public const int BackdropDecodeWidth = 640; // fond d'écran lu à cette largeur avant d'être flouté (assez pour 256 px)
+    public static readonly TimeSpan BackdropCheck = TimeSpan.FromSeconds(60); // diaporamas, Wallpaper Engine : date du fichier
+    public static readonly Size SnapshotScreen = new(1920, 1080); // --snapshot : écran supposé derrière l'île / le dock
+    public const double SnapshotEdge = 8;      // --snapshot : distance de l'île / du dock au bord de cet écran
+
+    // Choix du style : petites cartes avec un aperçu vivant (assistant, paramètres)
+    public static readonly Size PreviewPill = new(112, 30);
+    public const double PreviewScene = 52;     // hauteur du petit décor flouté derrière la pilule
+    public const double PreviewSceneRadius = 14;
+
+    // Fenêtre de démo (O1)
+    public const double DemoWidth = 1280;
+    public const double DemoHeight = 760;
+    public const double DemoCanvasWidth = 1264; // mise en page fixe, mise à l'échelle avec la fenêtre
+    public const double DemoCanvasHeight = 716;
+    public const double ColumnWidth = 392;
+    public const double TileUnit = 80;          // tuile S ; W = 2 × 1, L = 2 × 2
+    public const double TileGap = 10;
+    public static readonly Size Pill = new(150, 36);
+    public static readonly Size IslandOpen = new(360, 128);
+    public static readonly Size Dock = new(344, 60);
+    public const double DockIcon = 40;
+    public const double Cover = 72;
+    public const double Ring = 58;              // anneaux CPU / RAM de la tuile Moniteur
+    public const double RingStroke = 6;
+    public static readonly Size Switch = new(42, 24);
+    public const double SwitchKnob = 18;
+    public const double Logo = 36;
+
+    /// <summary>Décor « clair » de la démo (fond du pack dans des tons pâles).</summary>
+    public static readonly Mood LightMood = new(Hex("#DCE4F5"), Hex("#F1F4FB"), Hex("#A9C1FF"), Hex("#F5BFDD"), Hex("#FFFFFF"));
+    /// <summary>Plaque neutre (pas en verre opalin) sous l'en-tête et la note de la démo.</summary>
+    public static readonly Brush Plate = Paint.Frozen(Color.FromArgb(0xB8, 0x12, 0x12, 0x16));
+
+    private static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+}

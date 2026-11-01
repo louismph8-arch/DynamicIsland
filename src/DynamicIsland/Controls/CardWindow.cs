@@ -60,7 +60,6 @@ public abstract class CardWindow : Window
 
         Card.CornerRadius = new CornerRadius(AppearanceService.Radius(Radius.Palette));
         Card.BorderThickness = Borders.Hairline;
-        Card.BorderBrush = new SolidColorBrush(AppearanceService.RimColor());
         Card.SetResourceReference(Border.BackgroundProperty, AppearanceService.IslandBrushKey);
         Card.MouseLeftButtonDown += (_, e) =>
         {
@@ -82,6 +81,7 @@ public abstract class CardWindow : Window
         _shell.Children.Add(Card);
         Content = new Grid { Children = { _shell } };
         _glass = new LiquidGlass(Card, () => Card.CornerRadius.TopLeft);
+        _ = new Design.OpalSkin(Card, Design.OpalRole.Panel, _glass); // verre opalin (O1), détaché à la fermeture
         Closed += (_, _) => _glass.Detach();
 
         PreviewKeyDown += (_, e) =>

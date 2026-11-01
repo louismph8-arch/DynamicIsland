@@ -98,6 +98,7 @@ public partial class SettingsWindow : Window
         ShowWallpaperChoice();
         ShowPlacement(); // île ou dock déplacés en les faisant glisser
         ShowFocus(); // veilleuse allumée depuis l'île, Ne pas déranger depuis la palette…
+        ShowOpalStyle(); // intensité du verre opalin choisie dans la démo
         if (ProfilesPage.Visibility == Visibility.Visible) LoadProfiles();
         if (AutomationsPage.Visibility == Visibility.Visible && _sampleRules == null) LoadAutomations(); // règle activée ailleurs, Ne pas déranger…
         if (WeekPage.Visibility == Visibility.Visible) LoadWeek(); // suivi activé ou coupé ailleurs
@@ -284,6 +285,7 @@ public partial class SettingsWindow : Window
         ShowFriends();
         SeasonsToggle.IsChecked = settings.Appearance.Seasons;
         ShowFocus(); // veilleuse et Ne pas déranger (7F)
+        ShowOpalStyle(); // verre opalin (O1)
 
         UpdateValueTexts();
         _loading = false;

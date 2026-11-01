@@ -95,14 +95,13 @@ public sealed class WorldClockView : UserControl
             TextTrimming = TextTrimming.CharacterEllipsis,
             HorizontalAlignment = HorizontalAlignment.Center,
         });
-        return new SquircleBorder
+        return Design.OpalTile.Apply(new SquircleBorder // verre opalin (O1)
         {
             Width = IslandShape.ClockCardWidth,
             Height = IslandShape.ClockCardHeight,
             Margin = new Thickness(Space.S1, 0, Space.S1, 0),
             CornerRadius = Corners.L,
-            Background = Paint.Control,
             Child = panel,
-        };
+        });
     }
 }

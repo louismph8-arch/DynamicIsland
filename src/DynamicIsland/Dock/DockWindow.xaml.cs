@@ -62,7 +62,7 @@ public partial class DockWindow : Window
     private (string? Screen, DockEdge Edge, double Offset, DockAlignment Alignment)? _live;
     private readonly LiquidGlass _glass;
     private string? _iconStyle; // style des icônes affiché (voir IconStyler.Signature)
-    private readonly SolidColorBrush _rimBrush = new(Swatch.WithAlpha(Swatch.White, 0));
+    private readonly Design.OpalSkin _opal;
 
     private IntPtr _hwnd;
     private AppBar? _appBar;
@@ -88,7 +88,8 @@ public partial class DockWindow : Window
             () => !IsBar ? default
                 : AtTop ? new Thickness(2 * Glass.Band, 2 * Glass.Band, 2 * Glass.Band, 0)
                 : new Thickness(2 * Glass.Band, 0, 2 * Glass.Band, 2 * Glass.Band));
-        DockBackground.BorderBrush = _rimBrush;
+        // Verre opalin (O1) : flottant = copie floutée du fond d'écran ; barre = acrylique de Windows dessous + teinte opaline.
+        _opal = new Design.OpalSkin(DockBackground, Design.OpalRole.FloatingDock, _glass) { SnapshotAtBottom = true };
         ApplyAppearance();
         _loadedPins = _settings.Pinned;
         foreach (var pin in _settings.Pinned) _pinned.Add(DockItem.FromPin(pin));
@@ -570,7 +571,7 @@ public partial class DockWindow : Window
         }
         ApplyItemsAlignment();
         ApplyDockMargin();
-        _rimBrush.Color = AppearanceService.RimColor();
+        _opal.SetBackdrop(!IsBar, topLine: !(IsBar && AtTop)); // barre en haut : son « haut » est le bord de l'écran
         AppearanceService.ApplyGlow(DockShadow, Shadows.Dock);
 
         // Tout est centré sur les icônes, sans dépasser du fond (barre de ~31 px avec des icônes de 24).

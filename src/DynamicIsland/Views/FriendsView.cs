@@ -223,15 +223,14 @@ public sealed class FriendsView : UserControl
         Grid.SetColumn(text, 1);
         row.Children.Add(text);
 
-        var card = new SquircleBorder
+        var card = Design.OpalTile.Apply(new SquircleBorder // verre opalin (O1)
         {
             Height = 52,
             Margin = new Thickness(Space.S1),
             CornerRadius = Corners.L,
-            Background = Paint.Control,
             Opacity = friend.Online ? 1 : 0.5,
             Child = row,
-        };
+        });
         card.MouseRightButtonUp += (_, e) =>
         {
             ShowMenu(friend);

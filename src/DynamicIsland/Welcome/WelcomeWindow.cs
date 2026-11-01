@@ -164,6 +164,7 @@ public sealed class WelcomeWindow : Window
 
         Content = BuildFrame();
         _glass = new LiquidGlass(_card, () => _card.CornerRadius.TopLeft);
+        _ = new Design.OpalSkin(_card, Design.OpalRole.Panel, _glass); // verre opalin (O1) : l'intensité choisie se voit tout de suite
         ShowStyle();
         _building = false;
 
@@ -202,7 +203,6 @@ public sealed class WelcomeWindow : Window
     {
         _card.CornerRadius = new CornerRadius(AppearanceService.Radius(Radius.Palette));
         _card.BorderThickness = Borders.Hairline;
-        _card.BorderBrush = new SolidColorBrush(AppearanceService.RimColor());
         _card.SetResourceReference(Border.BackgroundProperty, AppearanceService.IslandBrushKey);
         _card.MouseLeftButtonDown += (_, e) =>
         {
@@ -356,9 +356,8 @@ public sealed class WelcomeWindow : Window
         }
         content.Children.Add(bars);
         _preview.Child = content;
-        var previewHost = new Grid { Height = WelcomeShape.PreviewHeight + 2 * Space.S12, Effect = _previewGlow };
-        previewHost.Children.Add(_preview);
-        page.Children.Add(previewHost);
+        // Refonte O1 : l'aperçu est maintenant donné par les trois cartes « verre opalin » (une petite île vivante chacune).
+        page.Children.Add(OpalChoices());
 
         _swatches.HorizontalAlignment = HorizontalAlignment.Center;
         foreach (var (name, start, end) in Swatch.AccentPresets)
@@ -727,7 +726,15 @@ public sealed class WelcomeWindow : Window
         _preview.BorderBrush = new SolidColorBrush(AppearanceService.RimColor());
         AppearanceService.ApplyGlow(_previewGlow, Shadows.Island);
         AppearanceService.ApplyGlow(_shadow, Shadows.Window);
-        _card.BorderBrush = new SolidColorBrush(AppearanceService.RimColor());
+        foreach (var (style, option, _) in _opalChoices) // intensité changée ailleurs (démo, paramètres)
+        {
+            bool selected = look.OpalStyle == style;
+            if (option.IsChecked == selected) continue;
+            bool building = _building;
+            _building = true;
+            option.IsChecked = selected;
+            _building = building;
+        }
         // Le profil choisi a pu changer ailleurs (pastilles de l'île) : on le coche.
         if (_pages.Count > 1 && ((FrameworkElement)_pages[1]) is StackPanel profiles && profiles.Children.OfType<UniformGrid>().FirstOrDefault() is { } grid)
         {
@@ -744,6 +751,79 @@ public sealed class WelcomeWindow : Window
                 i++;
             }
         }
+    }
+
+    // ------------------------------------------------------------------ verre opalin (O1)
+
+    private readonly List<(OpalStyle Style, RadioButton Option, Design.OpalSurface Pill)> _opalChoices = [];
+
+    /// <summary>
+    /// Trois cartes (Discret, Équilibré, Intense) avec chacune une petite île en verre opalin sur un décor flouté : choisir une
+    /// carte applique l'intensité tout de suite à toute l'app (comme la couleur), les reflets suivent la souris sur la carte.
+    /// </summary>
+    private FrameworkElement OpalChoices()
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, Space.S2, 0, Space.S5) };
+        var title = new TextBlock { Text = Loc.T("welcome.style.opal"), Style = (Style)FindResource("CardTitle") };
+        title.Inlines.Add(new System.Windows.Documents.Run("  ·  " + Loc.T("welcome.style.opal.description")) { Foreground = Paint.TextSecondary, FontWeight = FontWeights.Normal });
+        panel.Children.Add(title);
+        var grid = new UniformGrid { Columns = 3, Margin = new Thickness(0, 0, -Space.S4, 0) };
+        // Décor du pack (jamais le vrai fond : rendu identique partout, et rien à lire sur le disque).
+        var art = WallpaperArt.Render(WallpaperDesign.Prisme, Wallpapers.Sunset, 320, 180);
+        var current = SettingsStore.Current.Appearance.OpalStyle;
+        foreach (var style in new[] { OpalStyle.Discreet, OpalStyle.Balanced, OpalStyle.Intense })
+        {
+            var look = Opal.For(style);
+            var paint = new Design.OpalPaint(look, Design.OpalTheme.Grain);
+            var pill = new Design.OpalSurface(paint, Opal.PreviewPill.Width, Opal.PreviewPill.Height, Radius.Pill, new TextBlock
+            {
+                Text = "12:34", FontSize = TypeRamp.Headline, FontWeight = FontWeights.SemiBold, Foreground = Paint.TextPrimary,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            });
+            double sceneWidth = Opal.PreviewPill.Width + 2 * Space.S8;
+            var scene = new Grid { Width = sceneWidth, Height = Opal.PreviewScene, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, Space.S3) };
+            scene.Children.Add(new SquircleBorder
+            {
+                CornerRadius = new CornerRadius(Opal.PreviewSceneRadius),
+                Background = new ImageBrush(art) { Stretch = Stretch.UniformToFill },
+            });
+            // Le « flou » derrière la pilule : la même image floutée, découpée à sa forme (comme dans l'île).
+            var pillRect = new Rect((sceneWidth - Opal.PreviewPill.Width) / 2, (Opal.PreviewScene - Opal.PreviewPill.Height) / 2, Opal.PreviewPill.Width, Opal.PreviewPill.Height);
+            scene.Children.Add(new Image
+            {
+                Source = Design.OpalPalette.Blurred(art, look.Blur, look.Vibrancy), Stretch = Stretch.UniformToFill,
+                Clip = SquircleGeometry.Create(pillRect, new CornerRadius(pillRect.Height / 2), Radius.Smoothing),
+            });
+            scene.Children.Add(pill);
+            scene.ClipToBounds = true;
+            var header = new StackPanel();
+            header.Children.Add(scene);
+            header.Children.Add(new TextBlock { Text = Name(style).Title });
+            var option = Option(header, Name(style).Description, "WelcomeOpal", style == current);
+            option.Margin = new Thickness(0, Space.S3, Space.S4, 0);
+            option.MouseMove += (_, e) =>
+            {
+                var p = e.GetPosition(scene);
+                paint.SetLight(Math.Clamp(p.X / sceneWidth, 0, 1), Math.Clamp(p.Y / Opal.PreviewScene, 0, 1));
+            };
+            option.Checked += (_, _) =>
+            {
+                if (_building || _snapshot) return;
+                pill.PlaySweep();
+                if (SettingsStore.Current.Appearance.OpalStyle != style) SettingsStore.Update(s => s.Appearance.OpalStyle = style);
+            };
+            _opalChoices.Add((style, option, pill));
+            grid.Children.Add(option);
+        }
+        panel.Children.Add(grid);
+        return panel;
+
+        static (string Title, string Description) Name(OpalStyle style) => style switch
+        {
+            OpalStyle.Discreet => (Loc.T("opal.style.discreet"), Loc.T("opal.style.discreet.description")),
+            OpalStyle.Intense => (Loc.T("opal.style.intense"), Loc.T("opal.style.intense.description")),
+            _ => (Loc.T("opal.style.balanced"), Loc.T("opal.style.balanced.description")),
+        };
     }
 
     // ------------------------------------------------------------------ petits éléments

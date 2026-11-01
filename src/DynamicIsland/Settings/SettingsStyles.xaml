@@ -340,7 +340,7 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ContextMenu">
-          <ui:SquircleBorder Background="{x:Static t:Paint.PopupBackground}" BorderBrush="{x:Static t:Paint.PopupBorder}"
+          <ui:SquircleBorder Background="{DynamicResource OpalPopupBrush}" BorderBrush="{DynamicResource OpalPopupRimBrush}"
                              BorderThickness="{x:Static t:Borders.Hairline}" CornerRadius="{x:Static t:Corners.M}"
                              Padding="{ui:Space s2}" Margin="{ui:Space 0,0,s5,s5}" MinWidth="{x:Static t:Sizes.MenuMinWidth}" ClipContent="False"
                              Effect="{x:Static t:Effects.Menu}">

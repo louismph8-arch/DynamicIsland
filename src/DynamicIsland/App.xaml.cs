@@ -110,17 +110,28 @@ public partial class App : Application
         bool snapshotMode = Array.IndexOf(e.Args, "--snapshot") >= 0;
         _afterCrash = e.Args.Contains(CrashWatch.AfterCrashArgument);
         if (_afterCrash) CrashWatch.AfterCrash(DateTime.UtcNow);
-        if (snapshotMode) Log.UseDeveloperFile();
+        // --design-demo (sans --snapshot) : la démo du verre opalin seule, pour les essais (réglages lus sans être réécrits).
+        bool designDemo = !snapshotMode && e.Args.Contains("--design-demo");
+        if (snapshotMode || designDemo) Log.UseDeveloperFile();
         SnapshotDemo = snapshotMode && e.Args.Contains("--demo");
+        Design.OpalBackdrop.SnapshotMode = snapshotMode; // rendus et mesures : le flou vient d'un fond du pack, jamais du vrai fond
         SafeMode = !snapshotMode && (e.Args.Contains("--safe-mode") || ShiftHeld());
         if (SafeMode) SettingsStore.LoadSafeDefaults();
         else SettingsStore.Load(snapshotMode && testSettingsArg >= 0 && testSettingsArg + 1 < e.Args.Length ? e.Args[testSettingsArg + 1] : null,
-                                readOnly: snapshotMode);
+                                readOnly: snapshotMode || designDemo);
         Loc.Initialize(SettingsStore.Current.Language);
         ProfileService.Initialize(); // premier lancement de la 3E : crée les profils (Perso = le dock actuel)
         // Le thème d'abord (avant que les fenêtres ne s'abonnent) : leurs ressources sont prêtes quand elles se mettent à jour.
         AppearanceService.Apply();
         SettingsStore.Changed += AppearanceService.Apply;
+
+        if (designDemo)
+        {
+            base.OnStartup(e);
+            ShutdownMode = ShutdownMode.OnLastWindowClose;
+            Design.OpalDemoWindow.Open();
+            return;
+        }
 
         // Mode développeur : rendu de l'île et du dock dans des PNG puis fermeture (voir *.Snapshot.cs).
         int snapshotArg = Array.IndexOf(e.Args, "--snapshot");
@@ -146,6 +157,11 @@ public partial class App : Application
             if (ArgumentAfter(e.Args, "--wallpaper-bench") is { } wallpaperFile)
             {
                 _ = RunWallpaperBenchAsync(wallpaperFile);
+                return;
+            }
+            if (e.Args.Contains("--design-demo"))
+            {
+                _ = RenderDesignDemoAsync(folder);
                 return;
             }
             if (e.Args.Contains("--render-logo"))
@@ -741,6 +757,7 @@ public partial class App : Application
             await Notes.NoteEditorWindow.RenderSnapshotAsync(folder);
             await Stage.StageColumnWindow.RenderSnapshotAsync(Path.Combine(folder, "15-stage-colonne.png"));
             await Stage.StageHandleWindow.RenderSnapshotAsync(Path.Combine(folder, "15-stage-poignee.png"));
+            await Design.OpalDemoWindow.RenderSnapshotAsync(folder);
         }
         catch (Exception ex)
         {
@@ -753,6 +770,22 @@ public partial class App : Application
         MainWindow = new IslandWindow { SnapshotFolder = folder };
         MainWindow.Show();
         new DockWindow { SnapshotFolder = folder }.Show();
+    }
+
+    /// <summary>Mode --snapshot … --design-demo : seulement les rendus de la démo du verre opalin (16-demo-opaline*.png), puis fermeture.</summary>
+    private async Task RenderDesignDemoAsync(string folder)
+    {
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        try
+        {
+            Directory.CreateDirectory(folder);
+            await Design.OpalDemoWindow.RenderSnapshotAsync(folder);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Snapshot : démo du verre opalin", ex);
+        }
+        Shutdown();
     }
 
     /// <summary>Mode --render-logo : logo d'Opaline en PNG (aperçus) + app.ico à copier dans Assets, puis fermeture.</summary>

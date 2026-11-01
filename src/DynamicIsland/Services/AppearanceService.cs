@@ -54,6 +54,7 @@ public static class AppearanceService
         resources[DockBrushKey] = Paint.Frozen(Swatch.WithAlpha(SurfaceBase, (byte)Math.Max(1, Math.Round(Settings.DockOpacity * 255))));
         resources[AccentBrushKey] = Paint.Frozen(AccentMid);
         resources[AccentGradientKey] = Paint.Gradient(AccentStart, AccentEnd);
+        Design.OpalTheme.Apply(); // verre opalin : tuiles, menus et surfaces (seulement si le style ou l'accent ont changé)
     }
 
     /// <summary>

@@ -117,6 +117,7 @@ public partial class IslandWindow : Window
     private string _clockText = "";
     private BitmapSource? _compactCover;
     private readonly LiquidGlass _glass;
+    private readonly Design.OpalSkin _opal;
 
     /// <summary>Musique en cours (partagée avec le widget Musique du bureau).</summary>
     internal MediaService Media => _media;
@@ -128,8 +129,9 @@ public partial class IslandWindow : Window
         InitializeComponent();
         _media = new MediaService(Dispatcher);
 
-        Island.BorderBrush = _rimBrush;
         _glass = new LiquidGlass(Island, () => Island.CornerRadius.TopLeft);
+        // Verre opalin (O1) : couches sous le contenu, bordure irisée orientée par la lumière du verre liquide.
+        _opal = new Design.OpalSkin(Island, Design.OpalRole.Island, _glass);
         foreach (Rectangle bar in Bars.Children) bar.Fill = _barsBrush;
 
         MusicTab.Attach(_media);
@@ -735,7 +737,9 @@ public partial class IslandWindow : Window
         Fade(CompactView, 0, Motion.Fast);
         Fade(ExpandedView, 1, Motion.Slow, Motion.Delay);
         ScaleExpanded(1, Motion.Scale);
-        AnimateTo(ExpandedSize(_tab), ExpandedRadius, Springs.Open);
+        var opened = ExpandedSize(_tab);
+        AnimateTo(opened, ExpandedRadius, Springs.Open);
+        _opal.PlaySweep(opened); // balayage nacré (O1) : un reflet traverse l'île qui s'ouvre
         if (SnapshotFolder == null) WatchOpening(prepared);
     }
 
@@ -1100,6 +1104,7 @@ public partial class IslandWindow : Window
             RepeatBehavior = RepeatBehavior.Forever,
         };
         _rimBrush.BeginAnimation(SolidColorBrush.ColorProperty, pulse);
+        _opal.OverrideRim(_rimBrush); // le liseré orange qui clignote passe devant la bordure irisée
         IslandShadow.BeginAnimation(DropShadowEffect.ColorProperty, pulse);
         // Son choisi dans Paramètres → Île → Minuteur (correctif 19) : 3 fois au plus, coupé dès que l'alerte est acquittée.
         TimerSound.Ring(() => _timer.State == TimerState.Finished);
@@ -1110,6 +1115,7 @@ public partial class IslandWindow : Window
         _alerting = false;
         TimerSound.Stop(); // alerte acquittée (île ouverte) ou nouveau minuteur : le son se tait
         _rimBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        _opal.OverrideRim(null);
         IslandShadow.BeginAnimation(DropShadowEffect.ColorProperty, null);
         UpdateGlow();
     }
@@ -1124,6 +1130,7 @@ public partial class IslandWindow : Window
                      && _media.Cover != null && _media.Accent != MediaService.DefaultAccent;
         Color? color = album ? _media.Accent : null;
         _rimBrush.Color = AppearanceService.RimColor(color);
+        _opal.SetAccent(color); // reflets irisés autour de la couleur de la pochette
         AppearanceService.ApplyGlow(IslandShadow, Shadows.Island, color);
     }
 
@@ -1243,6 +1250,7 @@ public partial class IslandWindow : Window
         Notice.IsHitTestVisible = true;
         ReassertTopmost();
         AnimateTo(_noticeSize, CompactRadius * _noticeSize.Height / IslandShape.Compact.Height, Springs.Pop);
+        _opal.PlaySweep(_noticeSize); // une annonce arrive : balayage nacré
         _noticeTimer.Stop();
         _noticeTimer.Interval = duration ?? NoticeDuration;
         _noticeTimer.Start();

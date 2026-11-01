@@ -55,8 +55,15 @@ public partial class IslandWindow
         // La fenêtre juste sous l'île (pas seulement celle qui a le focus) : vidéo plein écran, navigateur agrandi.
         IntPtr under = IntPtr.Zero;
         bool underFullscreen = false;
-        if ((settings.Mode == IslandMode.Smart || settings.HideInFullscreen || AppRuleService.HasRules) && PillCenterOnScreen() is { } center)
+        // Lue aussi pour le verre opalin (O1) : une fenêtre derrière l'île = pas de copie floutée du fond d'écran, voile plus sombre.
+        if (PillCenterOnScreen() is { } center)
             under = AppRuleService.WindowUnder(_hwnd, center.X, center.Y, out underFullscreen);
+        _opal.SetCovered(under != IntPtr.Zero);
+        if (!(settings.Mode == IslandMode.Smart || settings.HideInFullscreen || AppRuleService.HasRules))
+        {
+            under = IntPtr.Zero; // comme avant : sans mode ni règle, la fenêtre sous l'île ne compte pas pour la cacher
+            underFullscreen = false;
+        }
         var rule = AppRuleService.Combine(AppRuleService.ForForeground(dock: false), AppRuleService.ForWindow(under, dock: false));
         if (rule == AppBehavior.Show) return HideReason.None;
 

@@ -130,9 +130,9 @@ public sealed class NotesView : UserControl
         foreach (var (index, line) in note.PreviewLines().Take(IslandShape.NotePreviewLines))
             content.Children.Add(PreviewLine(note, index, line));
 
-        var card = new SquircleBorder { CornerRadius = Corners.M, Child = grid, Background = Paint.Surface, Margin = new Thickness(0, 0, 0, Space.S2), Cursor = Cursors.Hand, ToolTip = Loc.T("notes.open.hint") };
-        card.MouseEnter += (_, _) => card.Background = Paint.Card;
-        card.MouseLeave += (_, _) => card.Background = Paint.Surface;
+        var card = Design.OpalTile.Apply(new SquircleBorder { CornerRadius = Corners.M, Child = grid, Margin = new Thickness(0, 0, 0, Space.S2), Cursor = Cursors.Hand, ToolTip = Loc.T("notes.open.hint") }, glow: false);
+        card.MouseEnter += (_, _) => Design.OpalTile.Hover(card, true); // verre opalin (O1) : un peu plus laiteuse au survol
+        card.MouseLeave += (_, _) => Design.OpalTile.Hover(card, false);
         card.MouseLeftButtonUp += (_, e) =>
         {
             if (_sample == null) NoteEditorWindow.Open(note.Id);

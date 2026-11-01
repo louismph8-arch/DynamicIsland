@@ -26,6 +26,15 @@ public sealed class LiquidGlass
     private Point? _forcedCursor;   // --snapshot / mesure : curseur simulé
     private bool _enabled;
 
+    /// <summary>
+    /// La lumière a bougé (position dans le repère de la forme, taille de la forme) : le verre opalin oriente sa bordure irisée
+    /// dessus (O1). Rien de plus : c'est le même suivi du curseur, déjà limité aux moments où une lumière bouge.
+    /// </summary>
+    public event Action<Point, Size>? LightMoved;
+
+    /// <summary>Verre posé (réglage actif, pas en jeu) : sinon la lumière ne bouge jamais.</summary>
+    public bool IsEnabled => _enabled;
+
     static LiquidGlass()
     {
         Timer.Tick += (_, _) => TrackCursor();
@@ -165,5 +174,6 @@ public sealed class LiquidGlass
             SheenRadius: Glass.SheenRadius,
             TopLight: Glass.TopLight * strength);
         _effect.Update(size, shape, _radius(), light, look);
+        LightMoved?.Invoke(light, size);
     }
 }
