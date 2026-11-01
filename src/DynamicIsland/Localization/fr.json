@@ -1987,5 +1987,6 @@
   "settings.accessibility.overridden": "Choisi ici (Windows dirait : {0}).",
   "settings.accessibility.on": "oui",
   "settings.accessibility.off": "non",
-  "settings.accessibility.follow": "Comme Windows"
+  "settings.accessibility.follow": "Comme Windows",
+  "settings.claude.path.desktop": "C'est l'application Claude (celle du bureau), pas Claude Code. Choisis le claude.exe, claude.cmd ou cli.js de Claude Code (souvent dans %AppData%\npm), ou clique sur « Recherche automatique »."
 }

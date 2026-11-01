@@ -58,7 +58,7 @@ Chaque élément a un `type` et peut avoir `align` : `start` (défaut), `center`
 |---|---|
 | `stack` | `direction` (`vertical` / `horizontal`), `gap` 0–48, `padding` 0–48, `children` |
 | `grid` | `columns` 1–6, `gap`, `padding`, `children` |
-| `text` | `text` (200 caractères, gabarits permis), `size`, `weight` (`light`, `regular`, `semibold`, `bold`), `font` (`ui`, `display`), `color`, `lines` 1–4 |
+| `text` | `text` (200 caractères, gabarits permis), `size`, `weight` (`light`, `regular`, `semibold`, `bold`), `font` (`ui`, `display`, `numbers` = grands chiffres fins à largeur fixe), `color`, `lines` 1–4 |
 | `icon` | `name` = nom d'icône [Lucide](https://lucide.dev/icons) (`cloud-sun`, `bitcoin`…) ou `{weather.icon}`, `size`, `color` |
 | `image` | `src` (PNG du paquet), `width`, `height`, `round` (coins arrondis) |
 | `ring` | anneau : `value` (donnée chiffrée), `min`, `max` (défaut 0–100), `size` 24–240, `thickness` 2–24, `color`, `text` au centre |
@@ -129,6 +129,7 @@ are exactly the ones in the French tables above:
   `size` (`width` 80–640, `height` 40–480), `background` (`card` / `none`), `source`, and `root`.
 - Elements: `stack`, `grid`, `text`, `icon` (a [Lucide](https://lucide.dev/icons) name), `image`, `ring`, `bar`, `spacer`;
   at most 40 elements and 4 nested layouts; texts up to 200 characters.
+- Text `font`: `ui`, `display`, or `numbers` (thin large numbers with fixed-width digits: clocks don't wobble).
 - Templates: `{time:HH:mm}`, `{date:dddd}`, `{weather.temp}`, `{weather.city}`, `{weather.icon}`, `{music.title}`, `{cpu}`,
   `{ram}`, `{gpu}`, `{gpu.temp}`, `{net.down}`, `{net.up}`, `{friends.online}`, `{web.<field>}`. Unknown templates are shown
   as they are. Numeric values for `ring` / `bar`: `cpu`, `ram`, `gpu`, `gpu.temp`, `weather.temp`, `friends.online`,

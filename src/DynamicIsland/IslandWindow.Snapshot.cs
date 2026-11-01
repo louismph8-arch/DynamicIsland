@@ -48,6 +48,34 @@ public partial class IslandWindow
         FinishAnimations();
     }
 
+    /// <summary>--glass-bench : halo / ombre de l'île affiché ou retiré (mesure de son coût par image).</summary>
+    internal void BenchHalo(bool on) => HaloCache.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// --glass-bench : fenêtre posée SUR l'écran mais masquée par DWM (« cloaked », invisible, aucun clic) : hors écran, WPF et
+    /// DWM ne font pas tout le travail d'une vraie fenêtre layered visible, la mesure par image serait trop optimiste.
+    /// </summary>
+    internal void BenchOnScreen(bool on)
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        if (on)
+        {
+            _benchPlace ??= new Point(Left, Top);
+            Interop.DockNative.SetCloaked(_hwnd, true);
+            Left = 0;
+            Top = 0;
+        }
+        else if (_benchPlace is Point place)
+        {
+            Left = place.X; // place d'avant (hors écran en --snapshot)
+            Top = place.Y;
+            _benchPlace = null;
+            Interop.DockNative.SetCloaked(_hwnd, false);
+        }
+    }
+
+    private Point? _benchPlace;
+
     /// <summary>--glass-bench : île ouverte sur l'onglet Musique, animations terminées.</summary>
     internal void PrepareGlassBench()
     {

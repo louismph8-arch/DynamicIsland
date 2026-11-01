@@ -346,7 +346,7 @@ public static partial class WidgetPackageReader
                     Text = RequiredString(element, "text", MaxText),
                     Size = FontSize(element, "size", TypeRamp.Body, TextSizes),
                     Weight = Choice(element, "weight", "regular", "light", "regular", "semibold", "bold"),
-                    Font = Choice(element, "font", "ui", "ui", "display"),
+                    Font = Choice(element, "font", "ui", "ui", "display", "numbers"),
                     Color = ColorName(element),
                     MaxLines = (int)Math.Round(Number(element, "lines", 1, 4, 1)),
                 };

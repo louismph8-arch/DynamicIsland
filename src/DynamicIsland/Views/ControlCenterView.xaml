@@ -35,7 +35,7 @@
 
       <ToggleButton x:Name="DarkToggle" Style="{StaticResource TileToggle}" Margin="{ui:Space 0,0,s2,s2}" Click="DarkToggle_Click">
         <StackPanel VerticalAlignment="Center">
-          <TextBlock Text="{x:Static t:Icons.DarkMode}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.L}"/>
+          <ui:IconChip Glyph="{x:Static t:Icons.DarkMode}" GlyphSize="{x:Static t:IconSize.L}" Width="{x:Static t:Sizes.IconChip}" Height="{x:Static t:Sizes.IconChip}" HorizontalAlignment="Left" Margin="{ui:Space -s1,-s1,0,0}" IsActive="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Tint="{x:Static t:Interaction.ActiveTintLight}"/>
           <TextBlock Text="{ui:L controls.mode_sombre}" FontSize="{x:Static t:TypeRamp.Footnote}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="{ui:Space 0,s2,0,0}"/>
         </StackPanel>
       </ToggleButton>
@@ -43,7 +43,7 @@
       <ToggleButton x:Name="NightToggle" Grid.Column="1" Style="{StaticResource TileToggle}" Margin="{ui:Space s2,0,0,s2}"
                     Click="NightToggle_Click" MouseRightButtonUp="NightToggle_RightClick">
         <StackPanel VerticalAlignment="Center">
-          <TextBlock Text="{x:Static t:Icons.NightLight}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.L}"/>
+          <ui:IconChip Glyph="{x:Static t:Icons.NightLight}" GlyphSize="{x:Static t:IconSize.L}" Width="{x:Static t:Sizes.IconChip}" Height="{x:Static t:Sizes.IconChip}" HorizontalAlignment="Left" Margin="{ui:Space -s1,-s1,0,0}" IsActive="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Tint="{x:Static t:Interaction.ActiveTintLight}"/>
           <TextBlock Text="{ui:L controls.nightlight}" FontSize="{x:Static t:TypeRamp.Footnote}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="{ui:Space 0,s2,0,0}"/>
         </StackPanel>
       </ToggleButton>
@@ -56,8 +56,8 @@
         </Grid.ColumnDefinitions>
       <ToggleButton x:Name="StageToggle" Grid.Column="1" Style="{StaticResource TileToggle}" Margin="{ui:Space s2,s2,0,0}"
                     Width="{x:Static t:StageShape.ControlTile}" Click="StageToggle_Click" MouseRightButtonUp="StageToggle_RightClick">
-        <TextBlock Text="{x:Static t:Icons.Stage}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <ui:IconChip Glyph="{x:Static t:Icons.Stage}" GlyphSize="{x:Static t:IconSize.XL}" Width="{x:Static t:Sizes.IconChipLarge}" Height="{x:Static t:Sizes.IconChipLarge}"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" IsActive="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Tint="{x:Static t:Interaction.ActiveTintLight}"/>
       </ToggleButton>
       <ToggleButton x:Name="FocusToggle" Style="{StaticResource TileToggle}" Margin="{ui:Space 0,s2,s2,0}"
                     Click="FocusToggle_Click" MouseRightButtonUp="FocusToggle_RightClick">
@@ -66,8 +66,8 @@
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition/>
           </Grid.ColumnDefinitions>
-          <TextBlock Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}"
-                     VerticalAlignment="Center" Margin="{ui:Space 0,0,s5,0}"/>
+          <ui:IconChip Glyph="{x:Static t:Icons.DoNotDisturb}" GlyphSize="{x:Static t:IconSize.XL}" Width="{x:Static t:Sizes.IconChipLarge}" Height="{x:Static t:Sizes.IconChipLarge}"
+                     VerticalAlignment="Center" Margin="{ui:Space -s2,0,s3,0}" IsActive="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Tint="{x:Static t:Interaction.ActiveTintLight}"/>
           <StackPanel Grid.Column="1" VerticalAlignment="Center">
             <TextBlock Text="{ui:L controls.dnd}" FontSize="{x:Static t:TypeRamp.Footnote}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
             <TextBlock x:Name="FocusStateText" FontSize="{x:Static t:TypeRamp.Caption}" Opacity="{x:Static t:Interaction.SecondaryTextOpacity}"

@@ -1629,9 +1629,47 @@ public partial class IslandWindow : Window
         Island.Width = width;
         Island.Height = height;
         Island.CornerRadius = new CornerRadius(radius);
+        UpdateHaloClip(width, height, radius);
         _glass.Refresh(); // le verre suit l'arrondi (la taille, elle, passe par SizeChanged)
 
         ExpandedView.Width = Math.Max(width - 2, IslandShape.MinExpandedInnerWidth);
+    }
+
+    private (double W, double H, double R) _haloClipFor = (-1, -1, -1);
+    private static readonly TimeSpan HaloSettleDelay = TimeSpan.FromMilliseconds(150);
+    private readonly BitmapCache _haloBitmap = new();
+    private DispatcherTimer? _haloSettle;
+
+    /// <summary>
+    /// Le halo (élément frère sous l'île, forme noire opaque) ne se voit que HORS de l'île : l'intérieur exact de l'île est retiré
+    /// (comparé pixel par pixel aux rendus d'avant : un retrait d'1 DIP laissait voir la forme sous le bord adouci). Refait
+    /// seulement si la forme change.
+    /// </summary>
+    private void UpdateHaloClip(double width, double height, double radius)
+    {
+        if (_haloClipFor == (width, height, radius)) return;
+        _haloClipFor = (width, height, radius);
+        // Forme qui bouge (ressort) : halo dessiné en direct, sans image gardée (la refaire à chaque image coûtait 4× plus :
+        // 65 % d'un cœur au lieu de 16 % mesurés par --perf-bench) ; forme posée depuis 150 ms : gardée en image (BitmapCache),
+        // la lumière qui suit la souris ne refait plus le flou.
+        HaloCache.CacheMode = null;
+        if (_haloSettle == null)
+        {
+            _haloSettle = new DispatcherTimer { Interval = HaloSettleDelay };
+            _haloSettle.Tick += (_, _) =>
+            {
+                _haloSettle!.Stop();
+                HaloCache.CacheMode = _haloBitmap;
+            };
+        }
+        _haloSettle.Stop();
+        _haloSettle.Start();
+        var window = IslandShape.Window;
+        var outer = new RectangleGeometry(new Rect(-window.Width, -window.Height, width + 2 * window.Width, height + 2 * window.Height));
+        var hole = SquircleGeometry.Create(new Rect(0, 0, width, height), new CornerRadius(radius), Radius.Smoothing);
+        var clip = new CombinedGeometry(GeometryCombineMode.Exclude, outer, hole);
+        clip.Freeze();
+        HaloHost.Clip = clip;
     }
 
     // ------------------------------------------------------------------ utilitaires

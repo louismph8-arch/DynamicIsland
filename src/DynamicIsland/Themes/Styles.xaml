@@ -12,6 +12,32 @@
   <x:Static x:Key="DisplayFont" Member="t:FontStack.Display"/>
   <x:Static x:Key="IconFont" Member="t:FontStack.Icons"/>
   <x:Static x:Key="MonoFont" Member="t:FontStack.Mono"/>
+  <x:Static x:Key="NumbersFont" Member="t:FontStack.Numbers"/>
+
+  <!-- Icône active (O4) : Lucide n'a pas de variantes pleines → glyphe en dégradé d'accent + pastille squircle teintée
+       d'accent derrière (rang « bouton » : Corners.IconChip). Au repos : couleur héritée, sans pastille. -->
+  <Style x:Key="ActiveIcon" TargetType="ui:IconChip">
+    <Setter Property="IsHitTestVisible" Value="False"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ui:IconChip">
+          <Grid>
+            <ui:SquircleBorder x:Name="Halo" Background="{DynamicResource AccentBrush}" Opacity="0"
+                               CornerRadius="{TemplateBinding CornerRadius}"/>
+            <TextBlock x:Name="Glyph" Text="{TemplateBinding Glyph}" FontFamily="{x:Static t:FontStack.Icons}"
+                       FontSize="{TemplateBinding GlyphSize}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsActive" Value="True">
+              <Setter TargetName="Halo" Property="Opacity" Value="{Binding Tint, RelativeSource={RelativeSource TemplatedParent}}"/>
+              <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource AccentGradientBrush}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style TargetType="ui:IconChip" BasedOn="{StaticResource ActiveIcon}"/>
 
   <!-- Brosses (noms historiques conservés) -->
   <!-- Couleurs qui suivent le thème (refonte O2) : ressources « Paint.Nom » écrites par Design/OpalShade (DynamicResource).
@@ -117,17 +143,16 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="RadioButton">
-          <ui:SquircleBorder x:Name="Bd" Background="Transparent" CornerRadius="{x:Static t:Corners.Pill}">
-            <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" FontFamily="{x:Static t:FontStack.Icons}"
-                       FontSize="{x:Static t:IconSize.M}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-          </ui:SquircleBorder>
+          <!-- Icône active (O4) : la pastille d'accent remplit le bouton -->
+          <Grid Background="Transparent">
+            <ui:SquircleBorder x:Name="Bd" Background="Transparent" CornerRadius="{x:Static t:Corners.IconChip}"/>
+            <ui:IconChip Glyph="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" GlyphSize="{x:Static t:IconSize.M}"
+                         CornerRadius="{x:Static t:Corners.IconChip}"
+                         IsActive="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}"/>
+          </Grid>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.HoverSubtle}"/>
-              <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
-            </Trigger>
-            <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.Selected}"/>
               <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
           </ControlTemplate.Triggers>
@@ -181,15 +206,19 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="RadioButton">
-          <ui:SquircleBorder x:Name="Bd" Background="Transparent" CornerRadius="{x:Static t:Corners.Pill}" Padding="{ui:Space s6,0}">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-              <TextBlock x:Name="Icon" Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
-                         FontFamily="{x:Static t:FontStack.Icons}" FontSize="{x:Static t:IconSize.M}"
-                         VerticalAlignment="Center" Margin="{ui:Space 0,0,s3,0}"/>
-              <ContentPresenter x:Name="Label" VerticalAlignment="Center"
-                                TextElement.FontSize="{x:Static t:TypeRamp.Callout}" TextElement.FontWeight="SemiBold"/>
-            </StackPanel>
-          </ui:SquircleBorder>
+          <!-- Onglet actif (O4) : la pilule entière est la pastille teintée d'accent (Halo), glyphe en dégradé d'accent -->
+          <Grid>
+            <ui:SquircleBorder x:Name="Halo" Background="{DynamicResource AccentBrush}" CornerRadius="{x:Static t:Corners.Pill}" Opacity="0"/>
+            <ui:SquircleBorder x:Name="Bd" Background="Transparent" CornerRadius="{x:Static t:Corners.Pill}" Padding="{ui:Space s6,0}">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:IconChip x:Name="Icon" Glyph="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" GlyphSize="{x:Static t:IconSize.M}"
+                             Tint="0" VerticalAlignment="Center" Margin="{ui:Space 0,0,s3,0}"
+                             IsActive="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}"/>
+                <ContentPresenter x:Name="Label" VerticalAlignment="Center"
+                                  TextElement.FontSize="{x:Static t:TypeRamp.Callout}" TextElement.FontWeight="SemiBold"/>
+              </StackPanel>
+            </ui:SquircleBorder>
+          </Grid>
           <ControlTemplate.Triggers>
             <Trigger Property="IsChecked" Value="False">
               <Setter TargetName="Label" Property="Visibility" Value="Collapsed"/>
@@ -200,7 +229,7 @@
               <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.Selected}"/>
+              <Setter TargetName="Halo" Property="Opacity" Value="{x:Static t:Interaction.ActiveTint}"/>
               <Setter Property="Foreground" Value="{DynamicResource Paint.TextPrimary}"/>
             </Trigger>
           </ControlTemplate.Triggers>
@@ -285,11 +314,22 @@
         <ControlTemplate TargetType="RadioButton">
           <ui:SquircleBorder x:Name="Bd" Background="{DynamicResource Paint.Surface}" BorderBrush="Transparent"
                              BorderThickness="{x:Static t:Borders.Selected}" CornerRadius="{x:Static t:Corners.L}" Padding="{ui:Space s7,s5}">
-            <StackPanel>
-              <ContentPresenter TextElement.FontSize="{x:Static t:TypeRamp.Headline}" TextElement.FontWeight="SemiBold"/>
-              <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" FontSize="{x:Static t:TypeRamp.Footnote}"
-                         Foreground="{DynamicResource Paint.TextSecondary}" TextWrapping="Wrap" Margin="{ui:Space 0,s1,0,0}"/>
-            </StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <ContentPresenter TextElement.FontSize="{x:Static t:TypeRamp.Headline}" TextElement.FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" FontSize="{x:Static t:TypeRamp.Footnote}"
+                           Foreground="{DynamicResource Paint.TextSecondary}" TextWrapping="Wrap" Margin="{ui:Space 0,s1,0,0}"/>
+              </StackPanel>
+              <!-- Choix actif (O4) : coche Lucide en icône active (dégradé d'accent + pastille) -->
+              <ui:IconChip x:Name="Mark" Grid.Column="1" Glyph="{x:Static t:Icons.Check}" GlyphSize="{x:Static t:IconSize.S}"
+                           Width="{x:Static t:Sizes.IconChip}" Height="{x:Static t:Sizes.IconChip}" VerticalAlignment="Top"
+                           Margin="{ui:Space s4,0,0,0}" Visibility="Hidden"
+                           IsActive="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}"/>
+            </Grid>
           </ui:SquircleBorder>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -298,6 +338,7 @@
             <Trigger Property="IsChecked" Value="True">
               <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
               <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Paint.SurfaceHover}"/>
+              <Setter TargetName="Mark" Property="Visibility" Value="Visible"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -397,6 +438,19 @@
     <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Caption2}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="Foreground" Value="{DynamicResource Paint.TextTertiary}"/>
+  </Style>
+  <!-- Grands chiffres (O4) : Inter Display, graisse fine selon la taille, chiffres à largeur fixe (tnum) -->
+  <Style x:Key="Text.Numbers" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="{x:Static t:FontStack.Numbers}"/>
+    <Setter Property="FontWeight" Value="{x:Static t:NumberWeight.Text}"/>
+    <Setter Property="Typography.NumeralAlignment" Value="Tabular"/>
+  </Style>
+  <Style x:Key="Text.Numbers.Title" TargetType="TextBlock" BasedOn="{StaticResource Text.Numbers}">
+    <Setter Property="FontWeight" Value="{x:Static t:NumberWeight.Light}"/>
+  </Style>
+  <Style x:Key="Text.Numbers.Hero" TargetType="TextBlock" BasedOn="{StaticResource Text.Numbers}">
+    <Setter Property="FontWeight" Value="{x:Static t:NumberWeight.Hairline}"/>
+    <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Hero}"/>
   </Style>
   <Style x:Key="Icon" TargetType="TextBlock">
     <Setter Property="FontFamily" Value="{x:Static t:FontStack.Icons}"/>

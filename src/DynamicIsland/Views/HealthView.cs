@@ -150,7 +150,7 @@ public sealed class HealthView : UserControl
         title.Children.Add(new TextBlock { Text = glyph, FontFamily = FontStack.Icons, FontSize = IconSize.S, Foreground = Paint.TextSecondary, VerticalAlignment = VerticalAlignment.Center });
         title.Children.Add(new TextBlock { Text = label, FontSize = TypeRamp.Caption, Foreground = Paint.TextSecondary, Margin = new Thickness(Space.S2, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         stack.Children.Add(title);
-        stack.Children.Add(new TextBlock { Text = value, FontSize = TypeRamp.Title3, FontWeight = FontWeights.SemiBold, Foreground = valueBrush ?? Paint.TextPrimary, Margin = new Thickness(0, Space.S1, 0, 0) });
+        stack.Children.Add(Numerals.Apply(new TextBlock { Text = value, Foreground = valueBrush ?? Paint.TextPrimary, Margin = new Thickness(0, Space.S1, 0, 0) }, TypeRamp.NumberTile));
         return Design.OpalTile.Apply(new SquircleBorder { Margin = new Thickness(Space.S1), CornerRadius = Corners.L, Child = stack }); // verre opalin (O1)
     }
 

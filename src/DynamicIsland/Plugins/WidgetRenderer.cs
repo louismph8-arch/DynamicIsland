@@ -188,6 +188,12 @@ public sealed class RenderedWidget
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 TextAlignment = element.Align switch { "center" => TextAlignment.Center, "end" => TextAlignment.Right, _ => TextAlignment.Left },
             };
+            if (element.Font == "numbers") // grands chiffres (O4) : Inter Display, chiffres à largeur fixe, graisses embarquées seulement
+            {
+                Numerals.Apply(text, element.Size);
+                if (element.Weight is "semibold" or "bold") text.FontWeight = NumberWeight.Text;
+                else if (element.Weight == "light") text.FontWeight = NumberWeight.Light;
+            }
             if (element.MaxLines > 1)
             {
                 text.TextWrapping = TextWrapping.Wrap;
@@ -250,16 +256,15 @@ public sealed class RenderedWidget
             TextBlock? label = null;
             if (element.Text is { } template)
             {
-                label = new TextBlock
+                // Valeur au centre de l'anneau : police des chiffres (O4), chiffres à largeur fixe
+                label = Numerals.Apply(new TextBlock
                 {
-                    FontSize = Math.Max(TypeRamp.Caption2, size * PluginShape.RingLabel),
-                    FontWeight = FontWeights.SemiBold,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     MaxWidth = size - 2 * thickness,
                     Foreground = Paint.TextPrimary,
-                };
+                }, Math.Max(TypeRamp.Caption2, size * PluginShape.RingLabel));
                 grid.Children.Add(label);
                 if (!template.Contains('{')) label.Text = template;
             }

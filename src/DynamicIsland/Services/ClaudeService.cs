@@ -463,7 +463,7 @@ public static partial class ClaudeService
     /// <summary>Fichier choisi par l'utilisateur : claude.exe (natif), cli.js, ou claude.cmd (le cli.js est à côté).</summary>
     internal static (string? Exe, string? Script)? FromChosenFile(string path)
     {
-        if (!File.Exists(path)) return null;
+        if (!File.Exists(path) || IsDesktopApp(path)) return null;
         var name = Path.GetFileName(path);
         if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return (path, null);
         if (name.EndsWith(".js", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".mjs", StringComparison.OrdinalIgnoreCase)) return (null, path);
@@ -474,6 +474,15 @@ public static partial class ClaudeService
         }
         return null;
     }
+
+    /// <summary>
+    /// L'APPLICATION de bureau Claude (Microsoft Store dans WindowsApps\Claude_…, ou %LOCALAPPDATA%\AnthropicClaude) s'appelle aussi
+    /// claude.exe mais n'est pas Claude Code : vu chez l'utilisateur, « état de connexion illisible ».
+    /// </summary>
+    internal static bool IsDesktopApp(string path) =>
+        path.Contains(@"\WindowsApps\Claude_", StringComparison.OrdinalIgnoreCase)
+        || path.Contains(@"\WindowsApps\AnthropicClaude", StringComparison.OrdinalIgnoreCase)
+        || path.Contains(@"\AnthropicClaude\", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Installation native (« claude install ») : ~\.local\bin\claude.exe, ~\.claude\local, ou claude.exe dans le PATH.</summary>
     private static string? FindExe()
@@ -487,7 +496,11 @@ public static partial class ClaudeService
             Path.Combine(local, "Programs", "claude", "claude.exe"),
             Path.Combine(local, "Programs", "Claude Code", "claude.exe"),
         ];
-        return known.FirstOrDefault(File.Exists) ?? PathFolders().Select(folder => Path.Combine(folder, "claude.exe")).FirstOrDefault(File.Exists);
+        // Le dossier %LOCALAPPDATA%\Microsoft\WindowsApps (dans le PATH) contient l'alias de l'APPLICATION Claude du Store : à ignorer.
+        return known.FirstOrDefault(File.Exists) ?? PathFolders()
+            .Where(folder => !folder.Contains(@"\Microsoft\WindowsApps", StringComparison.OrdinalIgnoreCase))
+            .Select(folder => Path.Combine(folder, "claude.exe"))
+            .FirstOrDefault(path => File.Exists(path) && !IsDesktopApp(path));
     }
 
     /// <summary>Installation npm (« npm i -g @anthropic-ai/claude-code ») : son cli.js (npm, nvm, Volta, installation locale).</summary>

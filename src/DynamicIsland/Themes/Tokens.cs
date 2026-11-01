@@ -196,6 +196,8 @@ public static class Paint
 
     // Texte
     public static readonly Brush White = Frozen(Swatch.White);
+    /// <summary>Forme opaque sous l'île qui porte le halo : noire, elle ne se voit qu'au bord adouci de l'île (comme l'ombre d'avant).</summary>
+    public static readonly Brush HaloSource = Frozen(Swatch.Black);
     public static readonly Brush TextPrimary = Themed[(int)InkRole.TextPrimary];
     public static readonly Brush TextSecondary = Themed[(int)InkRole.TextSecondary];
     public static readonly Brush TextTertiary = Themed[(int)InkRole.TextTertiary];
@@ -308,6 +310,8 @@ public static class Corners
     public static readonly CornerRadius Tile = new(Radius.Tile);
     public static readonly CornerRadius Window = new(Radius.Window);
     public static readonly CornerRadius Pill = new(Radius.Pill);
+    /// <summary>Pastille d'une icône active (O4) : rang « bouton » de la hiérarchie panneau &gt; tuile &gt; bouton.</summary>
+    public static readonly CornerRadius IconChip = new(Radius.M);
 }
 
 /// <summary>Épaisseurs de trait.</summary>
@@ -396,6 +400,9 @@ public static class Interaction
     public const double PressedScale = 0.92;
     public const double SoftPressedScale = 0.96;
     public const double CollapsedContentScale = 0.92; // contenu de l'île quand elle se referme
+    // Icône active (O4) : glyphe en dégradé d'accent + pastille squircle teintée d'accent derrière
+    public const double ActiveTint = 0.2;      // opacité de la pastille d'accent
+    public const double ActiveTintLight = 0.16; // pastille sur une tuile claire / inverse
 }
 
 /// <summary>
@@ -659,10 +666,20 @@ public static class Glass
     /// <summary>Lumière au repos : au-dessus du centre de la forme (fraction de la largeur, hauteurs au-dessus).</summary>
     public const double RestX = 0.5;
     public const double RestHeights = 1.5;
-    /// <summary>Lissage du suivi (part du chemin parcourue à chaque image).</summary>
-    public const double Follow = 0.35;
-    /// <summary>Lecture du curseur : rapide quand il est proche ou que la lumière bouge, sinon lente.</summary>
+    /// <summary>
+    /// Lissage du suivi : part du chemin parcourue en <see cref="ActiveTick"/> (recalculée pour la durée réelle de chaque image,
+    /// le suivi est le même quelle que soit la cadence). 0,5 en 33 ms ≈ constante de temps de 48 ms (avant : 0,35 ≈ 77 ms).
+    /// </summary>
+    public const double Follow = 0.5;
+    /// <summary>Durée de référence du lissage, et cadence de --glass-bench (mesure historique).</summary>
     public static readonly TimeSpan ActiveTick = TimeSpan.FromMilliseconds(33);
+    /// <summary>
+    /// Lumière qui bouge : suivie aux images de WPF (CompositionTarget.Rendering), au plus une mise à jour toutes les 9 ms
+    /// (100 Hz et moins : chaque image ; 120 Hz : 60/s ; 144 Hz : 72/s ; un écran rapide ne coûte pas 2 à 3 fois plus). Avant : minuterie
+    /// de 33 ms que Windows arrondissait à 46,8 ms (pas de 15,6 ms) → 21 mises à jour/s seulement, d'où le halo « qui lague ».
+    /// </summary>
+    public static readonly TimeSpan MinFrame = TimeSpan.FromMilliseconds(9);
+    /// <summary>Curseur loin : simple lecture de sa position, lente.</summary>
     public static readonly TimeSpan IdleTick = TimeSpan.FromMilliseconds(150);
 }
 
@@ -713,6 +730,51 @@ public static class FontStack
     public static readonly FontFamily Display = new("Segoe UI Variable Display, Segoe UI");
     public static readonly FontFamily Mono = new("Cascadia Mono, Consolas");
     public static readonly FontFamily Icons = new(new Uri("pack://application:,,,/"), "./Assets/Fonts/#lucide");
+
+    /// <summary>
+    /// Grands chiffres (O4) : Inter Display 4.1 (licence SIL OFL 1.1, Assets/Fonts/LICENSE-inter.txt), sous-ensemble latin
+    /// embarqué en trois graisses (<see cref="NumberWeight"/>). Toujours avec des chiffres à largeur fixe
+    /// (<see cref="Numerals.Apply"/> ou le style XAML « Text.Numbers ») : sinon les chiffres « dansent » quand ils changent.
+    /// Un caractère absent du sous-ensemble passe à Segoe UI Variable Display.
+    /// </summary>
+    public static readonly FontFamily Numbers = new(new Uri("pack://application:,,,/"), "./Assets/Fonts/#Inter Display, Segoe UI Variable Display, Segoe UI");
+
+    /// <summary>Nom de la famille embarquée (vérifié par --self-test).</summary>
+    public const string NumbersFamily = "Inter Display";
+}
+
+/// <summary>Graisses des grands chiffres : fines, et SEULEMENT celles qui sont embarquées (sinon WPF simule une graisse).</summary>
+public static class NumberWeight
+{
+    public static readonly FontWeight Hairline = FontWeights.ExtraLight; // très grands chiffres (minuteur, horloge du bureau)
+    public static readonly FontWeight Light = FontWeights.Light;         // titres chiffrés (tuiles, horloges du monde, « Ma semaine »)
+    public static readonly FontWeight Text = FontWeights.Medium;         // petits chiffres (heure de l'île, compte à rebours)
+
+    public const double HairlineFrom = 30; // à partir de cette taille : ExtraLight
+    public const double LightFrom = 17;    // à partir de cette taille : Light ; en dessous : Medium (lisible sur le verre)
+
+    public static FontWeight For(double size) => size >= HairlineFrom ? Hairline : size >= LightFrom ? Light : Text;
+}
+
+/// <summary>Pose la police des chiffres (taille, graisse selon la taille, chiffres tabulaires) sur un texte.</summary>
+public static class Numerals
+{
+    public static T Apply<T>(T text, double size) where T : System.Windows.Controls.TextBlock
+    {
+        text.FontFamily = FontStack.Numbers;
+        text.FontSize = size;
+        text.FontWeight = NumberWeight.For(size);
+        System.Windows.Documents.Typography.SetNumeralAlignment(text, FontNumeralAlignment.Tabular);
+        return text;
+    }
+
+    /// <summary>Pour un conteneur (les textes enfants héritent police + chiffres tabulaires ; graisse fixée par la taille).</summary>
+    public static void ApplyInherited(System.Windows.Controls.Control control, double size)
+    {
+        control.FontFamily = FontStack.Numbers;
+        control.FontWeight = NumberWeight.For(size);
+        System.Windows.Documents.Typography.SetNumeralAlignment(control, FontNumeralAlignment.Tabular);
+    }
 }
 
 /// <summary>Échelle typographique (tailles en DIP), du plus grand au plus petit.</summary>
@@ -731,6 +793,9 @@ public static class TypeRamp
     public const double Caption = 11.5;   // légendes, petits boutons
     public const double Caption2 = 10.5;  // étiquettes en capitales, durées
     public const double Micro = 8;
+    // Grands chiffres (O4, police FontStack.Numbers) : un peu plus grands que le texte, car plus fins
+    public const double NumberTile = 18;   // valeur d'une tuile (Widgets, Santé)
+    public const double NumberClock = 22;  // heure d'une horloge du monde
 }
 
 /// <summary>Tailles des icônes (police Lucide).</summary>
@@ -754,6 +819,8 @@ public static class Sizes
     public const double IconButton = 36;
     public const double SmallIconButton = 26;
     public const double TinyButton = 20;     // « × » des tuiles
+    public const double IconChip = 24;       // pastille d'une icône active (O4) : coche d'une carte de choix, icône d'une tuile
+    public const double IconChipLarge = 30;  // pastille d'une grande icône active (tuiles « Ne pas déranger » / Stage)
     public const double PlayButton = 44;
     public const double Chip = 24;
     public const double SoftButton = 34;

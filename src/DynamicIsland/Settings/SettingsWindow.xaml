@@ -75,6 +75,9 @@
     </Border>
 
     <!-- ===== Notre barre de titre : la fenêtre se déplace par là ; réduire / fermer ===== -->
+    <!-- Bande de titre pleine (correctif « double croix ») : le contenu qui défile s'arrête net dessous, liseré en bas -->
+    <Border x:Name="TitleBand" Grid.Column="1" Background="{DynamicResource Paint.Window}" BorderBrush="{DynamicResource Paint.Card}"
+            BorderThickness="{x:Static t:Borders.BottomHairline}"/>
     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="{ui:Space 0,0,s4,0}">
       <Button Style="{StaticResource CaptionButton}" Content="{x:Static t:Icons.Minus}" ToolTip="{ui:L settings.window.minimize}" Click="MinimizeWindow_Click"/>
       <Button Style="{StaticResource CaptionButton}" Content="{x:Static t:Icons.Close}" Tag="close" ToolTip="{ui:L settings.window.close}"

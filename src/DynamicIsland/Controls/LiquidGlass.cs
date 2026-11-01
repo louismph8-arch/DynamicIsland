@@ -35,9 +35,14 @@ public sealed class LiquidGlass
     /// <summary>Verre posé (réglage actif, pas en jeu) : sinon la lumière ne bouge jamais.</summary>
     public bool IsEnabled => _enabled;
 
+    // Lumière qui bouge : suivie aux images de WPF (pas une minuterie de 33 ms, arrondie à 46,8 ms par Windows → 21 i/s).
+    private static bool _framed;
+    private static TimeSpan _lastFrame;   // RenderingTime de la dernière image vue
+    private static long _lastStep;        // Stopwatch : dernière mise à jour de la lumière (dt réel du lissage)
+
     static LiquidGlass()
     {
-        Timer.Tick += (_, _) => TrackCursor();
+        Timer.Tick += (_, _) => TrackCursor(Glass.ActiveTick.TotalSeconds);
     }
 
     /// <param name="surface">Élément qui dessine la forme (fond + contenu à réfracter).</param>
@@ -71,11 +76,16 @@ public sealed class LiquidGlass
     }
 
     /// <summary>--snapshot et mesure : place le curseur (repère de la forme) sans toucher à la vraie souris.</summary>
-    internal void SimulateCursor(Point? local)
+    /// <param name="smooth">Vrai : la lumière rejoint ce curseur par le suivi normal (cadence, lissage), comme une vraie souris.</param>
+    internal void SimulateCursor(Point? local, bool smooth = false)
     {
         _forcedCursor = local;
-        Track(default);
+        _forcedSmooth = smooth && local != null;
+        if (!_forcedSmooth) Track(default, Glass.ActiveTick.TotalSeconds);
+        else if (_enabled) SetFramed(true); // la lumière va bouger : suivie aux images, comme pour une vraie souris
     }
+
+    private bool _forcedSmooth;
 
     private void Apply()
     {
@@ -92,26 +102,68 @@ public sealed class LiquidGlass
         if (enabled)
         {
             Active.Add(this);
-            Timer.Start();
+            if (!_framed) Timer.Start();
         }
         else
         {
             Active.Remove(this);
-            if (Active.Count == 0) Timer.Stop();
+            if (Active.Count == 0) SetFramed(false, stopAll: true);
         }
     }
 
-    /// <summary>Lecture du curseur pour toutes les formes : rapide seulement quand une lumière bouge.</summary>
-    private static void TrackCursor()
+    /// <summary>
+    /// Lecture du curseur pour toutes les formes. Curseur loin : minuterie lente (<see cref="Glass.IdleTick"/>). Dès qu'une
+    /// lumière bouge : une mise à jour par image de WPF (au plus toutes les <see cref="Glass.MinFrame"/>), puis retour à la
+    /// minuterie lente quand toutes les lumières sont posées et le curseur loin. Une seule boucle pour toutes les formes.
+    /// </summary>
+    private static void TrackCursor(double dt)
     {
         if (!GetCursorPos(out var cursor)) return;
         bool moving = false;
-        foreach (var glass in Active.ToList()) moving |= glass.Track(cursor);
-        Timer.Interval = moving ? Glass.ActiveTick : Glass.IdleTick;
+        foreach (var glass in Active.ToList()) moving |= glass.Track(cursor, dt);
+        SetFramed(moving);
+    }
+
+    private static void SetFramed(bool framed, bool stopAll = false)
+    {
+        if (framed != _framed)
+        {
+            _framed = framed;
+            if (framed)
+            {
+                Timer.Stop();
+                _lastFrame = TimeSpan.Zero;
+                _lastStep = System.Diagnostics.Stopwatch.GetTimestamp();
+                System.Windows.Media.CompositionTarget.Rendering += OnRendering;
+            }
+            else System.Windows.Media.CompositionTarget.Rendering -= OnRendering;
+        }
+        if (stopAll) Timer.Stop();
+        else if (!framed && !Timer.IsEnabled) Timer.Start();
+    }
+
+    private static void OnRendering(object? sender, EventArgs e)
+    {
+        var time = ((System.Windows.Media.RenderingEventArgs)e).RenderingTime;
+        if (time == _lastFrame) return; // Rendering peut être levé plusieurs fois par image
+        _lastFrame = time;
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        double dt = System.Diagnostics.Stopwatch.GetElapsedTime(_lastStep, now).TotalSeconds;
+        if (dt < Glass.MinFrame.TotalSeconds) return; // écran rapide : pas plus de ~110 mises à jour/s
+        _lastStep = now;
+        try
+        {
+            TrackCursor(Math.Min(dt, 0.1));
+        }
+        catch (Exception ex)
+        {
+            SetFramed(false); // jamais une exception par image : retour à la minuterie lente
+            Log.Error("Verre liquide : suivi du curseur", ex);
+        }
     }
 
     /// <returns>Vrai si la lumière bouge encore (le curseur est proche ou la lumière revient au repos).</returns>
-    private bool Track(POINT cursor)
+    private bool Track(POINT cursor, double dt)
     {
         if (!_enabled || !_surface.IsVisible || PresentationSource.FromVisual(_surface) == null) return false;
         var size = new Size(_surface.ActualWidth, _surface.ActualHeight);
@@ -129,7 +181,9 @@ public sealed class LiquidGlass
         }
 
         var current = _light ?? rest;
-        double follow = _forcedCursor != null ? 1 : Glass.Follow; // rendu figé : pas de lissage
+        // Lissage indépendant de la cadence : Follow est la part du chemin parcourue en ActiveTick. Rendu figé : pas de lissage.
+        double follow = _forcedCursor != null && !_forcedSmooth ? 1
+            : 1 - Math.Pow(1 - Glass.Follow, dt / Glass.ActiveTick.TotalSeconds);
         var next = new Point(current.X + (target.X - current.X) * follow, current.Y + (target.Y - current.Y) * follow);
         double nextProximity = _proximity + (proximity - _proximity) * follow;
         bool settled = Math.Abs(next.X - target.X) < 0.5 && Math.Abs(next.Y - target.Y) < 0.5 && Math.Abs(nextProximity - proximity) < 0.01;

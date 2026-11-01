@@ -47,7 +47,9 @@ public partial class SettingsWindow : Window
         InitializeChrome();
         SourceInitialized += (_, _) =>
         {
-            ApplyDarkRoundedFrame(new WindowInteropHelper(this).Handle);
+            var hwnd = new WindowInteropHelper(this).Handle;
+            HideNativeCaptionButtons(hwnd);
+            ApplyDarkRoundedFrame(hwnd);
             ApplyBackdrop();
         };
         BuildSwatches();
@@ -581,6 +583,8 @@ public partial class SettingsWindow : Window
             target.BackgroundColor = mica ? Colors.Transparent : Design.OpalShade.Ink(InkRole.Window);
         Background = mica ? Brushes.Transparent : Paint.Window;
         NavPanel.Background = mica ? Paint.SidebarOverMica : Paint.Sidebar;
+        // Bande de titre : même voile que la navigation sur le Mica (le Mica reste visible, le contenu ne passe plus dessous).
+        TitleBand.Background = mica ? Paint.SidebarOverMica : Paint.Window;
 
         var margins = new MARGINS { Left = mica ? -1 : 0, Right = mica ? -1 : 0, Top = mica ? -1 : 0, Bottom = mica ? -1 : 0 };
         DwmExtendFrameIntoClientArea(hwnd, ref margins);

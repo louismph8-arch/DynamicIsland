@@ -102,27 +102,30 @@ public sealed class ClockWidget : DesktopWidget
         var line = $"{now.ToString("d MMMM", Loc.Culture).ToUpper(Loc.Culture)} · {now:HH:mm}";
         if (day + line == _shown) return;
         _shown = day + line;
-        Fill(_day, day, Desk.ClockDay, FontWeights.Bold, Desk.ClockDayTracking, Paint.White);
-        Fill(_line, line, Desk.ClockLine, FontWeights.SemiBold, Desk.ClockLineTracking, ClockLineBrush); // posé sur le fond d'écran : blanc, même en opale blanche
+        Fill(_day, day, Desk.ClockDay, FontWeights.Bold, Desk.ClockDayTracking, Paint.White, FontStack.Display);
+        // Date + heure en police des chiffres (O4) : une lettre par TextBlock → les chiffres DOIVENT être à largeur fixe
+        Fill(_line, line, Desk.ClockLine, NumberWeight.Text, Desk.ClockLineTracking, ClockLineBrush, FontStack.Numbers); // posé sur le fond d'écran : blanc, même en opale blanche
     }
 
     private static readonly Brush ClockLineBrush = Paint.Frozen(InkPalette.Dark[(int)InkRole.TextMuted]);
 
     /// <summary>WPF n'a pas d'espacement des lettres : une lettre par TextBlock.</summary>
-    private static void Fill(Panel panel, string text, double size, FontWeight weight, double tracking, Brush brush)
+    private static void Fill(Panel panel, string text, double size, FontWeight weight, double tracking, Brush brush, FontFamily family)
     {
         panel.Children.Clear();
         foreach (char c in text)
         {
-            panel.Children.Add(new TextBlock
+            var letter = new TextBlock
             {
                 Text = c.ToString(),
-                FontFamily = FontStack.Display,
+                FontFamily = family,
                 FontSize = size,
                 FontWeight = weight,
                 Foreground = brush,
                 Margin = new Thickness(0, 0, tracking, 0),
-            });
+            };
+            System.Windows.Documents.Typography.SetNumeralAlignment(letter, FontNumeralAlignment.Tabular);
+            panel.Children.Add(letter);
         }
     }
 }
@@ -154,7 +157,7 @@ public sealed class WeatherWidget : DesktopWidget
 
         var main = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         main.Children.Add(_symbol);
-        _temperature.FontFamily = FontStack.Display;
+        Numerals.Apply(_temperature, Desk.WeatherTemperature);
         _temperature.Margin = new Thickness(Space.S5, 0, 0, 0);
         main.Children.Add(_temperature);
         Grid.SetRow(main, 1);
@@ -320,7 +323,7 @@ public sealed class StatsWidget : DesktopWidget
             label.Margin = new Thickness(Space.S3, 0, 0, 0);
             name.Children.Add(label);
             header.Children.Add(name);
-            var value = Text("…", TypeRamp.Footnote, Paint.TextSecondary);
+            var value = Numerals.Apply(Text("…", TypeRamp.Footnote, Paint.TextSecondary), TypeRamp.Footnote);
             value.HorizontalAlignment = HorizontalAlignment.Right;
             header.Children.Add(value);
             stack.Children.Add(header);

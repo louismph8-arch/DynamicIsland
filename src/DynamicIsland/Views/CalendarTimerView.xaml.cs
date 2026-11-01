@@ -102,7 +102,7 @@ public partial class CalendarTimerView : UserControl
 
         var shown = timer.State == TimerState.Idle ? timer.Duration : timer.Remaining;
         TimerText.Text = TimerService.Format(shown);
-        TimerText.FontSize = TimerService.HasHours(shown) ? TypeRamp.Display : TypeRamp.Hero; // « 1:30:00 » tient entre − et +
+        TimerText.FontSize = TimerService.HasHours(shown) ? TypeRamp.Display : TypeRamp.Hero; // graisse : Text.Numbers.Hero // « 1:30:00 » tient entre − et +
         var kindBrush = KindBrush(timer.Kind);
         TimerText.Foreground = timer.State == TimerState.Running ? kindBrush : Paint.TextPrimary;
         PhaseText.Text = timer.Kind switch
@@ -207,14 +207,12 @@ public partial class CalendarTimerView : UserControl
         CustomCounters.Children.Add(element);
     }
 
-    private static TextBlock Digits(string text) => new()
+    private static TextBlock Digits(string text) => Numerals.Apply(new TextBlock
     {
         Text = text,
-        FontFamily = FontStack.Display,
-        FontSize = TypeRamp.Title1,
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
-    };
+    }, TypeRamp.Title1);
 
     private Button StepButton(string glyph, int part, int delta)
     {

@@ -17,7 +17,7 @@
       <TextBlock x:Name="IconLight" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}" VerticalAlignment="Center" Foreground="{DynamicResource Paint.TextPrimary}"/>
       <TextBlock x:Name="LabelLight" Grid.Column="1" Margin="{ui:Space s6,0,s4,0}" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold"
                  VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Paint.TextPrimary}"/>
-      <TextBlock x:Name="PercentLight" Grid.Column="2" FontSize="{x:Static t:TypeRamp.Footnote}" VerticalAlignment="Center" Foreground="{DynamicResource Paint.TextMuted}"/>
+      <TextBlock x:Name="PercentLight" Grid.Column="2" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Footnote}" VerticalAlignment="Center" Foreground="{DynamicResource Paint.TextMuted}"/>
     </Grid>
 
     <Grid x:Name="DarkLayer" IsHitTestVisible="False">
@@ -30,7 +30,7 @@
         <TextBlock x:Name="IconDark" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XL}" VerticalAlignment="Center" Foreground="{DynamicResource Paint.OnInverse}"/>
         <TextBlock x:Name="LabelDark" Grid.Column="1" Margin="{ui:Space s6,0,s4,0}" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold"
                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Paint.OnInverse}"/>
-        <TextBlock x:Name="PercentDark" Grid.Column="2" FontSize="{x:Static t:TypeRamp.Footnote}" VerticalAlignment="Center"
+        <TextBlock x:Name="PercentDark" Grid.Column="2" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Footnote}" VerticalAlignment="Center"
                    Foreground="{DynamicResource Paint.OnInverse}" Opacity="0.7"/>
       </Grid>
     </Grid>

@@ -20,7 +20,7 @@
     <!-- Nom affichÃ© (5H) ; l'exe et les dossiers gardent Â« DynamicIsland Â» (voir AppInfo.cs). -->
     <Product>Opaline</Product>
     <AssemblyTitle>Opaline</AssemblyTitle>
-    <Version>1.34.0</Version>
+    <Version>1.35.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -39,6 +39,12 @@
     <Resource Include="Themes\Shaders\LiquidGlass.ps" />
     <Resource Include="Themes\Shaders\AnimatedAurora.ps" />
     <None Include="Assets\Fonts\LICENSE-lucide.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Grands chiffres (O4) : Inter Display 4.1 (rsms/inter, licence SIL OFL 1.1, copiée à côté de l'exe),
+         sous-ensemble latin fait par tools\subset-numbers-font.py ; trois graisses fines, chiffres tabulaires (tnum) -->
+    <Resource Include="Assets\Fonts\InterDisplay-ExtraLight.ttf" />
+    <Resource Include="Assets\Fonts\InterDisplay-Light.ttf" />
+    <Resource Include="Assets\Fonts\InterDisplay-Medium.ttf" />
+    <None Include="Assets\Fonts\LICENSE-inter.txt" CopyToOutputDirectory="PreserveNewest" />
     <!-- Fichiers de langue (6A) : clÃ© â†’ texte, lus par Loc -->
     <EmbeddedResource Include="Localization\fr.json" LogicalName="DynamicIsland.Localization.fr.json" />
     <EmbeddedResource Include="Localization\en.json" LogicalName="DynamicIsland.Localization.en.json" />

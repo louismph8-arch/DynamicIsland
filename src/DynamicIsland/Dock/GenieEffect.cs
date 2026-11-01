@@ -35,6 +35,8 @@ internal sealed class GenieEffect
     private SIZE _source;
     private TimeSpan _start = TimeSpan.Zero;
     private bool _finished;
+    /// <summary>Garde-fou : quoi qu'il arrive (rendu WPF arrêté, erreur), l'hôte et ses miniatures DWM disparaissent.</summary>
+    private System.Windows.Threading.DispatcherTimer? _safety;
 
     private GenieEffect(IntPtr window, RECT from, RECT to)
     {
@@ -79,6 +81,12 @@ internal sealed class GenieEffect
                 effect._box.Right - effect._box.Left, effect._box.Bottom - effect._box.Top, SWP_NOACTIVATE | SWP_SHOWWINDOW);
             effect.Layout(0); // la fenêtre réapparaît tout de suite à sa place, puis s'écoule
             CompositionTarget.Rendering += effect.OnRendering;
+            var safety = effect._safety = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(DurationSeconds / Math.Max(0.1, AppearanceService.Speed) + 2),
+            };
+            safety.Tick += (_, _) => effect.Finish();
+            safety.Start();
         }
         catch (Exception ex)
         {
@@ -131,18 +139,26 @@ internal sealed class GenieEffect
     private void OnRendering(object? sender, EventArgs e)
     {
         if (_finished) return;
-        var now = ((RenderingEventArgs)e).RenderingTime;
-        if (_start == TimeSpan.Zero) _start = now;
-        double t = Math.Min(1, (now - _start).TotalSeconds * AppearanceService.Speed / DurationSeconds);
-
-        // Rouverte pendant l'effet (ou fermée) : on s'arrête net.
-        if (!IsWindow(_window) || !IsIconic(_window))
+        try
         {
-            Finish();
-            return;
+            var now = ((RenderingEventArgs)e).RenderingTime;
+            if (_start == TimeSpan.Zero) _start = now;
+            double t = Math.Min(1, (now - _start).TotalSeconds * AppearanceService.Speed / DurationSeconds);
+
+            // Rouverte pendant l'effet (ou fermée) : on s'arrête net.
+            if (!IsWindow(_window) || !IsIconic(_window))
+            {
+                Finish();
+                return;
+            }
+            Layout(t);
+            if (t >= 1) Finish();
         }
-        Layout(t);
-        if (t >= 1) Finish();
+        catch (Exception ex)
+        {
+            Log.Error("Effet Génie", ex);
+            Finish();
+        }
     }
 
     /// <summary>
@@ -199,10 +215,17 @@ internal sealed class GenieEffect
     {
         if (_finished) return;
         _finished = true;
+        _safety?.Stop();
         CompositionTarget.Rendering -= OnRendering;
-        foreach (var thumbnail in _thumbnails) DwmUnregisterThumbnail(thumbnail);
-        _thumbnails.Clear();
-        _host.Dispose();
+        try
+        {
+            foreach (var thumbnail in _thumbnails) DwmUnregisterThumbnail(thumbnail);
+            _thumbnails.Clear();
+        }
+        finally
+        {
+            _host.Dispose();
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]

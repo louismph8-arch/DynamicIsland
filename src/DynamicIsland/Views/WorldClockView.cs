@@ -69,15 +69,7 @@ public sealed class WorldClockView : UserControl
             Foreground = day ? Paint.Timer : Paint.TextSecondary,
             HorizontalAlignment = HorizontalAlignment.Center,
         });
-        panel.Children.Add(new TextBlock
-        {
-            Text = time.ToString("t", Loc.Culture),
-            FontFamily = FontStack.Display,
-            FontSize = TypeRamp.Title2,
-            FontWeight = FontWeights.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, Space.S2, 0, Space.S1),
-        });
+        panel.Children.Add(ClockText(time.ToString("t", Loc.Culture))); // grands chiffres (O4)
         panel.Children.Add(new TextBlock
         {
             Text = clock.Name.Split(',')[0], // « Paris », sans le pays
@@ -103,5 +95,22 @@ public sealed class WorldClockView : UserControl
             CornerRadius = Corners.L,
             Child = panel,
         });
+    }
+
+    /// <summary>Heure en grands chiffres fins ; « AM » / « PM » plus petits (sinon « 12:56 AM » ne tient pas dans la carte).</summary>
+    private static TextBlock ClockText(string text)
+    {
+        var block = Numerals.Apply(new TextBlock
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, Space.S2, 0, Space.S1),
+        }, TypeRamp.NumberClock);
+        var format = Loc.Culture.DateTimeFormat;
+        string? suffix = new[] { format.AMDesignator, format.PMDesignator }
+            .FirstOrDefault(d => d.Length > 0 && text.EndsWith(d, StringComparison.Ordinal));
+        if (suffix == null) { block.Text = text; return block; }
+        block.Inlines.Add(new System.Windows.Documents.Run(text[..^suffix.Length].TrimEnd()));
+        block.Inlines.Add(new System.Windows.Documents.Run(" " + suffix) { FontSize = TypeRamp.Footnote, FontWeight = NumberWeight.Text });
+        return block;
     }
 }

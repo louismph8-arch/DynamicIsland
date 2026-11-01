@@ -35,6 +35,9 @@ public sealed class StatusArea : StackPanel
         public required Ellipse Dot;
         public required Canvas Effects;
         public required ScaleTransform Scale;
+        /// <summary>Pastille d'accent derrière le glyphe quand la case est « active » (O4, icône active).</summary>
+        public required SquircleBorder Halo;
+        public bool Active;
     }
 
     private readonly Dictionary<string, Cell> _cells = [];
@@ -191,7 +194,9 @@ public sealed class StatusArea : StackPanel
         dot.SetResourceReference(Shape.FillProperty, AppearanceService.AccentBrushKey);
         var effects = new Canvas { IsHitTestVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
 
+        var halo = IconChip.CreateHalo(Corners.M);
         var content = new Grid();
+        content.Children.Add(halo);
         content.Children.Add(glyph);
         content.Children.Add(effects);
         content.Children.Add(dot);
@@ -209,16 +214,18 @@ public sealed class StatusArea : StackPanel
             RenderTransform = scale,
             RenderTransformOrigin = new Point(0.5, 0.5),
         };
-        var cell = new Cell { Id = id, Border = border, Glyph = glyph, Badge = badge, BadgeText = badgeText, Dot = dot, Effects = effects, Scale = scale };
+        var cell = new Cell { Id = id, Border = border, Glyph = glyph, Badge = badge, BadgeText = badgeText, Dot = dot, Effects = effects, Scale = scale, Halo = halo };
 
         border.MouseEnter += (_, _) =>
         {
             border.Background = HoverBrush;
+            PaintGlyph(cell);
             HoverStarted?.Invoke(border, HoverText(id));
         };
         border.MouseLeave += (_, _) =>
         {
             border.Background = IdleBrush;
+            PaintGlyph(cell);
             HoverEnded?.Invoke(border);
         };
         border.MouseLeftButtonDown += (_, e) => e.Handled = true; // pas de déplacement du dock depuis une case
@@ -259,23 +266,36 @@ public sealed class StatusArea : StackPanel
         return cell;
     }
 
+    /// <summary>
+    /// Couleur des glyphes (O4, la même partout) : texte secondaire au repos, texte principal au survol, icône active
+    /// (dégradé d'accent + pastille) quand la case est active. La langue du clavier (texte) reste en texte principal.
+    /// </summary>
+    private static void PaintGlyph(Cell cell)
+    {
+        if (cell.Id == StatusItem.Keyboard)
+        {
+            cell.Glyph.Foreground = Paint.TextPrimary;
+            return;
+        }
+        IconChip.Paint(cell.Glyph, cell.Halo, cell.Active, cell.Border.IsMouseOver ? Paint.TextPrimary : Paint.TextSecondary);
+    }
+
     private void UpdateCell(string id)
     {
         if (!_cells.TryGetValue(id, out var cell)) return;
         bool dot = false;
+        bool active = false;
         string? badge = null;
         cell.Glyph.Opacity = 1;
         switch (id)
         {
             case StatusItem.Keyboard:
                 cell.Glyph.Text = (KeyboardLayoutService.Current ?? (SettingsStore.IsReadOnly ? KeyboardLayoutService.Read() : null))?.Short ?? "··";
-                cell.Glyph.Foreground = Paint.TextPrimary;
                 break;
             case StatusItem.Updates:
                 bool restart = WindowsUpdateService.RestartRequired;
                 int pending = WindowsUpdateService.Pending.Count;
                 cell.Glyph.Text = restart ? Icons.Restart : Icons.WindowsUpdate;
-                cell.Glyph.Foreground = restart || pending > 0 ? Paint.TextPrimary : Paint.TextSecondary;
                 cell.Glyph.Opacity = WindowsUpdateService.Checking ? 0.5 : 1;
                 if (restart) badge = "!";
                 else if (pending > 0) badge = pending > 9 ? "9+" : pending.ToString(Loc.Culture);
@@ -283,22 +303,19 @@ public sealed class StatusArea : StackPanel
             case StatusItem.Trash:
                 bool full = RecycleBinService.Count > 0;
                 cell.Glyph.Text = Icons.Trash;
-                cell.Glyph.Foreground = full ? Paint.TextPrimary : Paint.TextSecondary;
                 dot = full;
                 break;
             case StatusItem.Downloads:
                 cell.Glyph.Text = Icons.FolderDown;
-                cell.Glyph.Foreground = Paint.TextPrimary;
                 dot = _newestDownload is { } newest && newest.When > DownloadsService.SeenUntil;
                 break;
             case StatusItem.Power:
                 cell.Glyph.Text = Icons.Power;
-                cell.Glyph.Foreground = Paint.TextPrimary;
                 break;
             case StatusItem.Desktop:
                 bool hidden = SettingsStore.Current.Dock.HideDesktopIcons;
                 cell.Glyph.Text = Icons.ChevronDown;
-                cell.Glyph.Foreground = hidden ? Paint.TextPrimary : Paint.TextSecondary; // discrète tant que le bureau est normal
+                active = hidden; // icônes du bureau cachées = case active (icône active d'accent)
                 if (_desktopHidden != hidden)
                 {
                     bool animate = _desktopHidden != null && cell.Border.Parent != null;
@@ -308,9 +325,10 @@ public sealed class StatusArea : StackPanel
                 break;
             case StatusItem.Mixer:
                 cell.Glyph.Text = cell.Border.IsMouseOver && _volume.TryRead(out double level, out bool muted) ? VolumeGlyph(level, muted) : Icons.Mixer;
-                cell.Glyph.Foreground = Paint.TextPrimary;
                 break;
         }
+        cell.Active = active;
+        PaintGlyph(cell);
         cell.Dot.Visibility = dot && badge == null ? Visibility.Visible : Visibility.Collapsed;
         cell.Badge.Visibility = badge != null ? Visibility.Visible : Visibility.Collapsed;
         cell.BadgeText.Text = badge ?? "";

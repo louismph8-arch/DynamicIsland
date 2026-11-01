@@ -108,6 +108,7 @@ public partial class SettingsWindow
         string label = week.Start == current ? Loc.T("settings.week.this") : week.Start == current.AddDays(-7) ? Loc.T("settings.week.last") : "";
         var title = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = TypeRamp.Title3,
                                     FontFamily = FontStack.Display, FontWeight = FontWeights.SemiBold, Foreground = Paint.TextPrimary };
+        System.Windows.Documents.Typography.SetNumeralAlignment(title, FontNumeralAlignment.Tabular); // dates : chiffres à largeur fixe (O4)
         title.Inlines.Add(new System.Windows.Documents.Run(range));
         if (label.Length > 0)
             title.Inlines.Add(new System.Windows.Documents.Run("  ·  " + label) { Foreground = Paint.TextSecondary, FontWeight = FontWeights.Normal, FontSize = TypeRamp.Body });
@@ -150,8 +151,8 @@ public partial class SettingsWindow
         head.Children.Add(icon);
         head.Children.Add(new TextBlock { Text = name, Style = (Style)FindResource("CardDescription"), VerticalAlignment = VerticalAlignment.Center });
         panel.Children.Add(head);
-        panel.Children.Add(new TextBlock { Text = value, FontFamily = FontStack.Display, FontSize = TypeRamp.Title1, FontWeight = FontWeights.SemiBold,
-                                           Foreground = Paint.TextPrimary, Margin = new Thickness(0, Space.S2, 0, 0) });
+        panel.Children.Add(Numerals.Apply(new TextBlock { Text = value, Foreground = Paint.TextPrimary, Margin = new Thickness(0, Space.S2, 0, 0) },
+                                          TypeRamp.LargeTitle)); // grands chiffres (O4)
         panel.Children.Add(new TextBlock { Text = WeekChangeText(change), Style = (Style)FindResource("CardDescription"), TextWrapping = TextWrapping.Wrap });
         var card = WeekCard(panel);
         card.Margin = new Thickness(Space.S2, Space.S2, Space.S2, Space.S2);

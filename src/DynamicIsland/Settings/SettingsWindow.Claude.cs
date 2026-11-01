@@ -190,7 +190,8 @@ public partial class SettingsWindow
         if (dialog.ShowDialog(this) != true) return;
         if (ClaudeService.FromChosenFile(dialog.FileName) == null)
         {
-            MessageBox.Show(this, Loc.T("settings.claude.path.invalid"), AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, Loc.T(ClaudeService.IsDesktopApp(dialog.FileName) ? "settings.claude.path.desktop" : "settings.claude.path.invalid"),
+                AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         var path = dialog.FileName;

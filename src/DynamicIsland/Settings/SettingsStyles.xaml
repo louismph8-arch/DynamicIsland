@@ -22,9 +22,11 @@
               <ui:SquircleBorder x:Name="Marker" Width="3" Height="16" CornerRadius="{x:Static t:Corners.Pill}"
                                  Background="{DynamicResource AccentBrush}" Margin="{ui:Space -s4,0,s4,0}" Opacity="0" VerticalAlignment="Center"/>
               <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
-                           FontFamily="{x:Static t:FontStack.Icons}" FontSize="{x:Static t:IconSize.L}" VerticalAlignment="Center"
-                           Margin="{ui:Space 0,0,s6,0}"/>
+                <!-- Page active (O4) : icône active (dégradé d'accent + pastille) -->
+                <ui:IconChip Glyph="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" GlyphSize="{x:Static t:IconSize.L}"
+                             Width="{x:Static t:Sizes.IconChip}" Height="{x:Static t:Sizes.IconChip}" VerticalAlignment="Center"
+                             Margin="{ui:Space -s1,0,s4,0}"
+                             IsActive="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}"/>
                 <ContentPresenter VerticalAlignment="Center" TextElement.FontSize="{x:Static t:TypeRamp.Body}"/>
               </StackPanel>
             </Grid>

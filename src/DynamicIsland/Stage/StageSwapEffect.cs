@@ -57,6 +57,8 @@ internal sealed class StageSwapEffect
     private int _readyFrames;
     private RECT _incomingRect, _leavingRect;
     private byte _incomingOpacity = 255, _leavingOpacity = 255;
+    /// <summary>Garde-fou : si le rendu WPF s'arrête (ou une erreur), l'échange se termine quand même : images DWM retirées.</summary>
+    private System.Windows.Threading.DispatcherTimer? _safety;
     private double _shadowLevel;
 
     /// <summary>Un échange est en cours (un nouveau clic le termine d'abord : <see cref="CompleteCurrent"/>).</summary>
@@ -129,6 +131,9 @@ internal sealed class StageSwapEffect
             DwmFlush(); // la première image est à l'écran avant que la fenêtre qui part soit réduite (pas de trou)
             _current = effect;
             CompositionTarget.Rendering += effect.OnRendering;
+            var safety = effect._safety = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            safety.Tick += (_, _) => effect.Complete();
+            safety.Start();
             return true;
         }
         catch (Exception ex)
@@ -267,6 +272,7 @@ internal sealed class StageSwapEffect
     {
         if (_phase == Phase.Closed) return;
         _phase = Phase.Closed;
+        _safety?.Stop();
         CompositionTarget.Rendering -= OnRendering;
         if (_current == this) _current = null;
         Dispose();
@@ -282,11 +288,18 @@ internal sealed class StageSwapEffect
 
     private void Dispose()
     {
-        if (_incomingThumb != IntPtr.Zero) DwmUnregisterThumbnail(_incomingThumb);
-        if (_leavingThumb != IntPtr.Zero) DwmUnregisterThumbnail(_leavingThumb);
-        _incomingThumb = _leavingThumb = IntPtr.Zero;
-        CloseShadow();
-        _host.Dispose();
+        _safety?.Stop();
+        try
+        {
+            if (_incomingThumb != IntPtr.Zero) DwmUnregisterThumbnail(_incomingThumb);
+            if (_leavingThumb != IntPtr.Zero) DwmUnregisterThumbnail(_leavingThumb);
+            _incomingThumb = _leavingThumb = IntPtr.Zero;
+            CloseShadow();
+        }
+        finally
+        {
+            _host.Dispose(); // la fenêtre hôte (et donc ses miniatures) disparaît quoi qu'il arrive
+        }
     }
 
     private void CloseShadow()

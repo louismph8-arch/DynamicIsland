@@ -29,7 +29,7 @@
           { "type": "text", "text": "Bitcoin", "size": "headline", "weight": "semibold" }
         ]
       },
-      { "type": "text", "text": "{web.usd:n0} $", "size": "display", "weight": "semibold", "font": "display" },
+      { "type": "text", "text": "{web.usd:n0} $", "size": "display", "weight": "light", "font": "numbers" },
       { "type": "text", "text": "{web.eur:n0} € · 24 h : {web.change:0.00} %", "size": "footnote", "color": "secondary" },
       { "type": "text", "text": "CoinGecko", "size": "caption2", "color": "tertiary" }
     ]

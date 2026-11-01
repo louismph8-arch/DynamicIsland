@@ -44,6 +44,75 @@ public partial class SettingsWindow
         SearchPopup.Closed += (_, _) => _searchHits = [];
     }
 
+    private const int GWL_STYLE = -16;
+    private const int WS_SYSMENU = 0x00080000;
+    private const int WM_STYLECHANGING = 0x007C;
+
+    /// <summary>
+    /// Boutons réduire / agrandir / fermer de WINDOWS dessinés en double à côté des nôtres (bug « double croix ») : le cadre DWM
+    /// est étendu à toute la fenêtre (WindowChrome GlassFrameThickness -1 + DwmExtendFrameIntoClientArea pour le Mica), et DWM
+    /// dessine alors ses propres boutons de légende dans ce cadre pour toute fenêtre qui a WS_SYSMENU (UseAeroCaptionButtons =
+    /// faux ne règle que les clics côté WPF). Sans WS_SYSMENU, DWM ne les dessine plus ; réduire / fermer restent nos boutons,
+    /// la barre des tâches (WS_MINIMIZEBOX) et Alt+F4. WPF peut remettre le style (WM_STYLECHANGING) : on le retire à chaque fois.
+    /// </summary>
+    private static void HideNativeCaptionButtons(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        System.Windows.Interop.HwndSource.FromHwnd(hwnd)?.AddHook(StripSysMenu);
+        int style = GetWindowLong(hwnd, GWL_STYLE);
+        if ((style & WS_SYSMENU) != 0)
+        {
+            SetWindowLong(hwnd, GWL_STYLE, style & ~WS_SYSMENU);
+            // Cadre recalculé tout de suite (sinon les boutons restent jusqu'au prochain redimensionnement).
+            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020); // NOSIZE|NOMOVE|NOZORDER|NOACTIVATE|FRAMECHANGED
+        }
+    }
+
+    private static IntPtr StripSysMenu(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WM_STYLECHANGING && wParam.ToInt64() == GWL_STYLE)
+        {
+            var style = System.Runtime.InteropServices.Marshal.PtrToStructure<StyleStruct>(lParam);
+            if ((style.New & WS_SYSMENU) != 0)
+            {
+                style.New &= ~WS_SYSMENU;
+                System.Runtime.InteropServices.Marshal.StructureToPtr(style, lParam, false);
+            }
+        }
+        return IntPtr.Zero;
+    }
+
+    /// <summary>Style d'avant / d'après d'un WM_STYLECHANGING.</summary>
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct StyleStruct { public int Old, New; }
+
+    /// <summary>Pour l'auto-test : vrai si la fenêtre n'a plus WS_SYSMENU (DWM ne dessine pas ses boutons de légende).</summary>
+    internal static bool HasNoNativeCaptionButtons(IntPtr hwnd) => (GetWindowLong(hwnd, GWL_STYLE) & WS_SYSMENU) == 0;
+
+    /// <summary>Auto-test : fenêtre des paramètres ouverte HORS écran, sans boutons de Windows, puis fermée.</summary>
+    internal static bool SelfTestCaption()
+    {
+        var window = new SettingsWindow { ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -30000, Top = 0 };
+        try
+        {
+            window.Show();
+            return HasNoNativeCaptionButtons(new System.Windows.Interop.WindowInteropHelper(window).Handle);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetWindowLong(IntPtr hwnd, int index);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetWindowLongW")]
+    private static extern int SetWindowLong(IntPtr hwnd, int index, int value);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+
     private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();

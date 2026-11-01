@@ -46,6 +46,11 @@ internal static class PerfBench
         // Mouvement (O3) : île ouverte posée = rien ne doit tourner ; puis ouvertures / fermetures animées en continu.
         island.BenchExpand(true);
         lines.Add("Île ouverte, sans saison, tout posé (O3) : " + await MeasureAsync() + $", mouvements en cours : {Animation.MotionClock.Count}");
+        // Bug 1.34.0 « le halo lag sur l'île » : lumière du verre qui suit une souris simulée (images/s effectives, pire image).
+        island.BenchOnScreen(true);
+        lines.Add("Lumière qui bouge sur l'île ouverte (suivi réel, fenêtre sur l'écran mais invisible) : "
+                  + await GlassBench.FramesAsync(island.BenchGlass, island.BenchGlassSurface, real: true));
+        island.BenchOnScreen(false);
         island.BenchExpand(false);
         lines.Add("Île en pilule après la fermeture (O3) : " + await MeasureAsync() + $", mouvements en cours : {Animation.MotionClock.Count}");
         var toggle = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1.2) };

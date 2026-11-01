@@ -145,6 +145,7 @@ public partial class App : Application
         if (snapshotArg >= 0 && snapshotArg + 1 < e.Args.Length)
         {
             base.OnStartup(e);
+            DeveloperWindowGuard.Start(); // aucune fenêtre de rendu / de mesure sur le vrai bureau (bug « double dock »)
             var folder = e.Args[snapshotArg + 1];
             if (ArgumentAfter(e.Args, "--glass-bench") is { } benchFile)
             {

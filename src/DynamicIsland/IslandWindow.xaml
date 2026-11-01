@@ -37,11 +37,23 @@
       <!-- Bande quasi invisible côté bord de l'écran : un curseur collé au bord ouvre aussi l'île. -->
       <Border x:Name="EdgeBand" Height="10" VerticalAlignment="Top" Background="{x:Static t:Paint.HitTarget}"/>
 
-      <!-- L'ombre / le halo est sur ce conteneur : l'effet de l'île elle-même est le verre liquide. -->
+      <!-- Conteneur de l'île (transformations « pour le fun »). L'effet de l'île elle-même est le verre liquide. -->
       <Grid x:Name="IslandShell" VerticalAlignment="Top">
-        <Grid.Effect>
-          <DropShadowEffect x:Name="IslandShadow" Direction="{x:Static t:Shadows.Direction}" RenderingBias="Performance"/>
-        </Grid.Effect>
+        <!-- Halo / ombre : élément FRÈRE sous l'île, même forme, découpé hors de l'intérieur de l'île et gardé en image
+             (BitmapCache) quand la forme ne bouge plus (UpdateHaloClip). Avant, le DropShadowEffect était sur ce conteneur :
+             chaque image de la lumière qui suit la souris refaisait le flou de toute l'île + 38 DIP autour. Maintenant il
+             n'est refait que si la taille, l'arrondi ou la couleur du halo changent. -->
+        <Grid x:Name="HaloCache" IsHitTestVisible="False"
+              Width="{Binding Width, ElementName=Island}" Height="{Binding Height, ElementName=Island}"
+              Margin="{Binding Margin, ElementName=Island}" VerticalAlignment="{Binding VerticalAlignment, ElementName=Island}">
+          <Grid x:Name="HaloHost">
+            <ui:SquircleBorder x:Name="HaloShape" CornerRadius="{Binding CornerRadius, ElementName=Island}" Background="{x:Static t:Paint.HaloSource}">
+              <ui:SquircleBorder.Effect>
+                <DropShadowEffect x:Name="IslandShadow" Direction="{x:Static t:Shadows.Direction}" RenderingBias="Performance"/>
+              </ui:SquircleBorder.Effect>
+            </ui:SquircleBorder>
+          </Grid>
+        </Grid>
       <ui:SquircleBorder x:Name="Island" Margin="{ui:Space 0,s4,0,0}" VerticalAlignment="Top"
               Width="124" Height="36" CornerRadius="{x:Static t:Corners.XXL}" BorderThickness="{x:Static t:Borders.Hairline}"
               Background="{DynamicResource IslandBrush}">
@@ -61,7 +73,7 @@
               <!-- « Ne pas déranger » actif (7F) : petite lune discrète devant l'heure -->
               <TextBlock x:Name="FocusMoon" Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}"
                          Foreground="{DynamicResource Paint.TextSecondary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
-              <TextBlock x:Name="CompactClock" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+              <TextBlock x:Name="CompactClock" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Headline}" VerticalAlignment="Center"/>
               <!-- Confidentialité : vert = webcam utilisée, orange = micro -->
               <Ellipse x:Name="CameraDot" Width="6" Height="6" Margin="{ui:Space s3,0,0,0}" VerticalAlignment="Center"
                        Fill="{StaticResource CameraBrush}" Visibility="Collapsed"/>
@@ -96,7 +108,7 @@
                   <Path x:Name="TimerRing" StrokeThickness="{x:Static t:Stroke.Focus}" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                         Stroke="{StaticResource TimerBrush}"/>
                 </Grid>
-                <TextBlock x:Name="CompactTimerText" FontSize="{x:Static t:TypeRamp.Body}" FontWeight="SemiBold"
+                <TextBlock x:Name="CompactTimerText" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Body}"
                            Foreground="{StaticResource TimerBrush}" VerticalAlignment="Center"/>
               </StackPanel>
             </Grid>
@@ -115,7 +127,7 @@
                 <Border.RenderTransform><ScaleTransform x:Name="HudScale" ScaleX="0.5"/></Border.RenderTransform>
               </ui:SquircleBorder>
             </ui:SquircleBorder>
-            <TextBlock x:Name="HudText" Grid.Column="2" FontSize="{x:Static t:TypeRamp.Callout}" FontWeight="SemiBold" VerticalAlignment="Center"
+            <TextBlock x:Name="HudText" Grid.Column="2" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Callout}" VerticalAlignment="Center"
                        MinWidth="34" TextAlignment="Right"/>
           </Grid>
 
@@ -201,7 +213,7 @@
                          Fill="{StaticResource MicrophoneBrush}" Visibility="Collapsed"/>
                 <TextBlock x:Name="ExpandedFocusMoon" Text="{x:Static t:Icons.DoNotDisturb}" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.S}"
                            Foreground="{DynamicResource Paint.TextSecondary}" VerticalAlignment="Center" Margin="{ui:Space 0,px,s3,0}" Visibility="Collapsed"/>
-                <TextBlock x:Name="ExpandedClock" FontSize="{x:Static t:TypeRamp.Headline}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock x:Name="ExpandedClock" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Headline}" VerticalAlignment="Center"/>
               </StackPanel>
               </Grid>
 

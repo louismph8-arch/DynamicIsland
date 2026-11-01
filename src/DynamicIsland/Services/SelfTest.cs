@@ -48,6 +48,7 @@ internal static partial class SelfTest
             Run(lines, "Verre opalin (refonte O1) : réglage, reflets irisés, grain", () => OpalGlass(lines));
             Run(lines, "Couleurs (refonte O2) : transitions, contraste, opale blanche", () => OpalColors(lines));
             Run(lines, "Mouvement (refonte O3) : cascade, courbes, inclinaison, élastique, accessibilité", () => MotionO3(lines));
+            Run(lines, "Typographie et icônes (refonte O4) : police des chiffres, chiffres tabulaires, licence, icône active", () => TypographyO4(lines));
             Run(lines, "Bêta : versions, canal, avis, nouveautés", () => Beta(lines));
             Run(lines, "Automatisations", () => Automations(lines));
             Run(lines, "Ma semaine : statistiques locales", () => Stats(lines));
@@ -62,6 +63,7 @@ internal static partial class SelfTest
         });
         Run(lines, "Curseur de souris", () => Cursor(lines)); // dessin WPF : sur le thread de l'interface
         Run(lines, "Widgets des potes : rendu protégé", () => PluginsRender(lines)); // contrôles WPF : thread de l'interface
+        Run(lines, "Fenêtres hors écran (double dock) et barre de titre des paramètres", () => DeveloperWindows(lines)); // vraies fenêtres WPF
         lines.Add("");
         lines.Add("== Télécommande : aller-retour HTTP sur 127.0.0.1 (faux état)");
         try

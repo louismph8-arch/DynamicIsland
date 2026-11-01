@@ -43,8 +43,7 @@
         <!-- Hauteur fixe : « 1:30:00 » s'écrit un peu plus petit sans faire bouger le reste -->
         <Grid Margin="{ui:Space 0,s1,0,0}" Height="{x:Static t:Sizes.TimerDigits}">
           <Button Style="{StaticResource SmallIconButton}" HorizontalAlignment="Left" Content="{x:Static t:Icons.Minus}" Click="Minus_Click"/>
-          <TextBlock x:Name="TimerText" HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="{StaticResource DisplayFont}"
-                     FontSize="{x:Static t:TypeRamp.Hero}" FontWeight="Light" Text="05:00"/>
+          <TextBlock x:Name="TimerText" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource Text.Numbers.Hero}" Text="05:00"/>
           <Button Style="{StaticResource SmallIconButton}" HorizontalAlignment="Right" Content="{x:Static t:Icons.Plus}" Click="Plus_Click"/>
         </Grid>
 
@@ -60,7 +59,7 @@
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="{ui:Space 0,s5,0,0}">
           <Button x:Name="StartButton" Style="{StaticResource SoftButton}" Width="{x:Static t:Sizes.TimerStart}" Content="{ui:L calendar.demarrer}" Click="Start_Click"/>
-          <Button x:Name="ResetButton" Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="{x:Static t:TypeRamp.Body}"
+          <Button x:Name="ResetButton" Style="{StaticResource IconButton}" Width="{x:Static t:Sizes.SoftButton}" Height="{x:Static t:Sizes.SoftButton}" FontSize="{x:Static t:IconSize.M}"
                   Margin="{ui:Space s4,0,0,0}" Content="{x:Static t:Icons.Reset}" Click="Reset_Click"/>
         </StackPanel>
       </StackPanel>
@@ -73,7 +72,7 @@
               MouseWheel="CustomCounters_MouseWheel"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="{ui:Space 0,s5,0,0}">
           <Button x:Name="CustomStartButton" Style="{StaticResource SoftButton}" Width="{x:Static t:Sizes.TimerStart}" Content="{ui:L calendar.demarrer}" Click="CustomStart_Click"/>
-          <Button Style="{StaticResource IconButton}" Width="{x:Static t:Sizes.SoftButton}" Height="{x:Static t:Sizes.SoftButton}" FontSize="{x:Static t:TypeRamp.Body}"
+          <Button Style="{StaticResource IconButton}" Width="{x:Static t:Sizes.SoftButton}" Height="{x:Static t:Sizes.SoftButton}" FontSize="{x:Static t:IconSize.M}"
                   Margin="{ui:Space s4,0,0,0}" Content="{x:Static t:Icons.Close}" Click="CustomClose_Click"/>
         </StackPanel>
       </StackPanel>

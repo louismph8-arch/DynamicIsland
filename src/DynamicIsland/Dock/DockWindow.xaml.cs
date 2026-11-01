@@ -77,6 +77,9 @@ public partial class DockWindow : Window
     private int _edgePx;
     private double _scale = 1;
 
+    /// <summary>Le vrai dock affiché (pas ceux des rendus) : il ne peut y en avoir qu'un.</summary>
+    private static DockWindow? _active;
+
     public DockWindow()
     {
         InitializeComponent();
@@ -186,6 +189,15 @@ public partial class DockWindow : Window
             return;
         }
 
+        // Garde-fou « une seule surface du dock » : un 2e vrai dock dans ce processus ne doit jamais exister ; si cela arrivait,
+        // l'ancien est caché (sa réservation libérée) plutôt que d'afficher deux docks.
+        if (_active is { } older && older != this && older.IsVisible)
+        {
+            Log.Info("Dock : un 2e dock a été créé — l'ancien est caché");
+            older._appBar?.Release();
+            older.Hide();
+        }
+        _active = this;
         _appBar = new AppBar(_hwnd);
         _taskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
         HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
@@ -198,6 +210,7 @@ public partial class DockWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        if (_active == this) _active = null;
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         SettingsStore.Changed -= OnSettingsChanged;
         GamingMode.Changed -= OnGamingChanged;
@@ -374,6 +387,15 @@ public partial class DockWindow : Window
             : reserved ? _appBarRect.Bottom : _screen.WorkArea.Bottom;
 
         Width = _screen.WidthPx / _scale;
+        if (SnapshotFolder != null)
+        {
+            // Rendus et mesures (--snapshot, --glass-bench, --perf-bench) : la largeur suit l'écran mais la fenêtre reste HORS
+            // écran. Avant (≤ 1.34.0), le premier ApplyAppearance d'une mesure posait ce dock en bas de l'écran principal, à
+            // côté du vrai dock (bug « double dock »).
+            Left = -30000;
+            Top = 0;
+            return;
+        }
         Left = bounds.Left / _scale;
         Top = AtTop ? _edgePx / _scale : _edgePx / _scale - Height;
         UpdateBackdrop();

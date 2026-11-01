@@ -22,14 +22,12 @@
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Foreground" Value="{DynamicResource Paint.TextSecondary}"/>
     </Style>
-    <Style x:Key="TileValue" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Headline}"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
+    <Style x:Key="TileValue" TargetType="TextBlock" BasedOn="{StaticResource Text.Numbers.Title}">
+      <Setter Property="FontSize" Value="{x:Static t:TypeRamp.NumberTile}"/>
       <Setter Property="HorizontalAlignment" Value="Right"/>
     </Style>
-    <Style x:Key="RateValue" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="{x:Static t:TypeRamp.Headline}"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
+    <Style x:Key="RateValue" TargetType="TextBlock" BasedOn="{StaticResource Text.Numbers.Title}">
+      <Setter Property="FontSize" Value="{x:Static t:TypeRamp.NumberTile}"/>
       <Setter Property="Margin" Value="{ui:Space 0,px,0,0}"/>
       <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
     </Style>
@@ -71,8 +69,8 @@
           </Grid.RowDefinitions>
           <TextBlock x:Name="WeatherCity" Style="{StaticResource TileLabel}" TextTrimming="CharacterEllipsis"/>
           <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock x:Name="WeatherSymbol" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:TypeRamp.Title1}" VerticalAlignment="Center"/>
-            <TextBlock x:Name="WeatherTemp" FontFamily="{StaticResource DisplayFont}" FontSize="{x:Static t:TypeRamp.Display}" FontWeight="Light"
+            <TextBlock x:Name="WeatherSymbol" FontFamily="{StaticResource IconFont}" FontSize="{x:Static t:IconSize.XXL}" VerticalAlignment="Center"/>
+            <TextBlock x:Name="WeatherTemp" Style="{StaticResource Text.Numbers}" FontSize="{x:Static t:TypeRamp.Display}" FontWeight="{x:Static t:NumberWeight.Hairline}"
                        Margin="{ui:Space s3,0,0,0}" VerticalAlignment="Center"/>
           </StackPanel>
           <TextBlock x:Name="WeatherDescription" Grid.Row="2" FontSize="{x:Static t:TypeRamp.Footnote}" TextTrimming="CharacterEllipsis"/>
