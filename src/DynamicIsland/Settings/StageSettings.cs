@@ -10,6 +10,9 @@ public sealed class StageSettings
     public bool Enabled { get; set; }
     /// <summary>La fenêtre du centre remplit toute la scène (zone de travail moins la colonne) — demandé par l'utilisateur.</summary>
     public bool FillStage { get; set; } = true;
+    /// <summary>Colonne cachée hors de l'écran, révélée par la souris au bord gauche (demandé par l'utilisateur : « la colonne qui reste
+    /// ouverte tout le temps, c'est un peu chiant »). La scène prend alors toute la zone de travail.</summary>
+    public bool AutoHide { get; set; } = true;
     /// <summary>Raccourci « Stage Manager : activer / couper » (vide = aucun, comme au départ).</summary>
     public string Hotkey { get; set; } = "";
 

@@ -76,13 +76,16 @@ internal static class StageLayout
     public static int ColumnReserve(double scale) =>
         (int)Math.Round((StageShape.ScreenMargin + StageShape.ColumnWidth + StageShape.StageGap) * scale);
 
-    /// <summary>La scène : la zone de travail moins la colonne à gauche (et une petite marge ailleurs).</summary>
-    public static RECT StageArea(RECT work, double scale)
+    /// <summary>
+    /// La scène : la zone de travail moins la colonne à gauche (et une petite marge ailleurs) ; colonne auto-masquée
+    /// (<paramref name="autoHide"/>) = toute la zone de travail (la colonne passe par-dessus quand on la fait venir).
+    /// </summary>
+    public static RECT StageArea(RECT work, double scale, bool autoHide = false)
     {
         int margin = (int)Math.Round(StageShape.ScreenMargin * scale);
         var stage = new RECT
         {
-            Left = work.Left + ColumnReserve(scale),
+            Left = work.Left + (autoHide ? margin : ColumnReserve(scale)),
             Top = work.Top + margin,
             Right = work.Right - margin,
             Bottom = work.Bottom - margin,
@@ -117,6 +120,9 @@ internal static class StageLayout
         if (h > stageH) y = stage.Top;
         return new RECT { Left = x, Top = y, Right = x + w, Bottom = y + h };
     }
+
+    /// <summary>Haut de la colonne (pixels) : centrée en hauteur dans la zone de travail, jamais au-dessus d'elle.</summary>
+    public static int ColumnTop(RECT work, int heightPx) => Math.Max(work.Top, work.Top + (work.Bottom - work.Top - heightPx) / 2);
 
     /// <summary>Combien de groupes tiennent dans la hauteur de la zone de travail (6 au plus, 1 au moins).</summary>
     public static int MaxGroups(int workHeightPx, double scale)

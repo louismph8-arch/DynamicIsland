@@ -740,6 +740,7 @@ public partial class App : Application
             await Vault.ClipTextWindow.RenderSnapshotAsync(folder);
             await Notes.NoteEditorWindow.RenderSnapshotAsync(folder);
             await Stage.StageColumnWindow.RenderSnapshotAsync(Path.Combine(folder, "15-stage-colonne.png"));
+            await Stage.StageHandleWindow.RenderSnapshotAsync(Path.Combine(folder, "15-stage-poignee.png"));
         }
         catch (Exception ex)
         {

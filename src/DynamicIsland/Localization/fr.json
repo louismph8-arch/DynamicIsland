@@ -1908,5 +1908,16 @@
   "plugins.byline": "par {0} · version {1}",
   "plugins.version": "version {0}",
   "settings.stage.fill": "Applis en plein écran",
-  "settings.stage.fill.description": "La fenêtre du centre prend toute la place à côté des miniatures"
+  "settings.stage.fill.description": "La fenêtre du centre prend toute la place à côté des miniatures",
+  "settings.stage.autohide": "Cacher la colonne automatiquement",
+  "settings.stage.autohide.description": "Les miniatures glissent hors de l'écran ; touche le bord gauche avec la souris pour les faire revenir. La fenêtre du centre prend alors toute la largeur",
+  "stage.menu.always": "Toujours afficher la colonne",
+  "stage.menu.autohide": "Cacher la colonne automatiquement",
+  "palette.stage.always": "Stage Manager : toujours afficher la colonne",
+  "palette.stage.autohide": "Stage Manager : cacher la colonne automatiquement",
+  "palette.stage.column.alias": "colonne miniatures cacher afficher bord masquer",
+  "palette.stage.column.description": "Colonne des miniatures à gauche de l'écran",
+  "palette.stage.peek": "Stage Manager : afficher les fenêtres",
+  "palette.stage.peek.alias": "afficher les fenêtres colonne montrer voir miniatures",
+  "palette.stage.peek.description": "Fait sortir la colonne de l'écran de la souris pendant 4 s"
 }

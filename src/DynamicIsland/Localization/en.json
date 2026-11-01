@@ -1908,5 +1908,16 @@
   "plugins.byline": "by {0} · version {1}",
   "plugins.version": "version {0}",
   "settings.stage.fill": "Apps fill the screen",
-  "settings.stage.fill.description": "The window in the middle takes all the space next to the thumbnails"
+  "settings.stage.fill.description": "The window in the middle takes all the space next to the thumbnails",
+  "settings.stage.autohide": "Hide the column automatically",
+  "settings.stage.autohide.description": "The thumbnails slide off the screen; touch the left edge with the mouse to bring them back. The window in the middle then takes the full width",
+  "stage.menu.always": "Always show the column",
+  "stage.menu.autohide": "Hide the column automatically",
+  "palette.stage.always": "Stage Manager: always show the column",
+  "palette.stage.autohide": "Stage Manager: hide the column automatically",
+  "palette.stage.column.alias": "column thumbnails hide show edge",
+  "palette.stage.column.description": "Thumbnail column on the left of the screen",
+  "palette.stage.peek": "Stage Manager: show the windows",
+  "palette.stage.peek.alias": "show windows column reveal see thumbnails",
+  "palette.stage.peek.description": "Brings out the column on the mouse's screen for 4 s"
 }

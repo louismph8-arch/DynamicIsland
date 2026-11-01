@@ -24,7 +24,7 @@ public static class GamingMode
     private static readonly HashSet<string> SystemProcesses =
     [
         "lockapp", "logonui", "searchhost", "searchapp", "startmenuexperiencehost", "shellexperiencehost",
-        "textinputhost", "applicationframehost", "systemsettings", "consent",
+        "textinputhost", "applicationframehost", "systemsettings", "consent", "nvidia overlay", "nvidia share",
     ];
     private static readonly Dictionary<uint, string?> ProcessNames = [];
     private static IntPtr _game;

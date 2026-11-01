@@ -19,7 +19,9 @@ namespace DynamicIsland.Stage;
 /// gauche, groupées par appli comme le dock. Clic sur une miniature = échange animé. Une nouvelle fenêtre prend le centre.
 /// <list type="bullet">
 /// <item>Événements de <see cref="WindowTracker"/> seulement (pas de sondage rapide), miniatures DWM (aucune capture d'écran) ;
-/// mode coupé = rien ne tourne (ni crochets, ni fenêtres, ni minuterie).</item>
+/// mode coupé = rien ne tourne (ni crochets, ni fenêtres, ni minuterie). Seule exception : colonne auto-masquée
+/// (<see cref="StageAutoHide"/>, option active par défaut) = relevé de la souris toutes les 60 ms, seulement s'il y a une colonne à
+/// montrer, sans aucun calcul quand la souris ne bouge pas et que rien n'attend.</item>
 /// <item>Laissées telles quelles : Opaline, fenêtres outil / non réductibles, « toujours au premier plan », plein écran et jeux,
 /// applis lancées en administrateur (Windows l'interdit : signalé une fois), applis « Stage Manager : ignorer » des règles.</item>
 /// <item>Réversible : chaque fenêtre touchée est notée AVANT (<see cref="StageState"/>, stage-manager.txt) ; mode coupé, module
@@ -31,6 +33,10 @@ public static class StageManager
 {
     /// <summary>La fenêtre du centre remplit la scène (option « Applis en plein écran », active par défaut).</summary>
     private static bool FillStage => SettingsStore.Current.Stage.FillStage;
+    /// <summary>Colonne cachée, révélée par la souris au bord gauche (option active par défaut) : la scène = toute la zone de travail.</summary>
+    private static bool AutoHide => SettingsStore.Current.Stage.AutoHide;
+    /// <summary>Relevé de la souris pour l'auto-masquage (seulement mode allumé + option + une colonne à montrer).</summary>
+    private static readonly TimeSpan EdgeInterval = TimeSpan.FromMilliseconds(60);
 
     private const uint GA_ROOTOWNER = 3;
     private const uint SWP_NOZORDER = 0x0004;
@@ -60,6 +66,16 @@ public static class StageManager
     private static readonly List<IntPtr> Recent = [];
     private static readonly Dictionary<string, StageColumnWindow> Columns = [];
     private static readonly Dictionary<IntPtr, DateTime> OurMinimize = [];
+    // Auto-masquage des colonnes : décision par écran, bords des écrans (relevés à chaque mise à jour des colonnes), minuterie.
+    private static readonly Dictionary<string, StageAutoHide> Hiders = [];
+    private static readonly Dictionary<string, (RECT Bounds, IntPtr Handle, double Scale)> ColumnScreens = [];
+    /// <summary>Poignées des colonnes auto-masquées (une par écran, créée à la première utilisation).</summary>
+    private static readonly Dictionary<string, StageHandleWindow> Handles = [];
+    private static List<RECT> _allBounds = [];
+    private static DispatcherTimer? _edgeWatch;
+    private static POINT _lastCursor;
+    private static string? _menuScreen;
+    private static bool _autoHideApplied;
     private static readonly HashSet<string> WarnedElevated = [];
     private static readonly Dictionary<string, (string Name, ImageSource? Icon)> AppLooks = [];
     /// <summary>Écart « place normale (repère de la zone de travail) → écran », par écran, mesuré sur une fenêtre normale.</summary>
@@ -109,6 +125,26 @@ public static class StageManager
         bool wanted = _started && SettingsStore.Current.Stage.Enabled && !App.SafeMode && !ModuleGuard.IsDisabled(ModuleGuard.Stage);
         if (wanted && !_active) Activate();
         else if (!wanted && _active) Deactivate();
+        else if (_active && _autoHideApplied != AutoHide) AutoHideChanged();
+    }
+
+    /// <summary>Option « Cacher la colonne automatiquement » (paramètres, palette, menu de la colonne) : allumée ↔ coupée.</summary>
+    public static void ToggleAutoHide() => SettingsStore.Update(s => s.Stage.AutoHide = !s.Stage.AutoHide);
+
+    public static bool AutoHideOn => AutoHide;
+
+    /// <summary>Option changée en marche : la scène change de largeur → fenêtres du centre replacées, colonnes dans le nouveau mode.</summary>
+    private static void AutoHideChanged()
+    {
+        _autoHideApplied = AutoHide;
+        foreach (var hider in Hiders.Values) hider.Reset();
+        var monitors = Monitors();
+        foreach (var (screen, center) in Centers.ToList())
+            if (IsWindow(center) && !IsIconic(center) && monitors.FirstOrDefault(m => m.Device == screen) is { Device: not null } monitor
+                && !GamingMode.IsOnMonitor(monitor.Handle))
+                Place(center, monitor);
+        UpdateColumns();
+        Log.Info($"Stage Manager : colonne {(AutoHide ? "cachée automatiquement" : "toujours affichée")}");
     }
 
     // ------------------------------------------------------------------ allumer / couper
@@ -116,6 +152,7 @@ public static class StageManager
     private static void Activate()
     {
         _active = true;
+        _autoHideApplied = AutoHide;
         StageState.RecoverIfNeeded(); // reste d'une session précédente (normalement déjà rendu au démarrage)
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _debounce.Tick += (_, _) =>
@@ -150,6 +187,12 @@ public static class StageManager
         }
         GamingMode.Changed -= Schedule;
         SystemEvents.DisplaySettingsChanged -= OnDisplays;
+        _edgeWatch?.Stop();
+        _edgeWatch = null;
+        Hiders.Clear();
+        ColumnScreens.Clear();
+        _allBounds = [];
+        _menuScreen = null;
         foreach (var column in Columns.Values)
         {
             try
@@ -162,6 +205,7 @@ public static class StageManager
             }
         }
         Columns.Clear();
+        CloseHandles();
         int restored = StageState.Restore(Entries());
         StageState.Save([]);
         TouchedWindows.Clear();
@@ -268,6 +312,7 @@ public static class StageManager
             Centers[monitor.Device] = center.Handle;
             Place(center.Handle, monitor);
             foreach (var other in mine.Where(w => w.Handle != center.Handle)) MinimizeOurs(other.Handle, monitor.Device);
+            if (mine.Count > 1) FlashColumn(monitor.Device); // au démarrage du mode : montrer où sont parties les autres fenêtres
         }
         UpdateColumns();
     }
@@ -345,7 +390,19 @@ public static class StageManager
         Centers[screen] = window.Handle;
         MarkRecent(window.Handle);
         Place(window.Handle, monitor);
-        if (old != IntPtr.Zero && IsWindow(old) && !IsIconic(old) && ScreenOf(old, monitors) == screen) MinimizeOurs(old, screen);
+        if (old != IntPtr.Zero && IsWindow(old) && !IsIconic(old) && ScreenOf(old, monitors) == screen)
+        {
+            MinimizeOurs(old, screen);
+            FlashColumn(screen); // colonne auto-masquée : montrée un instant, pour voir où la fenêtre est partie
+        }
+    }
+
+    /// <summary>Colonne auto-masquée de cet écran montrée ~1,5 s (prise en compte au prochain relevé de la souris).</summary>
+    private static void FlashColumn(string screen)
+    {
+        if (!AutoHide) return;
+        if (!Hiders.TryGetValue(screen, out var hider)) Hiders[screen] = hider = new StageAutoHide();
+        hider.Flash(DateTime.UtcNow);
     }
 
     /// <summary>Note la place d'avant d'une fenêtre (une seule fois : c'est celle d'avant Stage Manager).</summary>
@@ -398,7 +455,7 @@ public static class StageManager
         var visible = GetVisibleBounds(window);
         bool maximized = IsZoomed(window);
         bool resizable = StageWindows.Resizable(window);
-        var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale);
+        var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale, AutoHide);
         var target = StageLayout.CenterPlace(stage, visible.Right - visible.Left, visible.Bottom - visible.Top, resizable, maximized || FillStage);
         if (!maximized && Near(target, visible, 2))
         {
@@ -427,7 +484,7 @@ public static class StageManager
             {
                 if (!_active || !IsWindow(window) || IsIconic(window) || !GetWindowRect(window, out var rect)) return;
                 var visible = GetVisibleBounds(window);
-                var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale);
+                var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale, AutoHide);
                 var target = StageLayout.CenterPlace(stage, visible.Right - visible.Left, visible.Bottom - visible.Top, false, false);
                 int dx = target.Left - visible.Left, dy = target.Top - visible.Top;
                 if (Math.Abs(dx) > 2 || Math.Abs(dy) > 2)
@@ -466,6 +523,7 @@ public static class StageManager
         var monitors = Monitors();
         if (monitors.FirstOrDefault(m => m.Device == screen) is not { Device: not null } monitor || monitor.Handle == IntPtr.Zero) return;
         MarkRecent(window);
+        HideColumnNow(screen); // colonne auto-masquée : elle repart dès le clic (l'échange se voit au centre)
         if (!IsIconic(window))
         {
             WindowActions.Activate(window); // déjà affichée : le premier plan suffit (elle prend le centre)
@@ -479,7 +537,7 @@ public static class StageManager
         GetWindowPlacement(window, ref placement);
         bool maximized = (placement.flags & WPF_RESTORETOMAXIMIZED) != 0;
         var normal = placement.rcNormalPosition;
-        var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale);
+        var stage = StageLayout.StageArea(monitor.WorkArea, monitor.Scale, AutoHide);
         var target = StageLayout.CenterPlace(stage, normal.Right - normal.Left, normal.Bottom - normal.Top, StageWindows.Resizable(window), maximized || FillStage);
 
         var touched = Note(window, screen);
@@ -558,9 +616,12 @@ public static class StageManager
                 var (name, icon) = Look(groupWindows[0]);
                 return new StageColumnGroup(g.Key, name, icon, groupWindows);
             }).ToList();
+            ColumnScreens[monitor.Device] = (monitor.Bounds, monitor.Handle, monitor.Scale);
             if (shown.Count == 0)
             {
                 column?.HideColumn();
+                if (Hiders.TryGetValue(monitor.Device, out var idle)) idle.Reset();
+                PlaceHandle(monitor.Device, column, hidden);
                 continue;
             }
             if (column == null)
@@ -571,13 +632,147 @@ public static class StageManager
                 column.GroupMenu += (group, target) => Guarded.Run(() => ShowGroupMenu(screen, group, target), "Stage Manager : menu");
                 Columns[monitor.Device] = column;
             }
-            column.ShowGroups(shown, monitor.WorkArea, monitor.Scale);
+            column.SetAutoHide(AutoHide);
+            column.ShowGroups(shown, monitor.WorkArea, monitor.Bounds, monitor.Scale);
+            PlaceHandle(monitor.Device, column, GamingMode.IsOnMonitor(monitor.Handle));
         }
         foreach (var gone in Columns.Keys.Where(k => monitors.All(m => m.Device != k)).ToList())
         {
             Columns[gone].Close();
             Columns.Remove(gone);
+            Hiders.Remove(gone);
+            ColumnScreens.Remove(gone);
+            if (Handles.Remove(gone, out var handle)) handle.Close();
         }
+        _allBounds = monitors.Select(m => m.Bounds).ToList();
+        UpdateEdgeWatch();
+    }
+
+    // ------------------------------------------------------------------ colonne auto-masquée
+
+    /// <summary>
+    /// Relevé de la souris seulement s'il sert : mode allumé, option active et au moins une colonne à montrer (une colonne vide, ou
+    /// cachée par un jeu / un plein écran sur son écran, ne compte pas). Arrêté sinon.
+    /// </summary>
+    private static void UpdateEdgeWatch()
+    {
+        bool needed = _active && AutoHide && Columns.Values.Any(c => c.HasGroups);
+        if (!needed)
+        {
+            _edgeWatch?.Stop();
+            return;
+        }
+        if (_edgeWatch == null)
+        {
+            _edgeWatch = new DispatcherTimer(DispatcherPriority.Background) { Interval = EdgeInterval };
+            _edgeWatch.Tick += (_, _) => Guarded.Run(OnEdgeTick, "Stage Manager : bord de l'écran");
+        }
+        if (!_edgeWatch.IsEnabled)
+        {
+            _lastCursor = new POINT { X = int.MinValue, Y = int.MinValue }; // premier relevé toujours calculé
+            _edgeWatch.Start();
+        }
+    }
+
+    private static void OnEdgeTick()
+    {
+        if (!_active || !AutoHide || _tracker == null || !GetCursorPos(out var cursor)) return;
+        bool moved = cursor.X != _lastCursor.X || cursor.Y != _lastCursor.Y;
+        _lastCursor = cursor;
+        if (!moved && !Hiders.Values.Any(h => h.Pending)) return; // souris immobile et rien qui attend : aucun travail
+        var now = DateTime.UtcNow;
+        foreach (var (screen, column) in Columns)
+        {
+            if (!ColumnScreens.TryGetValue(screen, out var info)) continue;
+            if (!Hiders.TryGetValue(screen, out var hider)) Hiders[screen] = hider = new StageAutoHide();
+            var (top, bottom) = column.HasGroups ? column.Band : (0, 0);
+            bool gaming = GamingMode.IsOnMonitor(info.Handle);
+            bool overHandle = column.HasGroups && StageAutoHide.Inside(cursor, StageAutoHide.HandleRect(info.Bounds, top, bottom, info.Scale));
+            var input = new StageEdgeInput(now, cursor, info.Bounds, top, bottom,
+                StageAutoHide.NeighborLeftAt(info.Bounds, _allBounds, cursor.Y),
+                column.ContainsCursor(cursor) || _menuScreen == screen,
+                gaming, column.HasGroups, overHandle);
+            column.Reveal(hider.Update(input));
+            PlaceHandle(screen, column, gaming);
+        }
+    }
+
+    /// <summary>
+    /// Poignée de l'écran : montrée seulement colonne auto-masquée, avec des miniatures, cachée (pas déjà sortie) et sans jeu sur
+    /// l'écran ; sinon cachée. Créée la première fois qu'elle sert.
+    /// </summary>
+    private static void PlaceHandle(string screen, StageColumnWindow? column, bool gaming)
+    {
+        bool shown = Hiders.TryGetValue(screen, out var hider) && hider.Visible;
+        bool visible = _active && column != null && ColumnScreens.ContainsKey(screen)
+                       && StageAutoHide.HandleVisible(AutoHide, column.HasGroups, gaming, shown);
+        if (!Handles.TryGetValue(screen, out var handle))
+        {
+            if (!visible) return;
+            handle = new StageHandleWindow();
+            handle.Clicked += () => Guarded.Run(() => ShowColumnFor(screen, StageAutoHide.FlashTime), "Stage Manager : poignée");
+            Handles[screen] = handle;
+        }
+        if (!visible)
+        {
+            handle.Place(false, default);
+            return;
+        }
+        var info = ColumnScreens[screen];
+        var (top, bottom) = column!.Band;
+        handle.Place(true, StageAutoHide.HandleRect(info.Bounds, top, bottom, info.Scale));
+    }
+
+    private static void CloseHandles()
+    {
+        foreach (var handle in Handles.Values)
+        {
+            try
+            {
+                handle.Close();
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Stage Manager : fermeture d'une poignée", ex);
+            }
+        }
+        Handles.Clear();
+    }
+
+    /// <summary>La colonne auto-masquée de cet écran sort tout de suite pour ce temps-là (puis reste si la souris est dessus).</summary>
+    private static bool ShowColumnFor(string screen, TimeSpan duration)
+    {
+        if (!_active || !AutoHide || !Columns.TryGetValue(screen, out var column) || !column.HasGroups) return false;
+        if (!Hiders.TryGetValue(screen, out var hider)) Hiders[screen] = hider = new StageAutoHide();
+        hider.Flash(DateTime.UtcNow, duration);
+        column.Reveal(true);
+        if (Handles.TryGetValue(screen, out var handle)) handle.Place(false, default);
+        UpdateEdgeWatch();
+        return true;
+    }
+
+    /// <summary>Palette « Stage Manager : afficher les fenêtres » : la colonne de l'écran de la souris sort 4 s (sinon la première).</summary>
+    public static void PeekColumn()
+    {
+        if (!_active || !AutoHide) return;
+        string? screen = null;
+        if (GetCursorPos(out var cursor))
+        {
+            var monitor = MonitorFromPoint(cursor, 2); // MONITOR_DEFAULTTONEAREST
+            screen = ColumnScreens.FirstOrDefault(p => p.Value.Handle == monitor).Key;
+        }
+        if (screen != null && ShowColumnFor(screen, StageAutoHide.PeekTime)) return;
+        foreach (var other in Columns.Where(c => c.Value.HasGroups).Select(c => c.Key).ToList())
+            if (ShowColumnFor(other, StageAutoHide.PeekTime)) return;
+    }
+
+    /// <summary>Clic sur une miniature : la colonne auto-masquée de cet écran repart tout de suite.</summary>
+    private static void HideColumnNow(string screen)
+    {
+        if (!AutoHide) return;
+        if (!Hiders.TryGetValue(screen, out var hider)) Hiders[screen] = hider = new StageAutoHide();
+        hider.HideNow();
+        if (Columns.TryGetValue(screen, out var column)) column.Reveal(false);
     }
 
     /// <summary>Clic droit sur un groupe : ses fenêtres, « ignorer cette appli », couper Stage Manager.</summary>
@@ -607,9 +802,18 @@ public static class StageManager
             });
             menu.Items.Add(ignore);
         }
+        var autoHide = new MenuItem { Header = Loc.T(AutoHide ? "stage.menu.always" : "stage.menu.autohide") };
+        autoHide.Click += (_, _) => ToggleAutoHide();
+        menu.Items.Add(autoHide);
         var off = new MenuItem { Header = Loc.T("stage.menu.off") };
         off.Click += (_, _) => Toggle();
         menu.Items.Add(off);
+        // Colonne auto-masquée : elle reste là tant que son menu est ouvert.
+        _menuScreen = screen;
+        menu.Closed += (_, _) =>
+        {
+            if (_menuScreen == screen) _menuScreen = null;
+        };
         menu.IsOpen = true;
     }
 

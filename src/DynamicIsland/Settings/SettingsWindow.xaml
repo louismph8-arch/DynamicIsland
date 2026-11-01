@@ -1278,6 +1278,14 @@
                 </StackPanel>
                 <CheckBox x:Name="StageFillToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Setting_Changed"/>
               </Grid>
+              <Grid Margin="{ui:Space 0,s4,0,0}">
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.stage.autohide}"/>
+                  <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.stage.autohide.description}"/>
+                </StackPanel>
+                <CheckBox x:Name="StageAutoHideToggle" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Setting_Changed"/>
+              </Grid>
               <Button Style="{StaticResource SettingsButton}" HorizontalAlignment="Left" Margin="{ui:Space 0,s4,0,0}"
                       Content="{ui:L settings.stage.exceptions}" Click="OpenAppRules_Click"/>
             </StackPanel>

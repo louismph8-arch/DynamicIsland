@@ -59,7 +59,7 @@ public static class AppRuleService
         for (var window = DockNative.GetWindow(self, GW_HWNDNEXT); window != IntPtr.Zero; window = DockNative.GetWindow(window, GW_HWNDNEXT))
         {
             if (!DockNative.IsWindowVisible(window) || DockNative.IsIconic(window) || DockNative.IsCloaked(window)) continue;
-            if ((GetWindowLong(window, GWL_EXSTYLE) & WS_EX_TRANSPARENT) != 0) continue; // calques (overlays) qui laissent passer la souris
+            if ((GetWindowLong(window, GWL_EXSTYLE) & WS_EX_TRANSPARENT) != 0 || ScreenInfo.IsOverlay(window)) continue; // calques (overlays NVIDIA, Discord…)
             if (!GetWindowRect(window, out var rect) || x < rect.Left || x >= rect.Right || y < rect.Top || y >= rect.Bottom) continue;
             var className = new StringBuilder(64);
             GetClassName(window, className, className.Capacity);

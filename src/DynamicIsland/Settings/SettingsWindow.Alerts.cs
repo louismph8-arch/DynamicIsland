@@ -85,6 +85,7 @@ public partial class SettingsWindow
         // Stage Manager (7G) : aussi allumé / coupé depuis l'île, la palette ou son raccourci.
         (StageModeToggle, s => s.Stage.Enabled, ModuleGuard.Stage),
         (StageFillToggle, s => s.Stage.FillStage, null),
+        (StageAutoHideToggle, s => s.Stage.AutoHide, null),
     ];
     private (ToggleButton Toggle, Func<AppSettings, bool> Read, string? Module)[]? _toggleChecks;
 

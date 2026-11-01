@@ -101,6 +101,113 @@ internal static partial class SelfTest
         Check(lines, withBorders.Left == 93 && withBorders.Top == 100 && withBorders.Right == 907 && withBorders.Bottom == 707,
             "bords invisibles de Windows 11 ajoutés autour de la partie visible");
 
+        // Colonne auto-masquée : scène = toute la zone de travail, à toutes les échelles.
+        bool wide = true;
+        foreach (double scale in new[] { 1.0, 1.25, 1.5, 2.0 })
+        {
+            var work = R(0, 0, 1920, 1032);
+            int margin = (int)Math.Round(StageShape.ScreenMargin * scale);
+            var full = StageLayout.StageArea(work, scale, autoHide: true);
+            var reduced = StageLayout.StageArea(work, scale);
+            var filledFull = StageLayout.CenterPlace(full, 800, 600, true, true);
+            wide &= full.Left == work.Left + margin && full.Right == work.Right - margin && full.Top == reduced.Top && full.Bottom == reduced.Bottom
+                    && reduced.Left > full.Left && filledFull.Left == full.Left && filledFull.Right == full.Right;
+        }
+        Check(lines, wide && StageLayout.ColumnTop(R(0, 0, 1920, 1032), 432) == 300 && StageLayout.ColumnTop(R(0, 28, 1920, 300), 600) == 28,
+            "colonne auto-masquée : la scène (et la fenêtre du centre en plein écran) prend toute la largeur ; colonne centrée en hauteur");
+
+        // Décisions de l'auto-masquage, avec les écrans simulés (portrait collé à gauche du principal, rien à gauche du portrait).
+        var t0 = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc);
+        DateTime At(int ms) => t0.AddMilliseconds(ms);
+        POINT P(int x, int y) => new() { X = x, Y = y };
+        bool neighborPrimary = StageAutoHide.NeighborLeftAt(primary, screens, 500);
+        bool neighborPortrait = StageAutoHide.NeighborLeftAt(left, screens, 500);
+        bool neighborAbove = StageAutoHide.NeighborLeftAt(top, screens, -500); // le portrait commence à y = -420 : rien à côté de l'écran du haut à y = -500
+        Check(lines, neighborPrimary && !neighborPortrait && !neighborAbove && StageAutoHide.NeighborLeftAt(top, screens, -300),
+            "écran voisin à gauche : le portrait à gauche du principal ; rien à gauche du portrait ; écran du haut seulement là où le portrait le touche");
+        StageEdgeInput In(int ms, POINT cursor, RECT screen, bool neighbor, bool over = false, bool gaming = false, bool groups = true) =>
+            new(At(ms), cursor, screen, 300, 732, neighbor, over, gaming, groups);
+
+        // Vrai bord (portrait, rien à sa gauche) : tout de suite ; puis 700 ms après le départ de la souris.
+        var edge = new StageAutoHide();
+        bool realEdge = edge.Update(In(0, P(-1080, 500), left, false)) && edge.Update(In(100, P(-900, 500), left, false))
+                        && edge.Update(In(699, P(-900, 500), left, false)) && !edge.Update(In(800, P(-900, 500), left, false)) && !edge.Pending;
+        var outside = new StageAutoHide();
+        bool band = !outside.Update(In(0, P(-1078, 500), left, false)) // 3e pixel : hors de la bande
+                    && !outside.Update(In(10, P(-1080, 200), left, false)) // au-dessus de la colonne
+                    && !outside.Update(In(20, P(-1080, 732), left, false)) // juste en dessous
+                    && outside.Update(In(30, P(-1079, 731), left, false));
+        Check(lines, realEdge && band, "auto-masquage, vrai bord : la souris au bord (2 px, hauteur de la colonne) la montre tout de suite, cachée 700 ms après son départ");
+
+        // Écran voisin à gauche (principal) : il faut s'arrêter 250 ms au bord ; passer vers l'écran voisin ne la montre pas.
+        var dwell = new StageAutoHide();
+        bool waits = !dwell.Update(In(0, P(0, 500), primary, true)) && !dwell.Update(In(200, P(1, 500), primary, true))
+                     && dwell.Update(In(260, P(1, 500), primary, true));
+        var passing = new StageAutoHide();
+        bool crossed = !passing.Update(In(0, P(0, 500), primary, true)) && !passing.Update(In(60, P(-50, 500), primary, true))
+                       && !passing.Update(In(400, P(0, 500), primary, true)) && !passing.Update(In(500, P(-80, 500), primary, true));
+        Check(lines, waits && crossed, "auto-masquage, écran voisin à gauche : 250 ms d'arrêt au bord ; souris qui passe sur l'autre écran = rien");
+
+        // Souris sur la colonne : elle reste ; clic sur une miniature : cachée tout de suite (et pas de retour sans quitter le bord).
+        var stay = new StageAutoHide();
+        stay.Update(In(0, P(-1080, 500), left, false));
+        bool stays = stay.Update(In(500, P(-900, 500), left, false, over: true)) && stay.Update(In(3000, P(-900, 500), left, false, over: true))
+                     && stay.Update(In(3600, P(-500, 500), left, false)) && !stay.Update(In(3800, P(-500, 500), left, false));
+        var click = new StageAutoHide();
+        click.Update(In(0, P(-1080, 500), left, false));
+        click.HideNow();
+        bool clicked = !click.Visible && !click.Update(In(50, P(-1080, 500), left, false, over: true))
+                       && !click.Update(In(100, P(-900, 500), left, false)) && click.Update(In(150, P(-1080, 500), left, false));
+        Check(lines, stays && clicked, "auto-masquage : reste tant que la souris est sur la colonne ; clic = cachée tout de suite, revient au bord suivant");
+
+        // Fenêtre partie dans la colonne : montrée ~1,5 s ; jeu sur l'écran ou colonne vide : jamais.
+        var flash = new StageAutoHide();
+        flash.Flash(At(0));
+        bool flashed = flash.Pending && flash.Update(In(10, P(900, 500), primary, true)) && flash.Update(In(1400, P(900, 500), primary, true))
+                       && !flash.Update(In(1600, P(900, 500), primary, true)) && !flash.Pending;
+        var game = new StageAutoHide();
+        game.Flash(At(0));
+        bool noGame = !game.Update(In(10, P(-1080, 500), left, false, gaming: true)) && !game.Pending
+                      && !new StageAutoHide().Update(In(0, P(-1080, 500), left, false, groups: false));
+        Check(lines, flashed && noGame, "auto-masquage : montrée 1,5 s quand une fenêtre y part ; jamais pendant un jeu sur cet écran ni sans miniature");
+
+        // Poignée (bord partagé avec un autre écran : la souris n'y « s'arrête » jamais).
+        bool handleRules = StageAutoHide.HandleVisible(true, true, false, false)
+                           && !StageAutoHide.HandleVisible(false, true, false, false) // option coupée : colonne toujours là
+                           && !StageAutoHide.HandleVisible(true, false, false, false) // pas de miniature
+                           && !StageAutoHide.HandleVisible(true, true, true, false)   // jeu sur cet écran
+                           && !StageAutoHide.HandleVisible(true, true, false, true);  // colonne déjà sortie
+        var zone = StageAutoHide.HandleRect(primary, 300, 732, 1.0);
+        var zone150 = StageAutoHide.HandleRect(primary, 300, 732, 1.5);
+        var zoneLow = StageAutoHide.HandleRect(R(0, 0, 1920, 400), 300, 732, 1.0);
+        bool handleZone = zone.Left == primary.Left && zone.Right - zone.Left == 14 && zone.Bottom - zone.Top == 120 && zone.Top == 456
+                          && zone150.Right - zone150.Left == 21 && zone150.Bottom - zone150.Top == 180 && zoneLow.Bottom == 400
+                          && StageAutoHide.Inside(P(0, 500), zone) && !StageAutoHide.Inside(P(14, 500), zone) && !StageAutoHide.Inside(P(5, 300), zone);
+        StageEdgeInput OnHandle(int ms, POINT cursor, bool over, bool overColumn = false) =>
+            new(At(ms), cursor, primary, 300, 732, true, overColumn, false, true, over);
+        var hover = new StageAutoHide();
+        bool hovered = !hover.Update(OnHandle(0, P(5, 500), true)) && !hover.Update(OnHandle(100, P(5, 500), true)) && hover.Update(OnHandle(130, P(5, 500), true))
+                       && hover.Update(OnHandle(700, P(8, 500), true)) // toujours sur la poignée : reste
+                       && hover.Update(OnHandle(1000, P(150, 500), false, overColumn: true)) // vers la colonne
+                       && hover.Update(OnHandle(1600, P(900, 500), false)) && !hover.Update(OnHandle(1750, P(900, 500), false)); // 700 ms après
+        var brush = new StageAutoHide();
+        bool brushed = !brush.Update(OnHandle(0, P(5, 500), true)) && !brush.Update(OnHandle(60, P(-40, 500), false)) && !brush.Update(OnHandle(200, P(-40, 500), false));
+        var clickHandle = new StageAutoHide();
+        clickHandle.Flash(At(0), StageAutoHide.FlashTime);
+        bool clickShows = clickHandle.Update(OnHandle(0, P(5, 500), true)) && clickHandle.Update(OnHandle(1400, P(900, 500), false))
+                          && !clickHandle.Update(OnHandle(1600, P(900, 500), false));
+        var peek = new StageAutoHide();
+        peek.Flash(At(0), StageAutoHide.PeekTime);
+        bool peeked = peek.Update(OnHandle(3900, P(900, 500), false)) && !peek.Update(OnHandle(4100, P(900, 500), false));
+        var afterClick = new StageAutoHide();
+        afterClick.Update(OnHandle(0, P(5, 500), true));
+        afterClick.Update(OnHandle(200, P(5, 500), true));
+        afterClick.HideNow();
+        bool suppressed = !afterClick.Update(OnHandle(300, P(5, 500), true)) && !afterClick.Update(OnHandle(400, P(500, 500), false))
+                          && !afterClick.Update(OnHandle(500, P(5, 500), true)) && afterClick.Update(OnHandle(650, P(5, 500), true));
+        Check(lines, handleRules && handleZone && hovered && brushed && clickShows && peeked && suppressed,
+            "poignée : visible seulement auto-masquée avec miniatures, hors jeu et colonne rentrée ; zone 14 × 120 au bord, centrée ; survol 120 ms = la colonne sort, simple passage = rien ; clic 1,5 s ; palette 4 s");
+
         // Règle « ignorer » et réglages.
         var rules = AppRule.NormalizeList([new AppRule { Process = "Chrome.exe", StageIgnore = true }]);
         var stageSettings = new StageSettings { Hotkey = "Rien+X" };

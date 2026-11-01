@@ -1,4 +1,4 @@
-using System.Media;
+﻿using System.Media;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -73,7 +73,7 @@ public partial class IslandWindow : Window
     private static readonly TimeSpan NoticeDuration = TimeSpan.FromSeconds(7);
     private readonly DispatcherTimer _noticeTimer = new() { Interval = NoticeDuration };
     private readonly DispatcherTimer _meterTimer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
-    private readonly DispatcherTimer _followWatch = new() { Interval = TimeSpan.FromMilliseconds(400) };
+    private readonly DispatcherTimer _followWatch = new() { Interval = TimeSpan.FromMilliseconds(150) };
     private readonly double[] _barLevels = new double[4];
     private double _meterClock;
     private (double Level, bool Muted)? _lastVolume;
@@ -693,6 +693,7 @@ public partial class IslandWindow : Window
     private void Expand()
     {
         if (_expanded || _hiddenForFullscreen || _gaming || _moving) return;
+        var prepared = System.Diagnostics.Stopwatch.StartNew();
         _expanded = true;
         ReassertTopmost();
         if (_noticeVisible)
@@ -735,6 +736,32 @@ public partial class IslandWindow : Window
         Fade(ExpandedView, 1, Motion.Slow, Motion.Delay);
         ScaleExpanded(1, Motion.Scale);
         AnimateTo(ExpandedSize(_tab), ExpandedRadius, Springs.Open);
+        if (SnapshotFolder == null) WatchOpening(prepared);
+    }
+
+    /// <summary>
+    /// Mesure d'une ouverture (l'utilisateur trouve l'île lente à s'ouvrir) : préparation (onglets activés, taille calculée), puis
+    /// images dessinées pendant 0,6 s. Une ligne de journal seulement si c'est lent (préparation &gt; 40 ms ou image &gt; 40 ms).
+    /// </summary>
+    private void WatchOpening(System.Diagnostics.Stopwatch prepared)
+    {
+        long prepareMs = prepared.ElapsedMilliseconds;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        double last = 0, worst = 0;
+        int frames = 0;
+        void OnFrame(object? sender, EventArgs e)
+        {
+            double now = clock.Elapsed.TotalMilliseconds;
+            if (frames > 0) worst = Math.Max(worst, now - last);
+            else worst = now; // première image : attente depuis la fin de la préparation
+            last = now;
+            frames++;
+            if (now < 600) return;
+            CompositionTarget.Rendering -= OnFrame;
+            if (prepareMs > 40 || worst > 40)
+                Log.Info($"Île : ouverture lente (onglet {_tab}) — préparation {prepareMs} ms, {frames} images en {now:0} ms, image la plus lente {worst:0} ms");
+        }
+        CompositionTarget.Rendering += OnFrame;
     }
 
     private void Collapse()
@@ -1287,13 +1314,40 @@ public partial class IslandWindow : Window
     {
         if (_expanded || _moving || !GetCursorPos(out var cursor)) return;
         var monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
-        if (monitor != _monitor) MoveToMonitor(monitor);
+        if (monitor == _monitor)
+        {
+            _followCandidate = IntPtr.Zero;
+            return;
+        }
+        // Retour de l'utilisateur : l'île arrivait sur l'écran du jeu (ou d'une vidéo plein écran) puis se recachait aussitôt.
+        // Elle n'y va plus, et attend que la souris reste un instant sur le nouvel écran (pas de saut en le traversant).
+        if (GamingMode.IsOnMonitor(monitor) || ScreenInfo.IsForegroundFullscreen(monitor))
+        {
+            _followCandidate = IntPtr.Zero;
+            return;
+        }
+        var now = DateTime.UtcNow;
+        if (monitor != _followCandidate)
+        {
+            _followCandidate = monitor;
+            _followSince = now;
+            return;
+        }
+        if (now - _followSince < FollowDwell) return;
+        _followCandidate = IntPtr.Zero;
+        MoveToMonitor(monitor);
     }
+
+    private static readonly TimeSpan FollowDwell = TimeSpan.FromMilliseconds(300);
+    private IntPtr _followCandidate;
+    private DateTime _followSince;
 
     private void MoveToMonitor(IntPtr monitor)
     {
         _monitor = monitor;
         PositionOnMonitor(monitor);
+        OnGamingChanged(); // le jeu est peut-être sur l'ancien écran seulement : l'île ne doit pas rester masquée ici
+        CheckFullscreen();
         if (!_hiddenForFullscreen)
             HoverRoot.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Motion.Long) { EasingFunction = EaseOut });
     }
@@ -1365,6 +1419,9 @@ public partial class IslandWindow : Window
         bool fullscreen = reason != HideReason.None;
         if (fullscreen == _hiddenForFullscreen) return;
         _hiddenForFullscreen = fullscreen;
+        Log.Info(fullscreen
+            ? $"Île : cachée ({reason}, premier plan {ForegroundProcessName()}, écran {ScreenInfo.All().FirstOrDefault(s => s.Handle == _monitor).Label})"
+            : "Île : de nouveau visible");
 
         if (fullscreen)
         {
@@ -1379,6 +1436,21 @@ public partial class IslandWindow : Window
             HoverRoot.IsHitTestVisible = !_gaming;
         }
         UpdateCloak();
+    }
+
+    /// <summary>Nom du programme au premier plan, pour le journal (« Île : cachée … »).</summary>
+    private static string ForegroundProcessName()
+    {
+        try
+        {
+            Interop.DockNative.GetWindowThreadProcessId(Interop.NativeMethods.GetForegroundWindow(), out uint pid);
+            using var process = System.Diagnostics.Process.GetProcessById((int)pid);
+            return process.ProcessName;
+        }
+        catch (Exception)
+        {
+            return "?";
+        }
     }
 
     private void OnGamingChanged()

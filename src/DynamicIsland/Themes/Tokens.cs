@@ -825,6 +825,12 @@ public static class StageShape
     public const int MaxGroups = 6;
     public const double Shrink = 0.8;          // fenêtre trop grande pour la scène : ramenée à 80 % de la place
     public const double ControlTile = 56;      // tuile « Stage Manager » du centre de contrôle (icône seule)
+    public const double HandleWidth = 6;       // poignée de la colonne auto-masquée (pilule visible, collée au bord gauche)
+    public const double HandleHeight = 72;
+    public const double HandleHitWidth = 14;   // zone de survol de la poignée (transparente, alpha 1)
+    public const double HandleHitHeight = 120;
+    public const double HandleInset = 2;       // entre le bord de l'écran et la pilule
+    public const byte HandleAlpha = 0x8C;      // opacité de la pilule (couleur d'accent)
     /// <summary>Largeur totale de la colonne (miniature + marges de la carte et de la fenêtre).</summary>
     public const double ColumnWidth = ThumbWidth + 2 * 8 + 2 * 8 + 2 * PileOffset;
 }

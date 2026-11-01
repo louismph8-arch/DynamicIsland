@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using DynamicIsland.Animation;
 using DynamicIsland.Controls;
 using DynamicIsland.Services;
 using DynamicIsland.Themes;
@@ -30,6 +31,11 @@ internal sealed class StageColumnWindow : Window
     private double _scale = 1;
     private IReadOnlyList<StageColumnGroup> _shown = [];
     private readonly bool _snapshot;
+    // Option « Cacher la colonne automatiquement » : la colonne glisse hors de l'écran (vers la gauche) puis la fenêtre est cachée.
+    private RECT _bounds;
+    private bool _autoHide, _revealed = true, _animating, _clipped;
+    private readonly Spring _slide = new(0); // décalage vers la gauche, en pixels (0 = affichée)
+    private TimeSpan _lastFrame;
 
     /// <summary>Une fenêtre choisie (clic sur une miniature) : la fenêtre et la place de sa miniature à l'écran (pixels).</summary>
     public event Action<IntPtr, RECT>? WindowChosen;
@@ -57,13 +63,159 @@ internal sealed class StageColumnWindow : Window
         ApplyDarkRoundedFrame(_hwnd);
         SizeChanged += (_, _) =>
         {
-            Reposition();
+            ApplyPosition();
             UpdateThumbnails();
         };
-        Closed += (_, _) => ClearThumbnails();
+        Closed += (_, _) =>
+        {
+            StopAnimation();
+            ClearThumbnails();
+        };
     }
 
     public IntPtr Handle => _hwnd;
+
+    /// <summary>La colonne a des groupes à montrer (même cachée par l'option).</summary>
+    public bool HasGroups => _shown.Count > 0;
+
+    /// <summary>Souris sur la colonne affichée (pixels écran, petite marge).</summary>
+    public bool ContainsCursor(POINT cursor) =>
+        IsVisible && GetWindowRect(_hwnd, out var r)
+        && cursor.X >= r.Left - 4 && cursor.X < r.Right + 4 && cursor.Y >= r.Top - 4 && cursor.Y < r.Bottom + 4;
+
+    /// <summary>Bande verticale (pixels) qui révèle la colonne : sa hauteur, là où elle apparaîtra.</summary>
+    public (int Top, int Bottom) Band
+    {
+        get
+        {
+            int height = SizePx().Height;
+            int top = StageLayout.ColumnTop(_work, height);
+            return (top, top + height);
+        }
+    }
+
+    /// <summary>Taille de la colonne en pixels : celle de la fenêtre affichée, sinon celle de son contenu mesuré.</summary>
+    private (int Width, int Height) SizePx()
+    {
+        if (IsVisible && GetWindowRect(_hwnd, out var r)) return (r.Right - r.Left, r.Bottom - r.Top);
+        if (Content is not FrameworkElement content) return (0, 0);
+        content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return ((int)Math.Ceiling(content.DesiredSize.Width * _scale), (int)Math.Ceiling(content.DesiredSize.Height * _scale));
+    }
+
+    private int BaseX => _work.Left + (int)Math.Round(StageShape.ScreenMargin * _scale);
+
+    /// <summary>Décalage qui met la colonne entièrement à gauche du bord de son écran.</summary>
+    private int HiddenDistance() => BaseX - _bounds.Left + SizePx().Width + 1;
+
+    /// <summary>Option « Cacher la colonne automatiquement » ; coupée = la colonne revient tout de suite à sa place.</summary>
+    public void SetAutoHide(bool autoHide)
+    {
+        if (autoHide == _autoHide) return;
+        _autoHide = autoHide;
+        if (autoHide)
+        {
+            _revealed = IsVisible; // le service la cache au prochain relevé de la souris
+            return;
+        }
+        _revealed = true;
+        StopAnimation();
+        _slide.SetTarget(0, Springs.DockShow);
+        _slide.Snap();
+        if (HasGroups && !IsVisible) ShowAt();
+        else ApplyPosition();
+    }
+
+    /// <summary>Fait venir (ressort) ou repartir (vers la gauche, puis fenêtre cachée) la colonne auto-masquée.</summary>
+    public void Reveal(bool show)
+    {
+        if (_snapshot || !_autoHide || show == _revealed || show && !HasGroups) return;
+        _revealed = show;
+        if (show)
+        {
+            if (!IsVisible)
+            {
+                _slide.SetTarget(HiddenDistance(), Springs.DockShow);
+                _slide.Snap();
+                ShowAt();
+            }
+            SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE); // par-dessus la fenêtre du centre
+            _slide.SetTarget(0, Springs.DockShow);
+        }
+        else
+        {
+            if (!IsVisible) return;
+            _slide.SetTarget(HiddenDistance(), Springs.DockHide);
+        }
+        StartAnimation();
+    }
+
+    private void StartAnimation()
+    {
+        if (_animating) return;
+        _animating = true;
+        _lastFrame = TimeSpan.Zero;
+        CompositionTarget.Rendering += OnRendering;
+    }
+
+    private void StopAnimation()
+    {
+        if (!_animating) return;
+        _animating = false;
+        CompositionTarget.Rendering -= OnRendering;
+    }
+
+    private void OnRendering(object? sender, EventArgs e)
+    {
+        try
+        {
+            var now = ((RenderingEventArgs)e).RenderingTime;
+            if (now == _lastFrame) return;
+            double dt = _lastFrame == TimeSpan.Zero ? 1 / 60.0 : Math.Min((now - _lastFrame).TotalSeconds, 1 / 30.0);
+            _lastFrame = now;
+            bool settled = _slide.Step(dt * AppearanceService.Speed);
+            ApplyPosition();
+            if (!settled) return;
+            StopAnimation();
+            if (!_revealed)
+            {
+                if (IsVisible) Hide(); // rien ne reste dessiné ni cliquable
+                ClearClip();
+            }
+            else UpdateThumbnails();
+        }
+        catch (Exception ex)
+        {
+            StopAnimation(); // jamais d'animation figée qui inonde le journal
+            Log.Error("Stage Manager : animation de la colonne", ex);
+        }
+    }
+
+    /// <summary>Montre la fenêtre déjà à sa place (masquée par DWM le temps de la placer : pas d'éclair à l'ancienne place).</summary>
+    private void ShowAt()
+    {
+        Left = _work.Left / _scale + StageShape.ScreenMargin; // sur le bon écran dès l'apparition (puis placé au pixel près)
+        Top = _work.Top / _scale + StageShape.ScreenMargin;
+        if (!_snapshot) SetCloaked(_hwnd, true);
+        try
+        {
+            Show();
+            UpdateLayout();
+            ApplyPosition();
+            UpdateThumbnails();
+        }
+        finally
+        {
+            if (!_snapshot) SetCloaked(_hwnd, false);
+        }
+    }
+
+    private void ClearClip()
+    {
+        if (!_clipped) return;
+        _clipped = false;
+        SetWindowRgn(_hwnd, IntPtr.Zero, true);
+    }
 
     /// <summary>Rangée du haut de la colonne (pixels écran) : là où file une fenêtre qui quitte le centre.</summary>
     public RECT TopSlot
@@ -81,9 +233,10 @@ internal sealed class StageColumnWindow : Window
     }
 
     /// <summary>Montre ces groupes sur l'écran dont voici la zone de travail ; aucun groupe = colonne cachée.</summary>
-    public void ShowGroups(IReadOnlyList<StageColumnGroup> groups, RECT work, double scale)
+    public void ShowGroups(IReadOnlyList<StageColumnGroup> groups, RECT work, RECT bounds, double scale)
     {
         _work = work;
+        _bounds = bounds;
         _scale = scale;
         if (groups.Count == 0)
         {
@@ -95,19 +248,24 @@ internal sealed class StageColumnWindow : Window
             _shown = groups;
             Rebuild();
         }
+        if (_autoHide && !_revealed && !IsVisible) return; // auto-masquée : contenu prêt pour sa prochaine apparition
         if (!IsVisible)
         {
-            Left = work.Left / scale + StageShape.ScreenMargin; // sur le bon écran dès l'apparition (puis placé au pixel près)
-            Top = work.Top / scale + StageShape.ScreenMargin;
-            Show();
+            ShowAt();
+            return;
         }
         UpdateLayout();
-        Reposition();
+        ApplyPosition();
         UpdateThumbnails();
     }
 
     public void HideColumn()
     {
+        StopAnimation();
+        _revealed = !_autoHide;
+        _slide.SetTarget(0, Springs.DockShow);
+        _slide.Snap();
+        ClearClip();
         if (IsVisible) Hide();
         ClearThumbnails();
         _shown = [];
@@ -305,15 +463,36 @@ internal sealed class StageColumnWindow : Window
         }
     }
 
-    /// <summary>Contre le bord gauche de la zone de travail, centrée en hauteur (pixels physiques : écrans d'échelles différentes).</summary>
-    private void Reposition()
+    /// <summary>
+    /// Contre le bord gauche de la zone de travail, centrée en hauteur (pixels physiques : écrans d'échelles différentes), moins le
+    /// décalage de l'auto-masquage. La partie passée à gauche du bord de l'écran est découpée (région de la fenêtre) : rien ne se
+    /// dessine sur l'écran voisin collé à gauche.
+    /// </summary>
+    private void ApplyPosition()
     {
         if (_snapshot || !IsVisible || !GetWindowRect(_hwnd, out var r)) return;
-        int height = r.Bottom - r.Top;
-        int x = _work.Left + (int)Math.Round(StageShape.ScreenMargin * _scale);
-        int y = Math.Max(_work.Top, _work.Top + (_work.Bottom - _work.Top - height) / 2);
+        int width = r.Right - r.Left, height = r.Bottom - r.Top;
+        int x = BaseX - (int)Math.Round(_slide.Value);
+        int y = StageLayout.ColumnTop(_work, height);
         if (r.Left != x || r.Top != y) SetWindowPos(_hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+        int clip = _bounds.Right > _bounds.Left ? _bounds.Left - x : 0;
+        if (clip > 0)
+        {
+            var region = CreateRectRgn(Math.Min(clip, width), 0, width, height);
+            if (SetWindowRgn(_hwnd, region, true) != 0) _clipped = true; // la région appartient alors à Windows
+            else DeleteObject(region);
+        }
+        else ClearClip();
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool redraw);
+
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr handle);
 
     private void ClearThumbnails()
     {

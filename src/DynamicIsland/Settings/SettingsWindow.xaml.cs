@@ -327,6 +327,7 @@ public partial class SettingsWindow : Window
             settings.Discord.Enabled = DiscordToggle.IsChecked == true;
             settings.Discord.JoinNotices = DiscordJoinToggle.IsChecked == true;
             settings.Stage.FillStage = StageFillToggle.IsChecked == true;
+            settings.Stage.AutoHide = StageAutoHideToggle.IsChecked == true;
             settings.Claude.Enabled = ClaudeToggle.IsChecked == true;
             settings.Island.PomodoroFocusMinutes = RoundTo(FocusSlider.Value, 5);
             settings.Island.PomodoroBreakMinutes = RoundTo(BreakSlider.Value, 1);
@@ -652,6 +653,7 @@ public partial class SettingsWindow : Window
 
         StageModeToggle.IsChecked = settings.Stage.Enabled;
         StageFillToggle.IsChecked = settings.Stage.FillStage;
+        StageAutoHideToggle.IsChecked = settings.Stage.AutoHide;
         StageModeToggle.IsEnabled = !App.SafeMode;
         var stage = settings.Stage.Hotkey;
         if (!StageHotkeyBox.IsKeyboardFocused) StageHotkeyBox.Text = stage.Length > 0 ? Hotkeys.Display(stage) : Loc.T("settings.island.hotkey.none");
@@ -808,6 +810,7 @@ public partial class SettingsWindow : Window
             }
             if (page == SettingsPage.Dock)
             {
+                await window.SnapshotScrolledAsync(window.StageCard, Path.Combine(folder, "7-parametres-dock-stage.png")); // carte Stage Manager
                 // Page longue : la suite, écran par écran (aperçus, icônes du bureau, zone d'état…).
                 var scroller = window.Scroller;
                 for (int part = 2; part <= 5 && scroller.VerticalOffset + scroller.ViewportHeight < scroller.ExtentHeight - 1; part++)

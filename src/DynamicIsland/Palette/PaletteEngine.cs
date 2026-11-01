@@ -149,6 +149,13 @@ public static partial class PaletteEngine
         if (AppCatalog.MatchScore(Loc.T("palette.stage.alias"), query) >= 3 && !App.SafeMode)
             items.Add(new PaletteItem(Loc.T(Stage.StageManager.IsOn ? "palette.stage.off" : "palette.stage.on"), Loc.T("palette.stage.description"),
                 Stage.StageManager.Toggle) { Glyph = Icons.Stage });
+        if (Stage.StageManager.IsOn && (AppCatalog.MatchScore(Loc.T("palette.stage.alias"), query) >= 3
+                                        || AppCatalog.MatchScore(Loc.T("palette.stage.column.alias"), query) >= 3))
+            items.Add(new PaletteItem(Loc.T(Stage.StageManager.AutoHideOn ? "palette.stage.always" : "palette.stage.autohide"),
+                Loc.T("palette.stage.column.description"), Stage.StageManager.ToggleAutoHide) { Glyph = Icons.Stage });
+        if (Stage.StageManager.IsOn && Stage.StageManager.AutoHideOn && (AppCatalog.MatchScore(Loc.T("palette.stage.alias"), query) >= 3
+                                                                         || AppCatalog.MatchScore(Loc.T("palette.stage.peek.alias"), query) >= 3))
+            items.Add(new PaletteItem(Loc.T("palette.stage.peek"), Loc.T("palette.stage.peek.description"), Stage.StageManager.PeekColumn) { Glyph = Icons.Stage });
         if (AppCatalog.MatchScore($"{Loc.T("settings.parametres")} {AppInfo.Name}", query) >= 3 || AppCatalog.MatchScore(Loc.T("palette.settings.alias"), query) >= 3)
             items.Add(new PaletteItem(Loc.F("palette.settings", AppInfo.Name), Loc.T("palette.settings.description"), () => SettingsWindow.Open()) { Glyph = Icons.Settings });
 

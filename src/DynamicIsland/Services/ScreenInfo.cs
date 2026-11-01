@@ -113,7 +113,7 @@ internal static class ScreenInfo
     /// <summary>Écran entièrement couvert par cette fenêtre (plein écran exclusif ou sans bordure), sinon IntPtr.Zero.</summary>
     public static IntPtr CoveredMonitor(IntPtr window)
     {
-        if (!IsOtherAppWindow(window) || DockNative.IsIconic(window) || IsZoomed(window)) return IntPtr.Zero;
+        if (!IsOtherAppWindow(window) || DockNative.IsIconic(window) || IsZoomed(window) || IsOverlay(window)) return IntPtr.Zero;
 
         var monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONULL);
         var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
@@ -148,6 +148,17 @@ internal static class ScreenInfo
     }
 
     /// <summary>Fenêtre visible d'une autre appli (ni l'app elle-même, ni le bureau, ni la barre des tâches).</summary>
+    /// <summary>
+    /// Calque posé par-dessus l'écran (NVIDIA GeForce Overlay, Discord, Steam…) : fenêtre outil ou « jamais active », ou
+    /// transparente aux clics. Il couvre souvent tout l'écran sans être un jeu ni une vidéo — vu chez l'utilisateur : le calque
+    /// NVIDIA (0,0 → 1920×1080) cachait l'île et le dock de l'écran principal et déclenchait le mode Gaming.
+    /// </summary>
+    public static bool IsOverlay(IntPtr window)
+    {
+        const int WS_EX_TRANSPARENT = 0x20, WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000;
+        return (GetWindowLong(window, GWL_EXSTYLE) & (WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE)) != 0;
+    }
+
     public static bool IsOtherAppWindow(IntPtr window)
     {
         if (window == IntPtr.Zero || !DockNative.IsWindowVisible(window)) return false;
