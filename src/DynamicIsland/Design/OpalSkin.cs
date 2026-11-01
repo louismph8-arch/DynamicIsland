@@ -185,6 +185,7 @@ public sealed class OpalSkin
         _milk.Fill = _paint.Milk;
         _grain.Fill = _paint.Grain;
         _grain.Opacity = look.Grain;
+        _grain.Visibility = Animation.MotionPrefs.ReduceTransparency ? Visibility.Collapsed : Visibility.Visible; // O3 : pas de grain
         _topLine.Fill = _paint.TopLine;
         _sweep.Fill = _paint.Sweep;
         _body.BorderBrush = _rimOverride ?? _paint.Rim;
@@ -209,7 +210,7 @@ public sealed class OpalSkin
         _topLine.Visibility = _topLineVisible ? Visibility.Visible : Visibility.Collapsed;
 
         var image = OpalBackdrop.Image;
-        bool show = UsesBackdrop && _backdropEnabled && !_covered && image != null && PlaceBackdrop(image);
+        bool show = UsesBackdrop && _backdropEnabled && !_covered && !Animation.MotionPrefs.ReduceTransparency && image != null && PlaceBackdrop(image);
         _backdrop.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         var smoke = show ? BackdropSmoke() : Veil();
         if (!ReferenceEquals(_smoke.Fill, smoke)) _smoke.Fill = smoke;
@@ -250,7 +251,8 @@ public sealed class OpalSkin
     /// </summary>
     private Brush? Veil()
     {
-        double min = _role switch
+        // « Réduire la transparence » (O3) : verre presque opaque partout, quel que soit le rôle.
+        double min = Animation.MotionPrefs.ReduceTransparency ? Kinetics.OpaqueVeil : _role switch
         {
             OpalRole.Island or OpalRole.FloatingDock => _covered ? Opal.CoveredSmoke : 0,
             OpalRole.Panel => Opal.PanelSmokeMin,
@@ -358,7 +360,7 @@ public sealed class OpalSkin
     /// <param name="target">Taille vers laquelle la forme grandit (île qui s'ouvre) : le reflet va jusqu'au bout.</param>
     public void PlaySweep(Size? target = null)
     {
-        if (!OpalTheme.EffectsOn || !_body.IsVisible || !PrepareSweep(target, out double from, out double to)) return;
+        if (!OpalTheme.EffectsOn || Animation.MotionPrefs.ReduceMotion || !_body.IsVisible || !PrepareSweep(target, out double from, out double to)) return;
         var run = new DoubleAnimation(from, to, Opal.Sweep) { EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
         run.Completed += (_, _) =>
         {

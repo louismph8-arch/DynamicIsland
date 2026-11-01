@@ -1977,5 +1977,15 @@
   "settings.claude.path.filter": "Claude Code (claude.exe, claude.cmd, cli.js)",
   "settings.claude.path.all": "Tous les fichiers",
   "settings.claude.path.invalid": "Ce fichier n'est pas Claude Code. Choisis claude.exe, claude.cmd (avec son dossier node_modules à côté) ou cli.js.",
-  "claude.view.locate": "Choisir Claude Code…"
+  "claude.view.locate": "Choisir Claude Code…",
+  "settings.accessibility.group": "Accessibilité",
+  "settings.reduce_motion": "Réduire les animations",
+  "settings.reduce_motion.desc": "Les ressorts deviennent des fondus courts, sans rebond : pas de cascade à l'ouverture de l'île, ni d'inclinaison des tuiles, ni de pages qui glissent, ni de balayage nacré.",
+  "settings.reduce_transparency": "Réduire la transparence",
+  "settings.reduce_transparency.desc": "Verre opalin presque opaque, sans copie floutée du fond d'écran ni grain : le texte se lit sur n'importe quoi.",
+  "settings.accessibility.follows_windows": "Suit le réglage de Windows : en ce moment, {0}.",
+  "settings.accessibility.overridden": "Choisi ici (Windows dirait : {0}).",
+  "settings.accessibility.on": "oui",
+  "settings.accessibility.off": "non",
+  "settings.accessibility.follow": "Comme Windows"
 }

@@ -43,6 +43,18 @@ internal static class PerfBench
         island.BenchSeason(Season.None, run: false);
         lines.Add("  référence : " + await MeasureAsync());
 
+        // Mouvement (O3) : île ouverte posée = rien ne doit tourner ; puis ouvertures / fermetures animées en continu.
+        island.BenchExpand(true);
+        lines.Add("Île ouverte, sans saison, tout posé (O3) : " + await MeasureAsync() + $", mouvements en cours : {Animation.MotionClock.Count}");
+        island.BenchExpand(false);
+        lines.Add("Île en pilule après la fermeture (O3) : " + await MeasureAsync() + $", mouvements en cours : {Animation.MotionClock.Count}");
+        var toggle = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1.2) };
+        toggle.Tick += (_, _) => island.BenchToggle();
+        toggle.Start();
+        lines.Add("Île qui s'ouvre et se ferme toutes les 1,2 s (morphing + cascade, O3) : " + await MeasureAsync());
+        toggle.Stop();
+        island.BenchExpand(false);
+
         island.BenchSeason(Season.Halloween, run: true);
         island.BenchGaming(true);
         lines.Add("Mode Gaming (Halloween demandé) : " + await MeasureAsync());

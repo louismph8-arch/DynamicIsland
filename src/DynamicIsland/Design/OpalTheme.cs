@@ -37,7 +37,7 @@ public static class OpalTheme
     public static void Apply()
     {
         var style = SettingsStore.Current.Appearance.OpalStyle;
-        string signature = $"{style}|{AppearanceService.AccentStart}|{AppearanceService.AccentEnd}|{AppearanceService.SurfaceBase}|{SettingsStore.Current.Appearance.Opacity:0.00}";
+        string signature = $"{style}|{AppearanceService.AccentStart}|{AppearanceService.AccentEnd}|{AppearanceService.SurfaceBase}|{SettingsStore.Current.Appearance.Opacity:0.00}|{Animation.MotionPrefs.ReduceTransparency}";
         if (signature == _signature) return;
         _signature = signature;
         Look = Opal.For(style);

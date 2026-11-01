@@ -17,8 +17,25 @@ public sealed class Spring(double value)
 
     public bool IsSettled => Value == Target && Velocity == 0;
 
-    /// <summary>Nouvelle cible avec un ressort des tokens (Themes/Tokens : Springs).</summary>
-    public void SetTarget(double target, SpringSpec spec) => SetTarget(target, spec.Stiffness, spec.Damping);
+    /// <summary>
+    /// Nouvelle cible avec un ressort des tokens (Themes/Tokens : Springs). « Réduire les animations » (O3) : le ressort devient un
+    /// amorti court, sans rebond (<see cref="MotionPrefs.Tame"/>) — partout (île, dock, palette…).
+    /// </summary>
+    public void SetTarget(double target, SpringSpec spec)
+    {
+        var used = MotionPrefs.Tame(spec);
+        SetTarget(target, used.Stiffness, used.Damping);
+    }
+
+    /// <summary>Élan donné d'un coup (glissement de page, élastique au bout d'une rangée) : vitesse ajoutée, en unités / s.</summary>
+    public void Impulse(double velocity) => Velocity += velocity;
+
+    /// <summary>Part de cette valeur, sans élan (reprise d'une animation, rendus figés).</summary>
+    public void Jump(double value)
+    {
+        Value = value;
+        Velocity = 0;
+    }
 
     public void SetTarget(double target, double stiffness, double dampingRatio)
     {

@@ -1977,5 +1977,15 @@
   "settings.claude.path.filter": "Claude Code (claude.exe, claude.cmd, cli.js)",
   "settings.claude.path.all": "All files",
   "settings.claude.path.invalid": "This file isn't Claude Code. Choose claude.exe, claude.cmd (with its node_modules folder next to it) or cli.js.",
-  "claude.view.locate": "Choose Claude Code…"
+  "claude.view.locate": "Choose Claude Code…",
+  "settings.accessibility.group": "Accessibility",
+  "settings.reduce_motion": "Reduce motion",
+  "settings.reduce_motion.desc": "Springs become short fades with no bounce: no cascade when the island opens, no tile tilt, no sliding pages, no pearly sweep.",
+  "settings.reduce_transparency": "Reduce transparency",
+  "settings.reduce_transparency.desc": "Nearly opaque opal glass, without the blurred copy of the wallpaper or grain: text stays readable over anything.",
+  "settings.accessibility.follows_windows": "Follows the Windows setting: currently {0}.",
+  "settings.accessibility.overridden": "Set here (Windows would say: {0}).",
+  "settings.accessibility.on": "yes",
+  "settings.accessibility.off": "no",
+  "settings.accessibility.follow": "Like Windows"
 }

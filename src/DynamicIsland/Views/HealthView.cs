@@ -32,6 +32,7 @@ public sealed class HealthView : UserControl
     {
         Width = IslandShape.HealthContentWidth;
         var panel = new StackPanel();
+        Animation.Cascade.SetIsEnabled(_tiles, true); // O3 : les 4 tuiles arrivent une par une
         panel.Children.Add(_tiles);
         panel.Children.Add(_disks);
 

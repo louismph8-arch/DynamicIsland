@@ -4,6 +4,7 @@
         xmlns:t="clr-namespace:DynamicIsland.Themes"
         xmlns:ui="clr-namespace:DynamicIsland.Controls"
              xmlns:controls="clr-namespace:DynamicIsland.Controls"
+             xmlns:a="clr-namespace:DynamicIsland.Animation"
              Width="{x:Static t:IslandShape.ContentWidth}" Height="170">
   <Grid>
     <Grid.RowDefinitions>
@@ -22,7 +23,7 @@
     </StackPanel>
 
     <!-- Tuiles : mode sombre et veilleuse (petites), « Ne pas déranger » (large, avec le temps restant) — 7F -->
-    <Grid Grid.Column="1">
+    <Grid Grid.Column="1" a:Cascade.IsEnabled="True">
       <Grid.RowDefinitions>
         <RowDefinition/>
         <RowDefinition/>

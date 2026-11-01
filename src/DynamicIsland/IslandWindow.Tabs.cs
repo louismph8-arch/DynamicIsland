@@ -150,8 +150,17 @@ public partial class IslandWindow
     /// <summary>Molette sur la rangée d'onglets : elle défile de côté (un ScrollViewer ne le fait pas seul).</summary>
     private void TabScroller_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (TabScroller.HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled) return; // en colonne : défilement normal
-        TabScroller.ScrollToHorizontalOffset(TabScroller.HorizontalOffset - e.Delta / 2.0);
+        if (TabScroller.HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled)
+        {
+            // En colonne : défilement normal ; au bout (O3), la colonne cède un peu puis revient.
+            if ((e.Delta > 0 && TabScroller.VerticalOffset <= 0) || (e.Delta < 0 && TabScroller.VerticalOffset >= TabScroller.ScrollableHeight - 0.5))
+                TabStripOverscroll(e.Delta, vertical: true);
+            return;
+        }
+        double before = TabScroller.HorizontalOffset;
+        TabScroller.ScrollToHorizontalOffset(before - e.Delta / 2.0);
+        if ((e.Delta > 0 && before <= 0) || (e.Delta < 0 && before >= TabScroller.ScrollableWidth - 0.5))
+            TabStripOverscroll(e.Delta, vertical: false); // au-delà du premier / dernier onglet : rebond élastique (O3)
         e.Handled = true;
     }
 }

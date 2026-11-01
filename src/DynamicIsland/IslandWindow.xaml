@@ -4,6 +4,7 @@
         xmlns:t="clr-namespace:DynamicIsland.Themes"
         xmlns:ui="clr-namespace:DynamicIsland.Controls"
         xmlns:views="clr-namespace:DynamicIsland.Views"
+        xmlns:a="clr-namespace:DynamicIsland.Animation"
         Title="Dynamic Island"
         Width="600" Height="340" Left="0" Top="0"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
@@ -204,7 +205,8 @@
               </StackPanel>
               </Grid>
 
-              <Grid Grid.Row="1" Grid.Column="1" Margin="{ui:Space 0,s4,0,0}">
+              <!-- Pages des onglets (O3 : elles glissent d'une page à l'autre ; découpées seulement pendant le glissement) -->
+              <Grid x:Name="TabPages" Grid.Row="1" Grid.Column="1" Margin="{ui:Space 0,s4,0,0}">
                 <views:MusicView x:Name="MusicTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:CalendarTimerView x:Name="CalendarTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
                 <views:ControlCenterView x:Name="ControlTab" HorizontalAlignment="Center" VerticalAlignment="Top"/>
@@ -221,6 +223,9 @@
               </Grid>
             </Grid>
           </Grid>
+
+          <!-- Mouvement (O3) : reflet qui suit le curseur sur une tuile, tuile qui s'agrandit en outil (non cliquable) -->
+          <Canvas x:Name="MotionCanvas" IsHitTestVisible="False" a:MotionLayer.IsHost="True"/>
 
           <!-- Pour le fun (6F) : neige, fantômes, confettis, cœurs par-dessus l'île -->
           <ui:SeasonEffect x:Name="SeasonLayer"/>

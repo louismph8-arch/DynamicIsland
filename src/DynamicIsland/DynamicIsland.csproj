@@ -20,7 +20,7 @@
     <!-- Nom affichÃ© (5H) ; l'exe et les dossiers gardent Â« DynamicIsland Â» (voir AppInfo.cs). -->
     <Product>Opaline</Product>
     <AssemblyTitle>Opaline</AssemblyTitle>
-    <Version>1.33.2</Version>
+    <Version>1.34.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

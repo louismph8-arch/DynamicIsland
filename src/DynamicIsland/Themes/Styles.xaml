@@ -2,7 +2,8 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:t="clr-namespace:DynamicIsland.Themes"
                     xmlns:ui="clr-namespace:DynamicIsland.Controls"
-                    xmlns:o="clr-namespace:DynamicIsland.Design">
+                    xmlns:o="clr-namespace:DynamicIsland.Design"
+                    xmlns:a="clr-namespace:DynamicIsland.Animation">
 
   <!-- Toutes les valeurs viennent des tokens (Themes/Tokens.cs) : ici, seulement des noms et des styles. -->
 
@@ -38,6 +39,9 @@
     <Setter Property="Padding" Value="0"/>
     <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <!-- Mouvement (O3) : le bouton s'enfonce puis rebondit (ressort) au lieu de rétrécir d'un coup -->
+    <Setter Property="a:TileMotion.Press" Value="True"/>
+    <Setter Property="a:TileMotion.PressDepth" Value="{x:Static t:Interaction.PressedScale}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
@@ -52,11 +56,6 @@
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="Overlay" Property="Opacity" Value="{x:Static t:Interaction.PressedOverlay}"/>
-              <Setter TargetName="Root" Property="RenderTransform">
-                <Setter.Value>
-                  <ScaleTransform ScaleX="{x:Static t:Interaction.PressedScale}" ScaleY="{x:Static t:Interaction.PressedScale}"/>
-                </Setter.Value>
-              </Setter>
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter TargetName="Root" Property="Opacity" Value="{x:Static t:Interaction.DisabledOpacity}"/>
@@ -366,13 +365,7 @@
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Overlay" Property="Opacity" Value="{x:Static t:Interaction.SubtleHoverOverlay}"/>
             </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-              <Setter TargetName="Root" Property="RenderTransform">
-                <Setter.Value>
-                  <ScaleTransform ScaleX="{x:Static t:Interaction.SoftPressedScale}" ScaleY="{x:Static t:Interaction.SoftPressedScale}"/>
-                </Setter.Value>
-              </Setter>
-            </Trigger>
+            <!-- Appui : la tuile s'enfonce (~97 %) puis rebondit — ressort de Animation/TileMotion (posé avec OpalTile.Glow) -->
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>

@@ -105,6 +105,9 @@ public enum OpalStyle { Discreet, Balanced, Intense }
 /// <summary>Thème d'Opaline (refonte O2) : verre sombre, « opale blanche » claire, selon le soleil, ou comme les applis de Windows.</summary>
 public enum OpalThemeMode { Dark, Light, Auto, Windows }
 
+/// <summary>Option d'accessibilité (refonte O3) : comme le réglage de Windows (défaut), toujours, ou jamais.</summary>
+public enum AccessibilityChoice { Windows, On, Off }
+
 public sealed class AppearanceSettings
 {
     /// <summary>Accent en dégradé (deux couleurs identiques = couleur unie). Par défaut : bleu → violet.</summary>
@@ -130,6 +133,12 @@ public sealed class AppearanceSettings
     public double DockIconSize { get; set; } = 40;
     /// <summary>Vitesse des animations (1 = normale).</summary>
     public double AnimationSpeed { get; set; } = 1;
+    /// <summary>« Réduire les animations » (O3) : ressorts sans rebond, pas de cascade / inclinaison / glissement / balayage. Défaut :
+    /// comme « Effets d'animation » de Windows.</summary>
+    public AccessibilityChoice ReduceMotion { get; set; } = AccessibilityChoice.Windows;
+    /// <summary>« Réduire la transparence » (O3) : verre opalin presque opaque, sans copie floutée ni grain. Défaut : comme
+    /// « Effets de transparence » de Windows.</summary>
+    public AccessibilityChoice ReduceTransparency { get; set; } = AccessibilityChoice.Windows;
     /// <summary>Effet Mica de Windows 11 sur la fenêtre de paramètres.</summary>
     public bool SystemBackdrop { get; set; } = true;
     /// <summary>Verre liquide sur l'île, la palette et le dock (coupé en mode Gaming).</summary>
@@ -159,6 +168,8 @@ public sealed class AppearanceSettings
         if (!AppearanceColors.TryParse(AccentEnd, out _)) AccentEnd = AccentStart;
         GlowIntensity = Math.Clamp(GlowIntensity, 0, 1);
         Opacity = Math.Clamp(Opacity, 0.5, 1);
+        if (!Enum.IsDefined(ReduceMotion)) ReduceMotion = AccessibilityChoice.Windows;
+        if (!Enum.IsDefined(ReduceTransparency)) ReduceTransparency = AccessibilityChoice.Windows;
         DockOpacity = Math.Clamp(DockOpacity, 0, 1);
         Roundness = Math.Clamp(Roundness, 0, 1);
         DockIconSize = double.IsFinite(DockIconSize) ? Math.Clamp(Math.Round(DockIconSize), DockShape.MinIcon, DockShape.MaxIcon) : 40;

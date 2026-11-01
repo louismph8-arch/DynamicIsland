@@ -34,6 +34,33 @@ public partial class WidgetsView : UserControl
         ModuleGuard.ModuleDisabled += id => { if (id == ModuleGuard.Plugins) BuildPlugins(); };
         ApplySettings();
         UpdateWeather();
+        foreach (var tile in new FrameworkElement[] { CpuTile, RamTile, GpuTile }) HookHealthTile(tile);
+    }
+
+    /// <summary>Onglet Santé affiché (sinon les tuiles ne s'ouvrent pas).</summary>
+    public Func<bool>? CanOpenHealth { get; set; }
+
+    /// <summary>« Ouvrir un outil » (O3) : clic sur une tuile CPU / RAM / GPU → elle s'agrandit en onglet Santé.</summary>
+    public event Action<FrameworkElement>? HealthRequested;
+
+    private void HookHealthTile(FrameworkElement tile)
+    {
+        bool pressed = false;
+        tile.MouseEnter += (_, _) => tile.Cursor = CanOpenHealth?.Invoke() == true ? System.Windows.Input.Cursors.Hand : null;
+        tile.MouseLeftButtonDown += (_, e) =>
+        {
+            if (CanOpenHealth?.Invoke() != true) return; // sinon : on peut faire glisser l'île depuis la tuile, comme avant
+            pressed = true;
+            e.Handled = true;
+        };
+        tile.MouseLeftButtonUp += (_, e) =>
+        {
+            if (!pressed) return;
+            pressed = false;
+            e.Handled = true;
+            if (tile.IsMouseOver) HealthRequested?.Invoke(tile);
+        };
+        tile.MouseLeave += (_, _) => pressed = false;
     }
 
     /// <summary>Hauteur de l'île : une rangée de plus s'il y a des widgets des potes à montrer.</summary>

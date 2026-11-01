@@ -973,6 +973,20 @@ public static class Springs
     public static readonly SpringSpec IntroBubble = new(340, 0.62); // intro : le point devient une bulle
     public static readonly SpringSpec IntroStretch = new(210, 0.66); // intro : la bulle s'étire en pilule
     public static readonly SpringSpec Welcome = new(260, 0.72);     // assistant de bienvenue (fenêtre, logo)
+    // Mouvement (refonte O3)
+    public static readonly SpringSpec MorphWidth = new(290, 0.6);   // ouverture « liquide » : la largeur part d'abord et dépasse un peu
+    public static readonly SpringSpec MorphHeight = new(215, 0.72); // … puis la hauteur, un peu plus molle
+    public static readonly SpringSpec MorphRadius = new(160, 0.86); // … et les coins se détendent en dernier
+    public static readonly SpringSpec CascadeIn = new(420, 0.68);   // un élément du contenu qui arrive (échelle, décalage, flou)
+    public static readonly SpringSpec CascadeOut = new(900, 1);     // fermeture : inverse, plus rapide
+    public static readonly SpringSpec Tilt = new(260, 0.9);         // inclinaison d'une tuile vers la souris (lissée)
+    public static readonly SpringSpec PressDown = new(1100, 0.95);  // la tuile s'enfonce
+    public static readonly SpringSpec PressRelease = new(520, 0.42); // … puis rebondit
+    public static readonly SpringSpec Page = new(300, 0.8);         // page / onglet qui glisse (avec élan)
+    public static readonly SpringSpec PageExit = new(600, 1);       // la page qui part
+    public static readonly SpringSpec Elastic = new(260, 0.62);     // bout d'une rangée : petit rebond élastique
+    public static readonly SpringSpec MorphOpen = new(240, 0.8);    // une tuile s'agrandit en outil (et revient)
+    public static readonly SpringSpec Calm = new(1400, 1);           // « Réduire les animations » : tout ressort devient court, sans rebond
 }
 
 public readonly record struct SpringSpec(double Stiffness, double Damping);
@@ -1008,6 +1022,35 @@ public static class Motion
     public const int DecorativeFrameRate = 30;
     /// <summary>Hauteur du rebond d'une icône du dock.</summary>
     public const double BounceHeight = 18;
+    // Mouvement (refonte O3)
+    public static readonly TimeSpan CascadeStagger = TimeSpan.FromMilliseconds(32);       // décalage entre deux éléments (25–40 ms)
+    public static readonly TimeSpan CascadeStart = TimeSpan.FromMilliseconds(70);         // la forme a commencé à s'ouvrir
+    public static readonly TimeSpan CascadeReverseStagger = TimeSpan.FromMilliseconds(12); // fermeture : plus rapide, ordre inverse
+    public static readonly TimeSpan MorphHeightLag = TimeSpan.FromMilliseconds(45);       // la hauteur part après la largeur
+}
+
+/// <summary>Valeurs du mouvement (refonte O3) : cascade, inclinaison des tuiles, pages, élastique, outils. Voir Animation/.</summary>
+public static class Kinetics
+{
+    public const int CascadeMaxItems = 12;       // au-delà, les éléments arrivent avec le dernier (une longue liste ne traîne pas)
+    public const double CascadeScale = 0.94;     // échelle de départ d'un élément
+    public const double CascadeShift = 8;        // décalage de départ (DIP, vers le bas)
+    public const double CascadeBlur = 6;         // flou de départ (rayon), retiré à la fin
+    public const double CascadeOpaqueAt = 0.6;   // l'élément est entièrement visible à 60 % de son arrivée
+    public const double CascadeRow = 12;         // éléments à moins de 12 DIP de hauteur l'un de l'autre = même rangée (gauche → droite)
+    public const double TiltMax = 2.5;           // inclinaison maximale (degrés)
+    public const double TiltHover = 1.012;       // la tuile survolée grossit à peine
+    public const double TiltShift = 1.2;         // et glisse d'un rien vers la souris (DIP)
+    public const double PressScale = 0.97;       // tuile enfoncée
+    public const double ShineAlpha = 0.16;       // reflet qui suit le curseur (blanc, au centre)
+    public const double ShineAlphaLight = 0.42;  // … en opale blanche (blanc sur nacre : plus présent)
+    public const double ShineRadius = 0.75;      // rayon du reflet, en part du plus grand côté de la tuile
+    public const double PageDistance = 36;       // glissement d'une page (DIP)
+    public const double PageFling = 260;         // élan de la page qui arrive (DIP / s)
+    public const double PageExit = 0.5;          // la page qui part glisse moitié moins loin
+    public const double ElasticMax = 14;         // bout d'une rangée : jamais plus de 14 DIP
+    public const double ElasticGain = 1.6;       // élan donné par un cran de molette (vitesse / delta)
+    public const double OpaqueVeil = 0.95;       // « Réduire la transparence » : voile du verre opalin
 }
 
 /// <summary>Icônes de l'interface (police Lucide, licence ISC — Assets/Fonts/LICENSE-lucide.txt).</summary>

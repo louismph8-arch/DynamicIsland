@@ -181,6 +181,9 @@ public partial class IslandWindow : Window
         {
             if (_expanded && _tab == Tab.Widgets) AnimateTo(ExpandedSize(Tab.Widgets), ExpandedRadius, Springs.Resize);
         };
+        // « Ouvrir un outil » (O3) : une tuile CPU / RAM / GPU s'agrandit en onglet Santé.
+        WidgetsTab.CanOpenHealth = () => HealthTabButton.Visibility == Visibility.Visible;
+        WidgetsTab.HealthRequested += tile => OpenTool(Tab.Health, tile);
         ModuleGuard.ModuleDisabled += _ => HideStoppedTabs();
         FocusService.Changed += UpdateFocusIndicator; // petite lune près de l'heure (7F)
         UpdateFocusIndicator();
@@ -738,7 +741,8 @@ public partial class IslandWindow : Window
         Fade(ExpandedView, 1, Motion.Slow, Motion.Delay);
         ScaleExpanded(1, Motion.Scale);
         var opened = ExpandedSize(_tab);
-        AnimateTo(opened, ExpandedRadius, Springs.Open);
+        MorphTo(opened); // O3 : la pilule « coule » en île (largeur d'abord, puis hauteur, coins qui se détendent)
+        Cascade.Play(ViewOf(_tab), reverse: false); // … et le contenu arrive élément par élément
         _opal.PlaySweep(opened); // balayage nacré (O1) : un reflet traverse l'île qui s'ouvre
         if (SnapshotFolder == null) WatchOpening(prepared);
     }
@@ -784,6 +788,9 @@ public partial class IslandWindow : Window
         NotesTab.IsActive = false;
         ControlTab.IsActive = false;
         SeasonLayer.Wake(open: false); // encore un moment, puis elles se figent
+        _morph?.Finish(); // outil ouvert depuis une tuile : il reste affiché, sans retour animé
+        _morph = null;
+        Cascade.Play(ViewOf(_tab), reverse: true); // O3 : l'inverse de l'ouverture, plus rapide
 
         CompactView.IsHitTestVisible = true;
         ExpandedView.IsHitTestVisible = false;
@@ -868,8 +875,10 @@ public partial class IslandWindow : Window
         else if (sender == NotesTabButton) SelectTab(Tab.Notes);
     }
 
-    private void SelectTab(Tab tab, bool animate = true)
+    /// <param name="slide">Faux : pas de glissement de page (l'outil ouvert depuis une tuile a son propre mouvement).</param>
+    private void SelectTab(Tab tab, bool animate = true, bool slide = true)
     {
+        var previous = _tab;
         _tab = tab;
         _syncingTabs = true;
         MusicTabButton.IsChecked = tab == Tab.Music;
@@ -901,8 +910,10 @@ public partial class IslandWindow : Window
             {
                 view.BeginAnimation(OpacityProperty, null);
                 view.Opacity = visible ? 1 : 0;
+                PageTransition.Stop(view);
             }
         }
+        if (previous != tab) TurnPage(previous, tab, animate, slide);
 
         if (tab == Tab.Control) ControlTab.Refresh();
         ControlTab.IsActive = _expanded && tab == Tab.Control && SnapshotFolder == null; // appareils relus onglet ouvert seulement
@@ -1532,6 +1543,31 @@ public partial class IslandWindow : Window
         _width.SetTarget(size.Width, spring);
         _height.SetTarget(size.Height, spring);
         _radius.SetTarget(radius, spring);
+        _heightLag = 0;
+        StartGeometry();
+    }
+
+    /// <summary>
+    /// Ouverture « liquide » (O3) : la largeur part la première avec un ressort qui dépasse un peu, la hauteur suit
+    /// <see cref="Motion.MorphHeightLag"/> plus tard, plus molle, et les coins se détendent en dernier (l'arrondi est borné par
+    /// la moitié du plus petit côté : il grandit avec la hauteur). Animations réduites : ouverture courte, sans rebond.
+    /// </summary>
+    private void MorphTo(Size size)
+    {
+        if (!MotionPrefs.Rich)
+        {
+            AnimateTo(size, ExpandedRadius, Springs.Open);
+            return;
+        }
+        _width.SetTarget(size.Width, Springs.MorphWidth);
+        _height.SetTarget(size.Height, Springs.MorphHeight);
+        _radius.SetTarget(ExpandedRadius, Springs.MorphRadius);
+        _heightLag = Motion.MorphHeightLag.TotalSeconds;
+        StartGeometry();
+    }
+
+    private void StartGeometry()
+    {
         if (_animating || (_width.IsSettled && _height.IsSettled && _radius.IsSettled)) return;
 
         _animating = true;
@@ -1562,7 +1598,7 @@ public partial class IslandWindow : Window
         _lastFrame = now;
 
         dt *= AppearanceService.Speed; // réglage « Vitesse des animations »
-        bool settled = _width.Step(dt) & _height.Step(dt) & _radius.Step(dt);
+        bool settled = StepGeometry(dt);
         ApplyGeometry();
         if (!settled) return;
 
@@ -1570,10 +1606,24 @@ public partial class IslandWindow : Window
         _animating = false;
     }
 
+    /// <summary>Un pas des ressorts de la forme (la hauteur attend la fin du décalage de l'ouverture liquide).</summary>
+    private bool StepGeometry(double dt)
+    {
+        bool heightSettled;
+        if (_heightLag > 0)
+        {
+            _heightLag -= dt;
+            heightSettled = false;
+        }
+        else heightSettled = _height.Step(dt);
+        return _width.Step(dt) & heightSettled & _radius.Step(dt);
+    }
+
     private void ApplyGeometry()
     {
-        double width = Math.Max(_width.Value, 4);
-        double height = Math.Max(_height.Value, 4); // 6 px en mode Gaming
+        // Le dépassement du ressort ne sort jamais de la fenêtre (marge du halo de chaque côté, place du haut et du bas).
+        double width = Math.Clamp(_width.Value, 4, IslandShape.Window.Width - 2 * IslandShape.EdgeMargin);
+        double height = Math.Clamp(_height.Value, 4, IslandShape.Window.Height - 2 * Space.S4); // 6 px en mode Gaming
         double radius = Math.Clamp(_radius.Value, 0, Math.Min(width, height) / 2);
 
         Island.Width = width;

@@ -35,6 +35,13 @@ public partial class IslandWindow
         FinishAnimations();
     }
 
+    /// <summary>--perf-bench (O3) : ouverture / fermeture animées, comme un survol réel.</summary>
+    internal void BenchToggle()
+    {
+        if (_expanded) Collapse();
+        else Expand();
+    }
+
     internal void BenchGaming(bool on)
     {
         ApplyGaming(on);
@@ -151,6 +158,8 @@ public partial class IslandWindow
             }
         }
 
+        await SnapshotMotionAsync(folder); // mouvement (O3) : cascade à mi-chemin, tuile inclinée / enfoncée
+
         // Minuteur (correctif 19) : éditeur « Perso », puis un minuteur de plus d'une heure (onglet, île réduite).
         SelectTab(Tab.Calendar, animate: false);
         CalendarTab.ShowCustomSample(new TimeSpan(1, 30, 0));
@@ -177,7 +186,9 @@ public partial class IslandWindow
         _width.Snap();
         _height.Snap();
         _radius.Snap();
+        _heightLag = 0;
         ApplyGeometry();
+        Animation.MotionClock.FinishAll(); // cascade, pages, tuiles, outil (O3)
 
         SetFinal(CompactView, _expanded || _gaming ? 0 : 1);
         SetFinal(ExpandedView, _expanded ? 1 : 0);

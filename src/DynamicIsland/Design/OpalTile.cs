@@ -54,6 +54,9 @@ public static class OpalTile
             element.MouseEnter += OnEnter;
             element.MouseLeave += OnLeave;
         }
+        // Mouvement (O3) : la tuile qui s'illumine au survol penche aussi vers la souris et s'enfonce à l'appui.
+        Animation.TileMotion.SetTilt(element, (bool)e.NewValue);
+        Animation.TileMotion.SetPress(element, (bool)e.NewValue);
     }
 
     private static void OnEnter(object sender, System.Windows.Input.MouseEventArgs e)

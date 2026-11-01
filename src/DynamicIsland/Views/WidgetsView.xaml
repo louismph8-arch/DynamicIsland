@@ -4,6 +4,7 @@
         xmlns:t="clr-namespace:DynamicIsland.Themes"
         xmlns:ui="clr-namespace:DynamicIsland.Controls"
         xmlns:o="clr-namespace:DynamicIsland.Design"
+        xmlns:a="clr-namespace:DynamicIsland.Animation"
              Width="{x:Static t:IslandShape.ContentWidth}" Height="{x:Static t:IslandShape.WidgetsContentHeight}">
   <UserControl.Resources>
     <!-- Verre opalin (O1) : tuile laiteuse teintée d'accent, bordure irisée, lueur au survol -->
@@ -53,7 +54,7 @@
       </ScrollViewer.Resources>
       <StackPanel x:Name="PluginStrip" Orientation="Horizontal"/>
     </ScrollViewer>
-    <Grid x:Name="ContentGrid">
+    <Grid x:Name="ContentGrid" a:Cascade.IsEnabled="True">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto"/>
         <ColumnDefinition Width="*"/>
@@ -80,12 +81,12 @@
       </ui:SquircleBorder>
 
       <!-- CPU, RAM, GPU en haut, réseau sur toute la largeur en dessous (les tuiles désactivées sont repliées, voir ApplySettings) -->
-      <Grid x:Name="StatTiles" Grid.Column="1" Margin="{ui:Space 0,0,-s3,-s3}">
+      <Grid x:Name="StatTiles" Grid.Column="1" a:Cascade.IsEnabled="True" Margin="{ui:Space 0,0,-s3,-s3}">
         <Grid.RowDefinitions>
           <RowDefinition x:Name="GaugeRow"/>
           <RowDefinition x:Name="NetworkRow"/>
         </Grid.RowDefinitions>
-        <UniformGrid x:Name="GaugeTiles" Columns="2">
+        <UniformGrid x:Name="GaugeTiles" Columns="2" a:Cascade.IsEnabled="True">
           <ui:SquircleBorder x:Name="CpuTile" Style="{StaticResource Tile}">
             <Grid>
               <TextBlock Style="{StaticResource TileLabel}" Text="CPU"/>

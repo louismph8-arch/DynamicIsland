@@ -528,6 +528,35 @@
             </StackPanel>
           </ui:SquircleBorder>
 
+          <!-- Accessibilité (O3) : chaque option suit Windows par défaut ; l'interrupteur la fixe, « Comme Windows » revient au défaut -->
+          <TextBlock x:Name="AccessibilityGroupTitle" Style="{StaticResource GroupTitle}" Text="{ui:L settings.accessibility.group}"/>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.reduce_motion}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.reduce_motion.desc}"/>
+                <TextBlock x:Name="ReduceMotionSource" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s2,0,0}"/>
+              </StackPanel>
+              <Button x:Name="ReduceMotionFollow" Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s5,0}"
+                      Content="{ui:L settings.accessibility.follow}" Click="AccessibilityFollow_Click"/>
+              <CheckBox x:Name="ReduceMotionToggle" Grid.Column="2" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Accessibility_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+          <ui:SquircleBorder Style="{StaticResource SettingCard}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Style="{StaticResource CardTitle}" Text="{ui:L settings.reduce_transparency}"/>
+                <TextBlock Style="{StaticResource CardDescription}" TextWrapping="Wrap" Text="{ui:L settings.reduce_transparency.desc}"/>
+                <TextBlock x:Name="ReduceTransparencySource" Style="{StaticResource CardDescription}" TextWrapping="Wrap" Margin="{ui:Space 0,s2,0,0}"/>
+              </StackPanel>
+              <Button x:Name="ReduceTransparencyFollow" Grid.Column="1" Style="{StaticResource SettingsButton}" VerticalAlignment="Center" Margin="{ui:Space s5,0}"
+                      Content="{ui:L settings.accessibility.follow}" Click="AccessibilityFollow_Click"/>
+              <CheckBox x:Name="ReduceTransparencyToggle" Grid.Column="2" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" Click="Accessibility_Click"/>
+            </Grid>
+          </ui:SquircleBorder>
+
           <!-- Concentration (7F) : veilleuse = rampe gamma des écrans, désactivée par défaut, toujours remise comme avant -->
           <TextBlock x:Name="FocusGroupTitle" Style="{StaticResource GroupTitle}" Text="{ui:L settings.focus.group}"/>
           <ui:SquircleBorder Style="{StaticResource SettingCard}">

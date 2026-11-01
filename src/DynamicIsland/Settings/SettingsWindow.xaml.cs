@@ -101,6 +101,7 @@ public partial class SettingsWindow : Window
         ShowPlacement(); // île ou dock déplacés en les faisant glisser
         ShowFocus(); // veilleuse allumée depuis l'île, Ne pas déranger depuis la palette…
         ShowOpalStyle(); // intensité du verre opalin choisie dans la démo
+        ShowAccessibility();
         if (ProfilesPage.Visibility == Visibility.Visible) LoadProfiles();
         if (AutomationsPage.Visibility == Visibility.Visible && _sampleRules == null) LoadAutomations(); // règle activée ailleurs, Ne pas déranger…
         if (WeekPage.Visibility == Visibility.Visible) LoadWeek(); // suivi activé ou coupé ailleurs
@@ -288,6 +289,7 @@ public partial class SettingsWindow : Window
         SeasonsToggle.IsChecked = settings.Appearance.Seasons;
         ShowFocus(); // veilleuse et Ne pas déranger (7F)
         ShowOpalStyle(); // verre opalin (O1)
+        ShowAccessibility(); // réduire les animations / la transparence (O3)
 
         UpdateValueTexts();
         _loading = false;
@@ -819,7 +821,11 @@ public partial class SettingsWindow : Window
                 await window.SnapshotScrolledAsync(window.PluginsGroupTitle, Path.Combine(folder, "7-parametres-widgets-potes.png"));
                 await window.SnapshotScrolledAsync(window.PluginList, Path.Combine(folder, "7-parametres-widgets-potes-2.png"));
             }
-            if (page == SettingsPage.Appearance) await window.SnapshotScrolledAsync(window.FocusGroupTitle, Path.Combine(folder, "7-parametres-appearance-concentration.png"));
+            if (page == SettingsPage.Appearance)
+            {
+                await window.SnapshotScrolledAsync(window.AccessibilityGroupTitle, Path.Combine(folder, "7-parametres-appearance-accessibilite.png")); // O3
+                await window.SnapshotScrolledAsync(window.FocusGroupTitle, Path.Combine(folder, "7-parametres-appearance-concentration.png"));
+            }
             if (page == SettingsPage.Island)
             {
                 await window.SnapshotScrolledAsync(window.TimerGroupTitle, Path.Combine(folder, "7-parametres-island-minuteur.png"));
